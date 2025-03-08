@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "MicroPOS Manager",
+    "login": "Login",
+    "logout": "Logout",
+    "register": "Register as Agent"
+  },
+  "nav": {
+    "clients": "Clients List",
+    "addClient": "Add Client",
+    "agents": "Agents List",
+    "addAgent": "Add Agent",
+    "dashboard": "Dashboard"
+  },
+  "dashboard": {
+    "totalClients": "Total Clients",
+    "activeSubscriptions": "Active Subscriptions",
+    "recentClients": "Recent Clients"
+  },
+  "client": {
+    "name": "Client Name",
+    "organization": "Organization Name",
+    "activity": "Activity Type",
+    "phone": "Phone Number",
+    "activationCode": "Activation Code",
+    "subscriptionType": "Subscription Type",
+    "address": "Address",
+    "deviceCount": "Number of Devices",
+    "softwareVersion": "Software Version",
+    "subscriptionStart": "Subscription Start Date",
+    "subscriptionEnd": "Subscription End Date",
+    "notes": "Notes"
+  },
+  "agent": {
+    "fullName": "Full Name",
+    "phone": "Phone Number",
+    "address": "Address",
+    "username": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "auth": {
+    "invalidCredentials": "Invalid email or password"
+  }
+}

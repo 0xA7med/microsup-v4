@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "MicroPOS Manager",
+    "login": "تسجيل الدخول",
+    "logout": "تسجيل الخروج",
+    "register": "تسجيل كمندوب"
+  },
+  "nav": {
+    "clients": "قائمة العملاء",
+    "addClient": "إضافة عميل",
+    "agents": "قائمة المندوبين",
+    "addAgent": "إضافة مندوب",
+    "dashboard": "لوحة التحكم"
+  },
+  "dashboard": {
+    "totalClients": "إجمالي العملاء",
+    "activeSubscriptions": "الاشتراكات النشطة",
+    "recentClients": "آخر العملاء"
+  },
+  "client": {
+    "name": "اسم العميل",
+    "organization": "اسم المؤسسة",
+    "activity": "نوع النشاط",
+    "phone": "رقم الهاتف",
+    "activationCode": "رمز التفعيل",
+    "subscriptionType": "نوع الاشتراك",
+    "address": "العنوان",
+    "deviceCount": "عدد الأجهزة",
+    "softwareVersion": "نوع النسخة",
+    "subscriptionStart": "تاريخ بداية الاشتراك",
+    "subscriptionEnd": "تاريخ نهاية الاشتراك",
+    "notes": "ملاحظات"
+  },
+  "agent": {
+    "fullName": "الاسم الكامل",
+    "phone": "رقم الهاتف",
+    "address": "العنوان",
+    "username": "البريد الإلكتروني (اسم المستخدم)",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور"
+  },
+  "actions": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "add": "إضافة",
+    "edit": "تعديل",
+    "delete": "حذف"
+  },
+  "auth": {
+    "invalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة"
+  }
+}
