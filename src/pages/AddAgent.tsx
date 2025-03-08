@@ -51,7 +51,7 @@ export const AddAgent: React.FC = () => {
         .insert({
           id: authData.user?.id,
           email: formData.email,
-          full_name: formData.full_name,
+          name: formData.full_name,
           role: formData.role,
         });
 
