@@ -31,10 +31,15 @@ export const AddClient: React.FC = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('clients').insert({
+      // إضافة معرف المستخدم الحالي كمالك للعميل
+      const clientData = {
         ...formData,
         agent_id: user?.id,
-      });
+        // إضافة حقل created_by لتتبع من أنشأ العميل
+        created_by: user?.id
+      };
+
+      const { error } = await supabase.from('clients').insert(clientData);
 
       if (error) throw error;
       navigate('/clients');

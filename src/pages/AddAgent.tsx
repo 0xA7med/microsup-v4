@@ -45,6 +45,19 @@ export const AddAgent: React.FC = () => {
 
       if (signUpError) throw signUpError;
 
+      // First, create a record in the users table
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user?.id,
+          email: formData.email,
+          full_name: formData.full_name,
+          role: formData.role,
+        });
+
+      if (userError) throw userError;
+
+      // Then create a record in the agents table
       const { error: profileError } = await supabase
         .from('agents')
         .insert({
