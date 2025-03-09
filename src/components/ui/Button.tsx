@@ -3,7 +3,7 @@ import React from 'react';
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger';
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export default function Button({

@@ -5,6 +5,7 @@ import { AddClient } from './pages/AddClient';
 import { AgentsList } from './pages/AgentsList';
 import { AddAgent } from './pages/AddAgent';
 import PendingAgents from './pages/PendingAgents';
+import { Dashboard } from './pages/Dashboard';
 import { useAuthStore } from './store/authStore';
 
 export const AppRoutes: React.FC = () => {
@@ -13,7 +14,8 @@ export const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/clients" replace />} />
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/clients" element={<ClientsList />} />
       <Route path="/clients/add" element={<AddClient />} />
       
@@ -26,14 +28,14 @@ export const AppRoutes: React.FC = () => {
         </>
       ) : (
         <>
-          <Route path="/agents" element={<Navigate to="/clients" replace />} />
-          <Route path="/agents/add" element={<Navigate to="/clients" replace />} />
-          <Route path="/pending-agents" element={<Navigate to="/clients" replace />} />
+          <Route path="/agents" element={<Navigate to="/" replace />} />
+          <Route path="/agents/add" element={<Navigate to="/" replace />} />
+          <Route path="/pending-agents" element={<Navigate to="/" replace />} />
         </>
       )}
       
       {/* مسار افتراضي للصفحات غير الموجودة */}
-      <Route path="*" element={<Navigate to="/clients" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

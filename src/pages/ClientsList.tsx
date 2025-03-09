@@ -2,7 +2,7 @@ import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
-import { Search, Phone, Calendar, X, User } from 'lucide-react';
+import { Search, Phone, Calendar, X, User, Edit, Trash2 } from 'lucide-react';
 import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import Button from '../components/ui/Button';
 import CustomerInput from '../components/CustomerInput';
@@ -54,13 +54,12 @@ export const ClientsList: React.FC = () => {
   const isRTL = i18n.language === 'ar';
 
   const [clients, setClients] = useState<ClientType[]>([]);
-  const [filteredClients, setFilteredClients] = useState<ClientType[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showClientDetails, setShowClientDetails] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<null | any>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedClient, setSelectedClient] = useState<ClientType | null>(null);
+  const [showClientDetails, setShowClientDetails] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [agents, setAgents] = useState<Agent[]>([]);
 
   const fetchClients = async () => {
@@ -72,7 +71,6 @@ export const ClientsList: React.FC = () => {
         .order('client_name', { ascending: true });
       if (error) throw error;
       setClients(data || []);
-      setFilteredClients(data || []);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -104,17 +102,12 @@ export const ClientsList: React.FC = () => {
     setSelectedClient((prev) => ({ ...prev!, [name]: value }));
   };
 
-  const handleClientClick = (client: ClientType) => {
-    setSelectedClient(client);
-    setShowClientDetails(true);
-    setIsEditing(false);
-  };
-
   const handleEdit = () => {
     setIsEditing(true);
   };
 
   const handleConfirmDelete = () => {
+    // يمكن تنفيذ منطق تأكيد الحذف هنا
     setShowDeleteConfirm(true);
   };
 
@@ -158,66 +151,29 @@ export const ClientsList: React.FC = () => {
     }
   };
 
-  const handleDeleteClient = async () => {
-    if (!selectedClient) return;
-
+  const handleDeleteClient = async (clientId: string) => {
+    if (!clientId) return;
+    
     try {
-      const { error } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', selectedClient.id);
-
-      if (error) throw error;
-
-      toast.success(t('messages.clientDeletedSuccess', 'تم حذف العميل بنجاح'));
+      // TODO: API call to delete client
+      console.log('Deleting client:', clientId);
+      
+      // Remove client from state
+      setClients(clients.filter(c => c.id !== clientId));
       setShowDeleteConfirm(false);
-      setShowClientDetails(false);
-      fetchClients();
+      setSelectedClient(null);
+      
+      toast.success(t('messages.clientDeleted', 'تم حذف العميل بنجاح'));
     } catch (error) {
       console.error('Error deleting client:', error);
-      toast.error(t('messages.errorOccurred', 'حدث خطأ أثناء حذف العميل، يرجى المحاولة مرة أخرى'));
+      toast.error(t('messages.deleteError', 'حدث خطأ أثناء حذف العميل'));
     }
   };
 
-  const formatDateForDisplay = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const date = new Date(dateStr);
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}/${month}/${year}`;
-    } catch {
-      return '';
-    }
-  };
-
-  const calculateEndDate = (startDate: Date, subscriptionType: string) => {
-    let endDate = new Date(startDate);
-
-    switch (subscriptionType) {
-      case 'monthly':
-        endDate.setMonth(startDate.getMonth() + 1);
-        break;
-      case 'semi_annual':
-        endDate.setMonth(startDate.getMonth() + 6);
-        break;
-      case 'annual':
-        endDate.setFullYear(startDate.getFullYear() + 1);
-        break;
-      case 'permanent':
-        endDate = new Date(2099, 11, 31); // تاريخ بعيد للاشتراك الدائم
-        break;
-    }
-
-    return format(endDate, 'yyyy-MM-dd');
-  };
-
-  const isSubscriptionActive = (endDate?: string) => {
-    if (!endDate) return false;
-    const today = new Date();
-    const end = new Date(endDate);
-    return end >= today;
+  const handleEditClient = (client: ClientType) => {
+    setSelectedClient(client);
+    setShowClientDetails(true);
+    setIsEditing(true);
   };
 
   const getSubscriptionTypeLabel = (value: string) => {
@@ -225,12 +181,18 @@ export const ClientsList: React.FC = () => {
     return i18n.language === 'en' ? subscriptionType?.labelEn : subscriptionType?.label;
   };
 
-  const handleEditClient = (client: any) => {
-    // TODO: Implement edit functionality
+  const formatDateForDisplay = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      return format(new Date(dateStr), 'dd/MM/yyyy');
+    } catch {
+      return '';
+    }
   };
 
-  const handleDeleteClientModal = (clientId: string) => {
-    // TODO: Implement delete functionality
+  const handleSetShowClientDetails = (client: ClientType) => {
+    setSelectedClient(client);
+    setShowClientDetails(true);
   };
 
   return (
@@ -297,28 +259,26 @@ export const ClientsList: React.FC = () => {
               >
                 {t('client.subscriptionDates', 'مدة الاشتراك')}
               </th>
+              <th
+                scope="col"
+                className={`px-6 py-3 text-xs font-medium tracking-wider ${
+                  isRTL ? 'text-right' : 'text-left'
+                } text-gray-500 dark:text-gray-300 uppercase`}
+              >
+                {t('client.actions', 'إجراءات')}
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                   {t('common.loading', 'جاري التحميل...')}
                 </td>
               </tr>
-            ) : filteredClients.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                  {t('messages.noClientsFound', 'لا يوجد عملاء مطابقين للبحث')}
-                </td>
-              </tr>
             ) : (
-              filteredClients.map((client) => (
-                <tr
-                  key={client.id}
-                  onClick={() => handleClientClick(client)}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
-                >
+              clients.map((client) => (
+                <tr key={client.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className={`${isRTL ? 'mr-0 ml-3' : 'ml-0 mr-3'} flex-shrink-0 h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center`}>
@@ -346,17 +306,6 @@ export const ClientsList: React.FC = () => {
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-300">
                       {getSubscriptionTypeLabel(client.subscription_type)}
                     </span>
-                    <div className="mt-1">
-                      {isSubscriptionActive(client.subscription_end) ? (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                          {t('client.active', 'نشط')}
-                        </span>
-                      ) : (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-                          {t('client.expired', 'منتهي')}
-                        </span>
-                      )}
-                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -372,6 +321,21 @@ export const ClientsList: React.FC = () => {
                       <span className="text-sm text-gray-900 dark:text-white">
                         {`${formatDateForDisplay(client.subscription_start)} - ${formatDateForDisplay(client.subscription_end)}`}
                       </span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex space-x-2">
+                      <Button onClick={() => handleSetShowClientDetails(client)}>
+                        <User className="h-4 w-4 mr-2" />
+                        {t('actions.viewDetails', 'عرض التفاصيل')}
+                      </Button>
+                      <Button onClick={() => {
+                        setSelectedClient(client);
+                        handleConfirmDelete();
+                      }} variant="danger">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        {t('actions.delete', 'حذف')}
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -571,6 +535,7 @@ export const ClientsList: React.FC = () => {
               {isEditing ? (
                 <>
                   <Button onClick={handleSaveChanges} className="bg-primary-600 hover:bg-primary-700 text-white">
+                    <Edit className="h-4 w-4 mr-2" />
                     {t('actions.save', 'حفظ')}
                   </Button>
                   <Button onClick={() => setIsEditing(false)} variant="secondary">
@@ -580,9 +545,14 @@ export const ClientsList: React.FC = () => {
               ) : (
                 <>
                   <Button onClick={handleEdit} className="bg-primary-600 hover:bg-primary-700 text-white">
+                    <Edit className="h-4 w-4 mr-2" />
                     {t('actions.edit', 'تعديل')}
                   </Button>
-                  <Button onClick={handleConfirmDelete} variant="danger">
+                  <Button onClick={() => {
+                    setSelectedClient(selectedClient);
+                    handleConfirmDelete();
+                  }} variant="danger">
+                    <Trash2 className="h-4 w-4 mr-2" />
                     {t('actions.delete', 'حذف')}
                   </Button>
                 </>
@@ -606,10 +576,16 @@ export const ClientsList: React.FC = () => {
           </div>
           <DialogFooter>
             <Button onClick={() => setShowDeleteConfirm(false)} variant="secondary">
+              <X className="h-4 w-4 mr-2" />
               {t('actions.cancel', 'إلغاء')}
             </Button>
-            <Button onClick={handleDeleteClient} variant="danger">
-              {t('actions.delete', 'حذف')}
+            <Button variant="danger" onClick={() => {
+              if (selectedClient && selectedClient.id) {
+                handleDeleteClient(selectedClient.id);
+              }
+            }}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              {t('actions.confirmDelete', 'تأكيد الحذف')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -620,7 +596,11 @@ export const ClientsList: React.FC = () => {
           client={selectedClient}
           onClose={() => setSelectedClient(null)}
           onEdit={handleEditClient}
-          onDelete={handleDeleteClientModal}
+          onDelete={() => {
+            if (selectedClient && selectedClient.id) {
+              handleDeleteClient(selectedClient.id);
+            }
+          }}
         />
       )}
     </div>

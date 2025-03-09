@@ -13,9 +13,103 @@ export const Dashboard: React.FC = () => {
   const [activeSubscriptions, setActiveSubscriptions] = useState(0);
   const [recentClients, setRecentClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [expiredSubscriptions, setExpiredSubscriptions] = useState(0);
+  const [averageDevices, setAverageDevices] = useState(0);
+  const [renewalRate, setRenewalRate] = useState(0);
+  
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const { count: expiredCount } = await supabase
+  .from('clients')
+  .select('*', { count: 'exact', head: true })
+  .lt('subscription_end', new Date().toISOString());
+
+const { data: allClients } = await supabase
+  .from('clients')
+  .select('device_count');
+
+const totalDevices = allClients?.reduce((acc, client) => acc + (client.device_count || 0), 0) || 0;// إنشاء مكون DataTable جديد
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '../components/ui/table';
+
+<Table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+  <TableHeader>
+    <TableRow>
+      <TableHead>{t('name')}</TableHead>
+      <TableHead>{t('subscriptionType')}</TableHead>
+      <TableHead>{t('devices')}</TableHead>
+      <TableHead>{t('status')}</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    {recentClients.map((client) => (
+      <TableRow key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+        <TableCell className="font-medium">{client.client_name}</TableCell>
+        <TableCell>{t(client.subscription_type || '')}</TableCell>
+        <TableCell>{client.device_count}</TableCell>
+        <TableCell>
+          <span className={`px-2 py-1 rounded-full text-xs ${
+            new Date(client.subscription_end || '') > new Date() 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {new Date(client.subscription_end || '') > new Date() ? t('active') : t('expired')}
+          </span>
+        </TableCell>
+      </TableRow>
+    ))}
+  </TableBody>
+</Table>// إنشاء مكون BackupManager.tsx
+import { supabase } from '../lib/supabase';
+
+export const BackupManager = () => {
+  const createBackup = async () => {
+    const { data } = await supabase
+      .from('clients')
+      .select('*');
+    
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      data,
+    };
+
+    const { error } = await supabase
+      .storage
+      .from('backups')
+      .upload(`clients_${Date.now()}.json`, JSON.stringify(backupData));
+
+    if (!error) toast.success(t('backupCreated'));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Button onClick={createBackup} variant="secondary">
+        <Save className="w-4 h-4 mr-2" />
+        {t('createBackup')}
+      </Button>
+    </div>
+  );
+};// إضافة هذه الأنماط في ملف main.css
+.toast-success {
+  @apply bg-green-100 border-green-500 text-green-700 dark:bg-green-800 dark:text-green-100;
+}
+
+.toast-error {
+  @apply bg-red-100 border-red-500 text-red-700 dark:bg-red-800 dark:text-red-100;
+}
+
+// مثال على استخدام الإشعار
+toast(t('backupSuccess'), {
+  icon: '💾',
+  className: 'toast-success',
+  duration: 4000,
+});
+    async function fetchDashboardData() {
       try {
         // Fetch total clients
         const { count: totalCount } = await supabase
@@ -49,7 +143,7 @@ export const Dashboard: React.FC = () => {
       } finally {
         setLoading(false);
       }
-    };
+    }
 
     fetchDashboardData();
   }, []);
