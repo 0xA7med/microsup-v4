@@ -2,9 +2,6 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "routes": [
-    { "src": "/[^.]+", "dest": "/", "status": 200 }
-  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -15,6 +12,5 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" }
       ]
     }
-  ],
-  "trailingSlash": false
+  ]
 }
