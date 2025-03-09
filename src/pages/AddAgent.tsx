@@ -63,6 +63,9 @@ export const AddAgent: React.FC = () => {
         throw new Error('فشل في إنشاء المستخدم: لم يتم إرجاع معرف المستخدم');
       }
 
+      // إضافة تأخير قصير للتأكد من اكتمال عملية إنشاء المستخدم في auth.users
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       // ثانياً، إنشاء سجل في جدول المستخدمين المخصص
       const { error: userError } = await supabase
         .from('users')
@@ -77,7 +80,31 @@ export const AddAgent: React.FC = () => {
 
       if (userError) {
         console.error('خطأ في إنشاء المستخدم في جدول users:', userError);
-        throw userError;
+        
+        // محاولة إنشاء المستخدم مرة أخرى بعد تأخير إضافي
+        if (userError.code === '23503' && userError.message.includes('users_id_fkey')) {
+          // تأخير إضافي
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          // محاولة ثانية
+          const { error: retryError } = await supabase
+            .from('users')
+            .insert({
+              id: authData.user.id,
+              email: formData.email,
+              name: formData.full_name,
+              role: formData.role,
+              phone: formData.phone,
+              address: formData.address
+            });
+            
+          if (retryError) {
+            console.error('فشلت المحاولة الثانية لإنشاء المستخدم:', retryError);
+            throw retryError;
+          }
+        } else {
+          throw userError;
+        }
       }
 
       // ثالثاً، إنشاء سجل في جدول المندوبين
