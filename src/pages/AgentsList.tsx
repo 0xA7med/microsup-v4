@@ -41,6 +41,7 @@ export const AgentsList = () => {
         const { data: agentsData, error: agentsError } = await supabase
           .from('agents')
           .select('*')
+          .in('role', ['admin', 'agent']) // يشمل المدراء والمندوبين
           .order('created_at', { ascending: false });
         
         if (agentsError) {
