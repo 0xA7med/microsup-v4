@@ -37,16 +37,43 @@
     "address": "العنوان",
     "username": "البريد الإلكتروني (اسم المستخدم)",
     "password": "كلمة المرور",
-    "confirmPassword": "تأكيد كلمة المرور"
+    "confirmPassword": "تأكيد كلمة المرور",
+    "name": "الاسم",
+    "clientsCount": "عدد العملاء",
+    "role": "الدور",
+    "admin": "مدير",
+    "agent": "مندوب"
   },
   "actions": {
     "save": "حفظ",
     "cancel": "إلغاء",
     "add": "إضافة",
     "edit": "تعديل",
-    "delete": "حذف"
+    "delete": "حذف",
+    "search": "بحث",
+    "confirm": "تأكيد",
+    "back": "رجوع"
   },
   "auth": {
     "invalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة"
+  },
+  "dialogs": {
+    "deleteAgent": "حذف المندوب",
+    "deleteAgentConfirm": "هل أنت متأكد من حذف هذا المندوب؟",
+    "agentHasClients": "هذا المندوب لديه عملاء مسجلين. ماذا تريد أن تفعل بهم؟",
+    "transferClients": "نقل العملاء إلى مندوب آخر",
+    "deleteClients": "حذف العملاء المرتبطين",
+    "selectAgent": "اختر المندوب",
+    "noAgentsAvailable": "لا يوجد مندوبين آخرين متاحين"
+  },
+  "messages": {
+    "noAgentsFound": "لا يوجد مندوبين متطابقين مع البحث",
+    "agentDeletedSuccess": "تم حذف المندوب بنجاح",
+    "clientsTransferredSuccess": "تم نقل العملاء بنجاح",
+    "clientsDeletedSuccess": "تم حذف العملاء بنجاح",
+    "errorOccurred": "حدث خطأ، يرجى المحاولة مرة أخرى"
+  },
+  "common": {
+    "actions": "الإجراءات"
   }
 }
