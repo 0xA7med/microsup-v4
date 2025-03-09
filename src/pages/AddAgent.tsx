@@ -8,21 +8,24 @@ import AgentInput from '../components/AgentInput';
 import AgentSelect from '../components/AgentSelect';
 import toast from 'react-hot-toast';
 
-// تعريف نوع المستخدم
-interface UserType {
+// تعريف نوع المندوب
+interface AgentType {
   id?: string;
-  email?: string;
-  name?: string;
+  email: string;
+  name: string;
   phone?: string;
   address?: string;
-  role?: string;
+  role: string;
+  password?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 export const AddAgent: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<Partial<UserType> & { password: string; confirmPassword: string }>({
+  const [formData, setFormData] = useState<AgentType & { confirmPassword: string }>({
     email: '',
     name: '', 
     phone: '',
@@ -50,7 +53,7 @@ export const AddAgent: React.FC = () => {
         throw new Error('يجب تسجيل الدخول كمدير لإضافة مندوب جديد');
       }
 
-      // إنشاء المستخدم في جدول agents مباشرة
+      // إنشاء المندوب في جدول agents مباشرة
       const { error: agentError } = await supabase
         .from('agents')
         .insert({
