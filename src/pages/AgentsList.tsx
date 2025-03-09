@@ -3,21 +3,30 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { User } from '../types/database.types';
+import type { Database } from '../types/database.types';
+
+type Agent = Database['public']['Tables']['users']['Row'];
 
 export const AgentsList: React.FC = () => {
   const { t } = useTranslation();
-  const [agents, setAgents] = useState<User[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        const { data } = await supabase
-          .from('agents')
+        // استعلام للحصول على المندوبين من جدول users حيث role = 'agent' أو 'admin'
+        const { data, error } = await supabase
+          .from('users')
           .select('*')
+          .or('role.eq.agent,role.eq.admin')
           .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching agents:', error);
+          return;
+        }
         
         setAgents(data || []);
       } catch (error) {
@@ -31,8 +40,8 @@ export const AgentsList: React.FC = () => {
   }, []);
 
   const filteredAgents = agents.filter((agent) =>
-    agent.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    agent.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (agent.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (agent.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -77,40 +86,46 @@ export const AgentsList: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
         <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {filteredAgents.map((agent) => (
-            <li key={agent.id}>
-              <div className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary-600 truncate">
-                      {agent.full_name}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      {agent.email}
-                    </p>
+          {filteredAgents.length > 0 ? (
+            filteredAgents.map((agent) => (
+              <li key={agent.id}>
+                <div className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary-600 truncate">
+                        {agent.name}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        {agent.email}
+                      </p>
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          agent.role === 'admin'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}
+                      >
+                        {agent.role}
+                      </span>
+                    </div>
                   </div>
-                  <div className="ml-4 flex-shrink-0">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        agent.role === 'admin'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-green-100 text-green-800'
-                      }`}
-                    >
-                      {agent.role}
-                    </span>
+                  <div className="mt-2 sm:flex sm:justify-between">
+                    <div className="sm:flex">
+                      <p className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        {agent.phone}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-2 sm:flex sm:justify-between">
-                  <div className="sm:flex">
-                    <p className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                      {agent.phone}
-                    </p>
-                  </div>
-                </div>
-              </div>
+              </li>
+            ))
+          ) : (
+            <li className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+              لا يوجد مندوبين متطابقين مع البحث
             </li>
-          ))}
+          )}
         </ul>
       </div>
     </div>

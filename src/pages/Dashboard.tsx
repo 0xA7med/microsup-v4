@@ -2,11 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, ClipboardList } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { Client } from '../types/database.types';
+import type { Database } from '../types/database.types';
+
+type Client = Database['public']['Tables']['clients']['Row'];
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const [totalClients, setTotalClients] = useState(0);
+  const [totalAgents, setTotalAgents] = useState(0);
   const [activeSubscriptions, setActiveSubscriptions] = useState(0);
   const [recentClients, setRecentClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +21,12 @@ export const Dashboard: React.FC = () => {
         const { count: totalCount } = await supabase
           .from('clients')
           .select('*', { count: 'exact', head: true });
+
+        // Fetch total agents
+        const { count: agentsCount } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .or('role.eq.agent,role.eq.admin');
 
         // Fetch active subscriptions
         const { count: activeCount } = await supabase
@@ -33,6 +42,7 @@ export const Dashboard: React.FC = () => {
           .limit(5);
 
         setTotalClients(totalCount || 0);
+        setTotalAgents(agentsCount || 0);
         setActiveSubscriptions(activeCount || 0);
         setRecentClients(recent || []);
       } catch (error) {
@@ -103,7 +113,7 @@ export const Dashboard: React.FC = () => {
         />
         <StatCard
           title={t('nav.agents')}
-          value={0}
+          value={totalAgents}
           icon={<UserPlus className="h-6 w-6 text-white" />}
           color="bg-purple-500"
         />
@@ -117,31 +127,37 @@ export const Dashboard: React.FC = () => {
         </div>
         <div className="border-t border-gray-200 dark:border-gray-700">
           <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-            {recentClients.map((client) => (
-              <li key={client.id} className="px-4 py-4 sm:px-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-primary-600 truncate">
-                      {client.client_name}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {client.organization_name}
-                    </p>
+            {recentClients.length > 0 ? (
+              recentClients.map((client) => (
+                <li key={client.id} className="px-4 py-4 sm:px-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary-600 truncate">
+                        {client.client_name}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {client.organization_name}
+                      </p>
+                    </div>
+                    <div className="mr-4 flex-shrink-0">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          new Date(client.subscription_end || '') > new Date()
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {client.subscription_type}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mr-4 flex-shrink-0">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        new Date(client.subscription_end || '') > new Date()
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {client.subscription_type}
-                    </span>
-                  </div>
-                </div>
+                </li>
+              ))
+            ) : (
+              <li className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                لا يوجد عملاء حتى الآن
               </li>
-            ))}
+            )}
           </ul>
         </div>
       </div>

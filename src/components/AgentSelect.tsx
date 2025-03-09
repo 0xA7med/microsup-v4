@@ -14,7 +14,7 @@ export default function AgentSelect({ icon, className = '', children, ...props }
       )}
       <select
         {...props}
-        className={`mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500 ${
+        className={`mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500 py-3 ${
           icon ? 'pr-10' : ''
         } ${className}`}
         dir="rtl"
