@@ -71,9 +71,21 @@
     "agentDeletedSuccess": "Agent deleted successfully",
     "clientsTransferredSuccess": "Clients transferred successfully",
     "clientsDeletedSuccess": "Clients deleted successfully",
-    "errorOccurred": "An error occurred, please try again"
+    "errorOccurred": "An error occurred, please try again",
+    "futureDateNotAllowed": "Future date is not allowed"
   },
   "common": {
-    "actions": "Actions"
+    "actions": "Actions",
+    "paste": "Paste"
+  },
+  "subscription": {
+    "monthly": "Monthly",
+    "biannual": "Biannual",
+    "annual": "Annual",
+    "permanent": "Permanent"
+  },
+  "software": {
+    "computer": "Computer",
+    "mobile": "Mobile"
   }
 }

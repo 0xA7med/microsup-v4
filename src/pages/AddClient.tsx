@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Monitor, Smartphone, Calendar, Save, X, ArrowRight } from 'lucide-react';
+import { Monitor, Smartphone, Calendar, Save, X, ArrowRight, Clipboard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import { format, isAfter, startOfToday } from 'date-fns';
@@ -30,20 +30,33 @@ interface ClientType {
   created_by?: string;
 }
 
+const SUBSCRIPTION_TYPES = [
+  { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
+  { value: 'biannual', label: 'نصف سنوي', labelEn: 'Biannual' },
+  { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
+  { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
+];
+
+const VERSION_TYPES = [
+  { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer', icon: <Monitor className="h-5 w-5" /> },
+  { value: 'mobile', label: 'موبايل', labelEn: 'Mobile', icon: <Smartphone className="h-5 w-5" /> }
+];
+
 export const AddClient: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const [loading, setLoading] = useState(false);
   const today = startOfToday();
   const [dateInputValue, setDateInputValue] = useState('');
+  const isRTL = i18n.language === 'ar';
 
   const [formData, setFormData] = useState<Partial<ClientType>>({
     client_name: '',
     organization_name: '',
     activity_type: '',
     phone: '',
-    activation_code: '', // جعل حقل رمز التفعيل فارغًا بشكل افتراضي
+    activation_code: '', 
     subscription_type: 'monthly',
     address: '',
     device_count: 1,
@@ -66,14 +79,14 @@ export const AddClient: React.FC = () => {
         case 'monthly':
           endDate.setMonth(startDate.getMonth() + 1);
           break;
-        case 'semi_annual':
+        case 'biannual':
           endDate.setMonth(startDate.getMonth() + 6);
           break;
         case 'annual':
           endDate.setFullYear(startDate.getFullYear() + 1);
           break;
         case 'permanent':
-          endDate = new Date(2099, 11, 31); // تاريخ بعيد للاشتراك الدائم
+          endDate = new Date(2099, 11, 31); 
           break;
       }
 
@@ -98,40 +111,53 @@ export const AddClient: React.FC = () => {
   };
 
   const handleDateInput = (value: string) => {
-    let cleanValue = value.replace(/[^\d/]/g, '');
-
-    if (cleanValue.length === 2 && !cleanValue.includes('/')) {
-      cleanValue = cleanValue + '/';
-    } else if (cleanValue.length === 5 && cleanValue.split('/').length === 2) {
-      cleanValue = cleanValue + '/';
-    }
-
-    cleanValue = cleanValue.slice(0, 10);
-
-    setDateInputValue(cleanValue);
-
-    if (cleanValue.length === 10) {
-      const [day, month, year] = cleanValue.split('/');
-      try {
-        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-
-        if (!isNaN(date.getTime())) {
+    setDateInputValue(value);
+    try {
+      const dateParts = value.split('/');
+      if (dateParts.length === 3) {
+        const day = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1; 
+        const year = parseInt(dateParts[2], 10);
+        
+        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+          const date = new Date(year, month, day);
+          
           if (isAfter(date, today)) {
-            toast.error(t('subscription.futureDateError', 'تاريخ البدء لا يمكن أن يكون في المستقبل'));
+            toast.error(t('messages.futureDateNotAllowed', 'لا يمكن إدخال تاريخ مستقبلي'));
             return;
           }
-
-          handleChange({
-            target: {
-              name: 'subscription_start',
-              value: format(date, 'yyyy-MM-dd'),
-            },
-          } as React.ChangeEvent<HTMLInputElement>);
+          
+          setFormData((prev) => ({
+            ...prev,
+            subscription_start: format(date, 'yyyy-MM-dd'),
+            subscription_end: calculateEndDate(date, prev.subscription_type || 'monthly')
+          }));
         }
-      } catch {
-        // Invalid date, do nothing
       }
+    } catch (error) {
+      console.error('Error parsing date:', error);
     }
+  };
+
+  const calculateEndDate = (startDate: Date, subscriptionType: string) => {
+    let endDate = new Date(startDate);
+
+    switch (subscriptionType) {
+      case 'monthly':
+        endDate.setMonth(startDate.getMonth() + 1);
+        break;
+      case 'biannual':
+        endDate.setMonth(startDate.getMonth() + 6);
+        break;
+      case 'annual':
+        endDate.setFullYear(startDate.getFullYear() + 1);
+        break;
+      case 'permanent':
+        endDate = new Date(2099, 11, 31); 
+        break;
+    }
+
+    return endDate.toISOString().split('T')[0];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -139,11 +165,9 @@ export const AddClient: React.FC = () => {
     setLoading(true);
 
     try {
-      // إضافة معرف المستخدم الحالي كمالك للعميل
       const clientData = {
         ...formData,
         agent_id: user?.id,
-        // إضافة حقل created_by لتتبع من أنشأ العميل
         created_by: user?.id,
       };
 
@@ -174,44 +198,22 @@ export const AddClient: React.FC = () => {
     }
   };
 
-  const SUBSCRIPTION_TYPES = [
-    { value: 'monthly', label: t('subscription.monthly', 'شهري') },
-    { value: 'semi_annual', label: t('subscription.semiannual', 'نصف سنوي') },
-    { value: 'annual', label: t('subscription.annual', 'سنوي') },
-    { value: 'permanent', label: t('subscription.permanent', 'دائم') },
-  ];
-
-  const VERSION_TYPES = [
-    { value: 'computer', label: t('customer.pc', 'كمبيوتر') },
-    { value: 'android', label: t('customer.android', 'أندرويد') },
-  ];
-
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg mb-6">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 rounded-t-lg flex justify-between items-center">
-          <h1 className="text-xl font-bold text-white flex items-center">
-            {t('nav.addClient', 'إضافة عميل مشترك جديد')}
-          </h1>
-          <div className="flex items-center">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="text-white hover:text-gray-200 ml-2 flex items-center"
-              title="الرجوع إلى لوحة التحكم"
-            >
-              <ArrowRight size={20} />
-              <span className="mr-1">لوحة التحكم</span>
-            </button>
-            <button
-              onClick={() => navigate('/clients')}
-              className="text-white hover:text-gray-200"
-              title="إغلاق"
-            >
-              <X size={24} />
-            </button>
-          </div>
-        </div>
+    <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg max-w-5xl mx-auto">
+      <div className="border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+          {t('nav.addClient', 'إضافة عميل')}
+        </h2>
+        <button
+          onClick={() => navigate('/clients')}
+          className="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
+        >
+          <span className="mr-1">{t('actions.back', 'رجوع')}</span>
+          <ArrowRight className={`h-4 w-4 ${isRTL ? 'transform rotate-180' : ''}`} />
+        </button>
+      </div>
 
+      <div className="p-4">
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* اسم العميل */}
@@ -223,7 +225,7 @@ export const AddClient: React.FC = () => {
                 value={formData.client_name}
                 onChange={handleChange}
                 isEditing={true}
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -236,7 +238,7 @@ export const AddClient: React.FC = () => {
                 value={formData.organization_name}
                 onChange={handleChange}
                 isEditing={true}
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -249,7 +251,7 @@ export const AddClient: React.FC = () => {
                 value={formData.activity_type}
                 onChange={handleChange}
                 isEditing={true}
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -263,7 +265,7 @@ export const AddClient: React.FC = () => {
                 onChange={handleChange}
                 isEditing={true}
                 dir="ltr"
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -276,7 +278,7 @@ export const AddClient: React.FC = () => {
                 value={formData.address}
                 onChange={handleChange}
                 isEditing={true}
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -290,16 +292,18 @@ export const AddClient: React.FC = () => {
                   value={formData.activation_code}
                   onChange={handleChange}
                   isEditing={true}
-                  placeholder="تلقائي"
-                  className="h-12 text-lg" // تكبير حقل الإدخال
+                  className="h-12 text-lg flex-grow border-gray-300 dark:border-gray-600"
                 />
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={handlePaste}
-                  className="flex-shrink-0 h-12" // زيادة ارتفاع الزر
+                  className="flex-shrink-0 h-12 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
                   children={
-                    <span>{t('common.paste', 'لصق')}</span>
+                    <span className="flex items-center">
+                      <Clipboard className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                      {t('common.paste', 'لصق')}
+                    </span>
                   }
                 />
               </div>
@@ -314,16 +318,16 @@ export const AddClient: React.FC = () => {
                   onChange={handleChange}
                   required
                   isEditing={true}
-                  className="h-12 text-lg" // تكبير حقل الاختيار
+                  className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   children={
                     SUBSCRIPTION_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>
-                        {type.label}
+                        {i18n.language === 'en' ? type.labelEn : type.label}
                       </option>
                     ))
                   }
                 />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <div className={`absolute inset-y-0 ${isRTL ? 'left-0 pl-3' : 'right-0 pr-3'} flex items-center pointer-events-none`}>
                   <Calendar className="h-5 w-5 text-gray-400" />
                 </div>
               </div>
@@ -331,29 +335,26 @@ export const AddClient: React.FC = () => {
 
             {/* نوع النسخة */}
             <CustomerField label={t('client.softwareVersion', 'نوع النسخة')} children={
-              <div className="relative">
-                <CustomerSelect
-                  name="software_version"
-                  value={formData.software_version}
-                  onChange={handleChange}
-                  required
-                  isEditing={true}
-                  className="h-12 text-lg" // تكبير حقل الاختيار
-                  children={
-                    VERSION_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))
-                  }
-                />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  {formData.software_version === 'computer' ? (
-                    <Monitor className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <Smartphone className="h-5 w-5 text-gray-400" />
-                  )}
-                </div>
+              <div className="flex gap-2">
+                {VERSION_TYPES.map((type) => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    className={`flex-1 h-12 flex items-center justify-center rounded-md border ${
+                      formData.software_version === type.value
+                        ? 'bg-primary-100 border-primary-500 text-primary-700 dark:bg-primary-900 dark:border-primary-400 dark:text-primary-300'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-600'
+                    }`}
+                    onClick={() => handleChange({ target: { name: 'software_version', value: type.value } } as any)}
+                  >
+                    <span className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                      {type.icon}
+                      <span className={isRTL ? 'mr-2' : 'ml-2'}>
+                        {i18n.language === 'en' ? type.labelEn : type.label}
+                      </span>
+                    </span>
+                  </button>
+                ))}
               </div>
             } />
 
@@ -367,7 +368,7 @@ export const AddClient: React.FC = () => {
                 value={String(formData.device_count)}
                 onChange={handleChange}
                 isEditing={true}
-                className="h-12 text-lg" // تكبير حقل الإدخال
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
 
@@ -382,13 +383,16 @@ export const AddClient: React.FC = () => {
                   onChange={(e) => handleDateInput(e.target.value)}
                   isEditing={true}
                   placeholder="DD/MM/YYYY"
-                  className="h-12 text-lg" // تكبير حقل الإدخال
+                  className="h-12 text-lg border-gray-300 dark:border-gray-600"
                 />
                 <input
                   type="hidden"
                   name="subscription_start"
                   value={formData.subscription_start || ''}
                 />
+                <div className={`absolute inset-y-0 ${isRTL ? 'left-0 pl-3' : 'right-0 pr-3'} flex items-center pointer-events-none`}>
+                  <Calendar className="h-5 w-5 text-gray-400" />
+                </div>
               </div>
             } />
 
@@ -401,14 +405,14 @@ export const AddClient: React.FC = () => {
                   value={formatDateForDisplay(formData.subscription_end) || ''}
                   isEditing={false}
                   readOnly
-                  className="h-12 text-lg bg-gray-100" // تكبير حقل الإدخال وتغيير لونه
+                  className="h-12 text-lg bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
                 />
                 <input
                   type="hidden"
                   name="subscription_end"
                   value={formData.subscription_end || ''}
                 />
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <div className={`absolute inset-y-0 ${isRTL ? 'left-0 pl-3' : 'right-0 pr-3'} flex items-center pointer-events-none`}>
                   <Calendar className="h-5 w-5 text-gray-400" />
                 </div>
               </div>
@@ -422,7 +426,7 @@ export const AddClient: React.FC = () => {
                 onChange={handleChange}
                 rows={4}
                 isEditing={true}
-                className="text-lg" // تكبير حقل النص
+                className="text-lg border-gray-300 dark:border-gray-600"
               />
             } />
           </div>
@@ -433,10 +437,10 @@ export const AddClient: React.FC = () => {
               type="button"
               variant="secondary"
               onClick={() => navigate('/clients')}
-              className="flex items-center h-12 px-6" // زيادة حجم الزر
+              className="flex items-center h-12 px-6"
               children={
-                <span>
-                  <X className="h-5 w-5 ml-2" />
+                <span className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <X className={`h-5 w-5 ${isRTL ? 'mr-2' : 'ml-2'}`} />
                   {t('actions.cancel', 'إلغاء')}
                 </span>
               }
@@ -445,10 +449,10 @@ export const AddClient: React.FC = () => {
               type="submit"
               variant="primary"
               disabled={loading}
-              className="flex items-center h-12 px-6" // زيادة حجم الزر
+              className="flex items-center h-12 px-6"
               children={
-                <span>
-                  <Save className="h-5 w-5 ml-2" />
+                <span className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <Save className={`h-5 w-5 ${isRTL ? 'mr-2' : 'ml-2'}`} />
                   {t('actions.save', 'حفظ')}
                 </span>
               }

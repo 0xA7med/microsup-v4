@@ -71,9 +71,21 @@
     "agentDeletedSuccess": "تم حذف المندوب بنجاح",
     "clientsTransferredSuccess": "تم نقل العملاء بنجاح",
     "clientsDeletedSuccess": "تم حذف العملاء بنجاح",
-    "errorOccurred": "حدث خطأ، يرجى المحاولة مرة أخرى"
+    "errorOccurred": "حدث خطأ، يرجى المحاولة مرة أخرى",
+    "futureDateNotAllowed": "لا يمكن إدخال تاريخ مستقبلي"
   },
   "common": {
-    "actions": "الإجراءات"
+    "actions": "الإجراءات",
+    "paste": "لصق"
+  },
+  "subscription": {
+    "monthly": "شهري",
+    "biannual": "نصف سنوي",
+    "annual": "سنوي",
+    "permanent": "دائم"
+  },
+  "software": {
+    "computer": "كمبيوتر",
+    "mobile": "موبايل"
   }
 }
