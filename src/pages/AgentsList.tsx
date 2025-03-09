@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
-import { PlusCircle, Search } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { PlusCircle, Search, Edit, Trash } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Agent = {
@@ -16,6 +16,7 @@ type Agent = {
 
 export const AgentsList: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,7 +48,7 @@ export const AgentsList: React.FC = () => {
 
   const filteredAgents = agents.filter((agent) =>
     (agent.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (agent.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    (agent.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -90,49 +91,57 @@ export const AgentsList: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {filteredAgents.length > 0 ? (
-            filteredAgents.map((agent) => (
-              <li key={agent.id}>
-                <div className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-primary-600 truncate">
-                        {agent.name}
-                      </p>
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {agent.email}
-                      </p>
-                    </div>
-                    <div className="ml-4 flex-shrink-0">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          agent.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}
-                      >
-                        {agent.role}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-2 sm:flex sm:justify-between">
-                    <div className="sm:flex">
-                      <p className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        {agent.phone}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))
-          ) : (
-            <li className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-              لا يوجد مندوبين متطابقين مع البحث
-            </li>
-          )}
-        </ul>
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white dark:bg-gray-800">
+          <thead>
+            <tr>
+              <th className="px-6 py-3 border-b-2 border-gray-300 dark:border-gray-700 text-left text-xs leading-4 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('agent.name')}
+              </th>
+              <th className="px-6 py-3 border-b-2 border-gray-300 dark:border-gray-700 text-left text-xs leading-4 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('agent.address')}
+              </th>
+              <th className="px-6 py-3 border-b-2 border-gray-300 dark:border-gray-700 text-left text-xs leading-4 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('agent.phone')}
+              </th>
+              <th className="px-6 py-3 border-b-2 border-gray-300 dark:border-gray-700 text-left text-xs leading-4 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('agent.clientsCount')}
+              </th>
+              <th className="px-6 py-3 border-b-2 border-gray-300 dark:border-gray-700 text-left text-xs leading-4 font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {t('actions')}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800">
+            {filteredAgents.map((agent) => (
+              <tr key={agent.id} className="hover:bg-gray-100 dark:hover:bg-gray-700">
+                <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 font-medium text-gray-900 dark:text-white">
+                  <button onClick={() => navigate(`/clients?agent_id=${agent.id}`)} className="text-primary-600 hover:text-primary-900">
+                    {agent.name}
+                  </button>
+                </td>
+                <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 text-gray-500 dark:text-gray-400">
+                  {agent.address}
+                </td>
+                <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 text-gray-500 dark:text-gray-400">
+                  {agent.phone}
+                </td>
+                <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 text-gray-500 dark:text-gray-400">
+                  {/* Placeholder for clients count, needs implementation */}
+                  0
+                </td>
+                <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 font-medium">
+                  <button className="text-indigo-600 hover:text-indigo-900">
+                    <Edit className="h-5 w-5" />
+                  </button>
+                  <button className="ml-4 text-red-600 hover:text-red-900">
+                    <Trash className="h-5 w-5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
