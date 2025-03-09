@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Save, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
 
 // تعريف نوع المستخدم
 interface UserType {
@@ -18,13 +19,14 @@ interface UserType {
 export const AddAgent: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Partial<UserType> & { password: string; confirmPassword: string }>({
     email: '',
     full_name: '',
     phone: '',
     address: '',
-    role: 'agent',
+    role: 'agent', // القيمة الافتراضية هي مندوب
     password: '',
     confirmPassword: '',
   });
@@ -42,89 +44,34 @@ export const AddAgent: React.FC = () => {
     setLoading(true);
 
     try {
-      // أولاً، إنشاء المستخدم في نظام المصادقة (auth.users)
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: formData.email!,
-        password: formData.password!,
-        options: {
-          data: {
-            full_name: formData.full_name,
-            role: formData.role,
-          },
-        },
-      });
-
-      if (signUpError) {
-        console.error('خطأ في إنشاء المستخدم في نظام المصادقة:', signUpError);
-        throw signUpError;
+      // التحقق من وجود المستخدم الحالي
+      if (!user) {
+        throw new Error('يجب تسجيل الدخول كمدير لإضافة مندوب جديد');
       }
 
-      if (!authData.user?.id) {
-        throw new Error('فشل في إنشاء المستخدم: لم يتم إرجاع معرف المستخدم');
-      }
-
-      // إضافة تأخير قصير للتأكد من اكتمال عملية إنشاء المستخدم في auth.users
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // ثانياً، إنشاء سجل في جدول المستخدمين المخصص
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: formData.email,
-          name: formData.full_name, // استخدام name بدلاً من full_name
-          role: formData.role,
-          phone: formData.phone,
-          address: formData.address
-        });
-
-      if (userError) {
-        console.error('خطأ في إنشاء المستخدم في جدول users:', userError);
-        
-        // محاولة إنشاء المستخدم مرة أخرى بعد تأخير إضافي
-        if (userError.code === '23503' && userError.message.includes('users_id_fkey')) {
-          // تأخير إضافي
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          
-          // محاولة ثانية
-          const { error: retryError } = await supabase
-            .from('users')
-            .insert({
-              id: authData.user.id,
-              email: formData.email,
-              name: formData.full_name,
-              role: formData.role,
-              phone: formData.phone,
-              address: formData.address
-            });
-            
-          if (retryError) {
-            console.error('فشلت المحاولة الثانية لإنشاء المستخدم:', retryError);
-            throw retryError;
-          }
-        } else {
-          throw userError;
-        }
-      }
-
-      // ثالثاً، إنشاء سجل في جدول المندوبين
-      const { error: profileError } = await supabase
+      // إنشاء المستخدم في جدول agents مباشرة بدون المرور بجدول users
+      const { error: agentError } = await supabase
         .from('agents')
         .insert({
-          id: authData.user?.id,
           email: formData.email,
-          full_name: formData.full_name,
+          name: formData.full_name,
           phone: formData.phone,
           address: formData.address,
           role: formData.role,
+          password: formData.password, // سيتم تشفير كلمة المرور في قاعدة البيانات
+          created_by: user.id
         });
 
-      if (profileError) throw profileError;
+      if (agentError) {
+        console.error('خطأ في إنشاء المندوب:', agentError);
+        throw agentError;
+      }
 
+      // نجاح العملية
       navigate('/agents');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding agent:', err);
-      setError('Failed to create agent account');
+      setError(err.message || 'حدث خطأ أثناء إضافة المندوب');
     } finally {
       setLoading(false);
     }
@@ -139,131 +86,130 @@ export const AddAgent: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="md:flex md:items-center md:justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-          {t('nav.addAgent')}
-        </h1>
-      </div>
-
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 space-y-6">
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900 border-l-4 border-red-400 p-4">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <X className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700 dark:text-red-200">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.fullName')}
-            </label>
-            <input
-              type="text"
-              name="full_name"
-              value={formData.full_name}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.username')}
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.phone')}
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.address')}
-            </label>
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.password')}
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              minLength={6}
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              {t('agent.confirmPassword')}
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              minLength={6}
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-primary-500 focus:ring-primary-500"
-            />
-          </div>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">{t('add_agent')}</h1>
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+      <form onSubmit={handleSubmit} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+            {t('email')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="email"
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+          />
         </div>
-
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={() => navigate('/agents')}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="full_name">
+            {t('full_name')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="full_name"
+            type="text"
+            name="full_name"
+            value={formData.full_name}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phone">
+            {t('phone')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="phone"
+            type="text"
+            name="phone"
+            value={formData.phone}
+            onChange={handleChange}
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="address">
+            {t('address')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="address"
+            type="text"
+            name="address"
+            value={formData.address}
+            onChange={handleChange}
+          />
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="role">
+            {t('role')}
+          </label>
+          <select
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="role"
+            name="role"
+            value={formData.role}
+            onChange={handleChange}
+            required
           >
-            <X className="h-4 w-4 mr-2" />
-            {t('actions.cancel')}
-          </button>
+            <option value="agent">{t('agent')}</option>
+            <option value="admin">{t('admin')}</option>
+          </select>
+        </div>
+        <div className="mb-4">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+            {t('password')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="password"
+            type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="mb-6">
+          <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="confirmPassword">
+            {t('confirm_password')}
+          </label>
+          <input
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            id="confirmPassword"
+            type="password"
+            name="confirmPassword"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="flex items-center justify-between">
           <button
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
             type="submit"
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
           >
-            <Save className="h-4 w-4 mr-2" />
-            {t('actions.save')}
+            {loading ? (
+              <span className="mr-2">{t('loading')}</span>
+            ) : (
+              <>
+                <Save className="mr-2" size={16} />
+                {t('save')}
+              </>
+            )}
+          </button>
+          <button
+            className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+            type="button"
+            onClick={() => navigate('/agents')}
+          >
+            <X className="mr-2" size={16} />
+            {t('cancel')}
           </button>
         </div>
       </form>
