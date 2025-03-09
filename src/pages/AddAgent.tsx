@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { User, Phone, MapPin, Mail, Lock, UserPlus, X, UserCog } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
@@ -24,6 +24,9 @@ interface AgentType {
 export const AddAgent: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
+  
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AgentType & { confirmPassword: string }>({
     email: '',
@@ -35,14 +38,55 @@ export const AddAgent: React.FC = () => {
     confirmPassword: '',
   });
   const [error, setError] = useState('');
+  const [fetchingAgent, setFetchingAgent] = useState(isEditMode);
+
+  // جلب بيانات المندوب في حالة التعديل
+  useEffect(() => {
+    if (isEditMode) {
+      const fetchAgent = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('agents')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error) throw error;
+          
+          if (data) {
+            setFormData({
+              id: data.id,
+              email: data.email,
+              name: data.name,
+              phone: data.phone || '',
+              address: data.address || '',
+              role: data.role,
+              password: '', // لا نقوم بجلب كلمة المرور لأسباب أمنية
+              confirmPassword: '',
+            });
+          }
+        } catch (error: any) {
+          console.error('Error fetching agent:', error);
+          toast.error('فشل جلب بيانات المندوب');
+        } finally {
+          setFetchingAgent(false);
+        }
+      };
+
+      fetchAgent();
+    }
+  }, [id, isEditMode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    if (formData.password !== formData.confirmPassword) {
-      setError('كلمات المرور غير متطابقة');
-      return;
+    // التحقق من كلمة المرور فقط إذا كنا في وضع الإضافة أو تم تغيير كلمة المرور في وضع التعديل
+    if (!isEditMode || (formData.password && formData.password.length > 0)) {
+      if (formData.password !== formData.confirmPassword) {
+        setError('كلمات المرور غير متطابقة');
+        return;
+      }
     }
 
     setLoading(true);
@@ -50,34 +94,54 @@ export const AddAgent: React.FC = () => {
     try {
       // التحقق من وجود المستخدم الحالي
       if (!user) {
-        throw new Error('يجب تسجيل الدخول كمدير لإضافة مندوب جديد');
+        throw new Error('يجب تسجيل الدخول كمدير لإضافة أو تعديل مندوب');
       }
 
-      // إنشاء المندوب في جدول agents مباشرة
-      const { error: agentError } = await supabase
-        .from('agents')
-        .insert({
-          email: formData.email,
-          name: formData.name, 
-          phone: formData.phone,
-          address: formData.address,
-          role: formData.role,
-          password: formData.password, 
-          created_by: user.id
-        });
+      // تحضير البيانات للإرسال
+      const agentData: Record<string, any> = {
+        email: formData.email,
+        name: formData.name, 
+        phone: formData.phone,
+        address: formData.address,
+        role: formData.role,
+      };
 
-      if (agentError) {
-        console.error('خطأ في إنشاء المندوب:', agentError);
-        throw agentError;
+      // إضافة كلمة المرور فقط إذا تم تغييرها
+      if (formData.password && formData.password.length > 0) {
+        agentData.password = formData.password;
       }
 
-      // نجاح العملية
-      toast.success('تم إضافة المندوب بنجاح');
+      let result;
+      
+      if (isEditMode) {
+        // تحديث المندوب الموجود
+        result = await supabase
+          .from('agents')
+          .update(agentData)
+          .eq('id', id);
+        
+        if (result.error) throw result.error;
+        
+        toast.success('تم تحديث بيانات المندوب بنجاح');
+      } else {
+        // إضافة created_by فقط عند إنشاء مندوب جديد
+        agentData.created_by = user.id;
+        
+        // إنشاء مندوب جديد
+        result = await supabase
+          .from('agents')
+          .insert(agentData);
+        
+        if (result.error) throw result.error;
+        
+        toast.success('تم إضافة المندوب بنجاح');
+      }
+      
       navigate('/agents');
     } catch (err: any) {
-      console.error('Error adding agent:', err);
-      toast.error(err.message || 'حدث خطأ أثناء إضافة المندوب');
-      setError(err.message || 'حدث خطأ أثناء إضافة المندوب');
+      console.error('Error saving agent:', err);
+      toast.error(err.message || 'حدث خطأ أثناء حفظ بيانات المندوب');
+      setError(err.message || 'حدث خطأ أثناء حفظ بيانات المندوب');
     } finally {
       setLoading(false);
     }
@@ -85,157 +149,175 @@ export const AddAgent: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((prevState: typeof formData) => ({
+      ...prevState,
       [name]: value,
     }));
   };
+
+  if (fetchingAgent) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg mb-6">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-4 rounded-t-lg flex justify-between items-center">
           <h1 className="text-xl font-bold text-white flex items-center">
-            <UserPlus className="ml-2" size={24} />
-            إضافة مندوب
+            {isEditMode ? (
+              <>
+                <UserCog className="ml-2" size={24} />
+                تعديل بيانات المندوب
+              </>
+            ) : (
+              <>
+                <UserPlus className="ml-2" size={24} />
+                إضافة مندوب
+              </>
+            )}
           </h1>
-          <div className="text-sm text-white/80">
-            أدخل معلومات المندوب
-          </div>
+          <button 
+            onClick={() => navigate('/agents')}
+            className="text-white hover:text-gray-200"
+          >
+            <X size={24} />
+          </button>
         </div>
-
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/30 border-r-4 border-red-500 text-red-700 dark:text-red-200 p-4 m-4">
-            <p>{error}</p>
-          </div>
-        )}
-
+        
         <form onSubmit={handleSubmit} className="p-6">
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-              <User className="ml-2" size={20} />
-              المعلومات الشخصية
-            </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">أدخل معلومات المندوب</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <AgentField label="الاسم الكامل">
+          {error && (
+            <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <AgentField label="الاسم الكامل" children={
                 <AgentInput
-                  type="text"
-                  id="name"
+                  icon={<User />}
                   name="name"
+                  placeholder="اسم المندوب"
                   value={formData.name}
                   onChange={handleChange}
-                  placeholder="أدخل الاسم الكامل للمندوب"
-                  icon={<User className="h-5 w-5 text-gray-400" />}
                   required
                 />
-              </AgentField>
-
-              <AgentField label="رقم الهاتف">
-                <AgentInput
-                  type="text"
-                  id="phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="أدخل رقم الهاتف"
-                  icon={<Phone className="h-5 w-5 text-gray-400" />}
-                />
-              </AgentField>
-
-              <AgentField label="العنوان" className="md:col-span-2">
-                <AgentInput
-                  type="text"
-                  id="address"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="أدخل العنوان"
-                  icon={<MapPin className="h-5 w-5 text-gray-400" />}
-                />
-              </AgentField>
+              } />
             </div>
-          </div>
-
-          <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg mb-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-              <UserCog className="ml-2" size={20} />
-              معلومات الحساب
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <AgentField label="البريد الإلكتروني">
+            
+            <div>
+              <AgentField label="البريد الإلكتروني" children={
                 <AgentInput
-                  type="email"
-                  id="email"
+                  icon={<Mail />}
                   name="email"
+                  type="email"
+                  placeholder="example@mail.com"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="أدخل البريد الإلكتروني"
-                  icon={<Mail className="h-5 w-5 text-gray-400" />}
                   required
                 />
-              </AgentField>
-
-              <AgentField label="الدور">
+              } />
+            </div>
+            
+            <div>
+              <AgentField label="رقم الهاتف" children={
+                <AgentInput
+                  icon={<Phone />}
+                  name="phone"
+                  placeholder="رقم الهاتف"
+                  value={formData.phone}
+                  onChange={handleChange}
+                />
+              } />
+            </div>
+            
+            <div>
+              <AgentField label="العنوان" children={
+                <AgentInput
+                  icon={<MapPin />}
+                  name="address"
+                  placeholder="العنوان"
+                  value={formData.address}
+                  onChange={handleChange}
+                />
+              } />
+            </div>
+            
+            <div>
+              <AgentField label="الدور" children={
                 <AgentSelect
-                  id="role"
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
-                  icon={<UserCog className="h-5 w-5 text-gray-400" />}
                   required
-                >
-                  <option value="agent">مندوب</option>
-                  <option value="admin">مدير</option>
-                </AgentSelect>
-              </AgentField>
-
-              <AgentField label="كلمة المرور">
+                  children={
+                    <>
+                      <option value="agent">مندوب</option>
+                      <option value="admin">مدير</option>
+                    </>
+                  }
+                />
+              } />
+            </div>
+            
+            <div>
+              <AgentField label={isEditMode ? "كلمة المرور الجديدة (اترك فارغة للاحتفاظ بنفس كلمة المرور)" : "كلمة المرور"} children={
                 <AgentInput
-                  type="password"
-                  id="password"
+                  icon={<Lock />}
                   name="password"
+                  type="password"
+                  placeholder="كلمة المرور"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="أدخل كلمة المرور"
-                  icon={<Lock className="h-5 w-5 text-gray-400" />}
-                  required
+                  required={!isEditMode}
                 />
-              </AgentField>
-
-              <AgentField label="تأكيد كلمة المرور">
+              } />
+            </div>
+            
+            <div>
+              <AgentField label={isEditMode ? "تأكيد كلمة المرور الجديدة" : "تأكيد كلمة المرور"} children={
                 <AgentInput
-                  type="password"
-                  id="confirmPassword"
+                  icon={<Lock />}
                   name="confirmPassword"
+                  type="password"
+                  placeholder="تأكيد كلمة المرور"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="أدخل تأكيد كلمة المرور"
-                  icon={<Lock className="h-5 w-5 text-gray-400" />}
-                  required
+                  required={!isEditMode}
                 />
-              </AgentField>
+              } />
             </div>
           </div>
-
-          <div className="flex justify-center gap-4 mt-6">
+          
+          <div className="mt-6 flex justify-end">
             <button
               type="button"
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 ml-2"
               onClick={() => navigate('/agents')}
-              className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 flex items-center"
             >
-              <X className="ml-2" size={16} />
               إلغاء
             </button>
+            
             <button
               type="submit"
+              className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700"
               disabled={loading}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center"
             >
-              <UserPlus className="ml-2" size={16} />
-              {loading ? 'جاري الإضافة...' : 'إضافة مندوب'}
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  جاري المعالجة...
+                </span>
+              ) : (
+                isEditMode ? 'حفظ التغييرات' : 'إضافة المندوب'
+              )}
             </button>
           </div>
         </form>
