@@ -7,6 +7,7 @@ import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import Button from '../components/ui/Button';
 import CustomerInput from '../components/CustomerInput';
 import CustomerTextArea from '../components/CustomerTextArea';
+import ClientDetailsModal from '../components/ClientDetailsModal';
 import { supabase } from '../lib/supabase';
 
 interface ClientType {
@@ -57,7 +58,7 @@ export const ClientsList: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [showClientDetails, setShowClientDetails] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<ClientType | null>(null);
+  const [selectedClient, setSelectedClient] = useState<null | any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -222,6 +223,14 @@ export const ClientsList: React.FC = () => {
   const getSubscriptionTypeLabel = (value: string) => {
     const subscriptionType = SUBSCRIPTION_TYPES.find((type) => type.value === value);
     return i18n.language === 'en' ? subscriptionType?.labelEn : subscriptionType?.label;
+  };
+
+  const handleEditClient = (client: any) => {
+    // TODO: Implement edit functionality
+  };
+
+  const handleDeleteClientModal = (clientId: string) => {
+    // TODO: Implement delete functionality
   };
 
   return (
@@ -605,6 +614,15 @@ export const ClientsList: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedClient && (
+        <ClientDetailsModal
+          client={selectedClient}
+          onClose={() => setSelectedClient(null)}
+          onEdit={handleEditClient}
+          onDelete={handleDeleteClientModal}
+        />
+      )}
     </div>
   );
 };
