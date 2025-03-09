@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
-import { Search, Phone, Calendar, X } from 'lucide-react';
+import { Search, Phone, Calendar, X, User } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import Button from '../components/ui/Button';
 import CustomerField from '../components/CustomerField';
@@ -28,8 +28,14 @@ interface ClientType {
   agent_id?: string;
   created_by?: string;
   agent?: {
-    full_name?: string;
+    name?: string;
   };
+}
+
+interface Agent {
+  id: string;
+  email: string;
+  name?: string;
 }
 
 const SUBSCRIPTION_TYPES = [
@@ -44,12 +50,6 @@ const VERSION_TYPES = [
   { value: 'android', label: 'موبايل', labelEn: 'Mobile' }
 ];
 
-type User = {
-  id: string;
-  email: string;
-  full_name?: string;
-};
-
 export const ClientsList: React.FC = () => {
   const { t, i18n } = useTranslation();
   const supabaseClient = useSupabaseClient();
@@ -63,7 +63,7 @@ export const ClientsList: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<ClientType | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [agents, setAgents] = useState<User[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
 
   const fetchClients = async () => {
     setLoading(true);
@@ -86,8 +86,8 @@ export const ClientsList: React.FC = () => {
   const fetchAgents = async () => {
     try {
       const { data, error } = await supabaseClient
-        .from('users')
-        .select('id, email, full_name');
+        .from('agents')
+        .select('id, email, name');
       if (error) throw error;
       setAgents(data || []);
     } catch (error) {
@@ -356,7 +356,7 @@ export const ClientsList: React.FC = () => {
                     <div className="flex items-center">
                       <User className={`h-4 w-4 text-gray-400 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                       <span className="text-sm text-gray-900 dark:text-white">
-                        {client.agent?.full_name || t('client.unknownAgent', 'غير معروف')}
+                        {client.agent?.name || t('client.unknownAgent', 'غير معروف')}
                       </span>
                     </div>
                   </td>
@@ -535,7 +535,7 @@ export const ClientsList: React.FC = () => {
                   <option value="">{t('client.selectAgent', 'اختر المندوب')}</option>
                   {agents.map((agent) => (
                     <option key={agent.id} value={agent.id}>
-                      {agent.full_name || agent.email}
+                      {agent.name || agent.email}
                     </option>
                   ))}
                 </CustomerSelect>

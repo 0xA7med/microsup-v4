@@ -27,7 +27,6 @@ interface ClientType {
   subscription_end: string;
   notes?: string;
   agent_id?: string;
-  created_by?: string;
 }
 
 // تعريف أنواع الاشتراك - تحديث القيم لتتوافق مع قيود قاعدة البيانات
@@ -192,7 +191,6 @@ export const AddClient: React.FC = () => {
       const clientData = {
         ...formData,
         agent_id: user?.id,
-        created_by: user?.id,
       };
 
       const { error } = await supabase.from('clients').insert([clientData]);
