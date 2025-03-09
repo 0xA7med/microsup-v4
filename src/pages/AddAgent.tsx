@@ -3,13 +3,23 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Save, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import type { User } from '../types/database.types';
+
+// تعريف نوع المستخدم
+interface UserType {
+  id?: string;
+  email?: string;
+  name?: string;
+  full_name?: string;
+  phone?: string;
+  address?: string;
+  role?: string;
+}
 
 export const AddAgent: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<Partial<User> & { password: string; confirmPassword: string }>({
+  const [formData, setFormData] = useState<Partial<UserType> & { password: string; confirmPassword: string }>({
     email: '',
     full_name: '',
     phone: '',
@@ -25,13 +35,14 @@ export const AddAgent: React.FC = () => {
     setError('');
     
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError('كلمات المرور غير متطابقة');
       return;
     }
 
     setLoading(true);
 
     try {
+      // أولاً، إنشاء المستخدم في نظام المصادقة (auth.users)
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email!,
         password: formData.password!,
@@ -43,21 +54,33 @@ export const AddAgent: React.FC = () => {
         },
       });
 
-      if (signUpError) throw signUpError;
+      if (signUpError) {
+        console.error('خطأ في إنشاء المستخدم في نظام المصادقة:', signUpError);
+        throw signUpError;
+      }
 
-      // First, create a record in the users table
+      if (!authData.user?.id) {
+        throw new Error('فشل في إنشاء المستخدم: لم يتم إرجاع معرف المستخدم');
+      }
+
+      // ثانياً، إنشاء سجل في جدول المستخدمين المخصص
       const { error: userError } = await supabase
         .from('users')
         .insert({
-          id: authData.user?.id,
+          id: authData.user.id,
           email: formData.email,
-          name: formData.full_name,
+          name: formData.full_name, // استخدام name بدلاً من full_name
           role: formData.role,
+          phone: formData.phone,
+          address: formData.address
         });
 
-      if (userError) throw userError;
+      if (userError) {
+        console.error('خطأ في إنشاء المستخدم في جدول users:', userError);
+        throw userError;
+      }
 
-      // Then create a record in the agents table
+      // ثالثاً، إنشاء سجل في جدول المندوبين
       const { error: profileError } = await supabase
         .from('agents')
         .insert({
@@ -80,9 +103,12 @@ export const AddAgent: React.FC = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   return (
