@@ -1,7 +1,7 @@
 import React, { useEffect, useState, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
-import { PlusCircle, Search, Edit, Trash } from 'lucide-react';
+import { PlusCircle, Search, Edit, Trash, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Agent = {
@@ -37,6 +37,7 @@ export const AgentsList = () => {
   useEffect(() => {
     const fetchAgents = async () => {
       try {
+        // استعلام للحصول على المندوبين من جدول agents
         const { data: agentsData, error: agentsError } = await supabase
           .from('agents')
           .select('*')
@@ -47,6 +48,7 @@ export const AgentsList = () => {
           return;
         }
 
+        // استعلام للحصول على عدد العملاء لكل مندوب
         const agentsWithClientsCount = await Promise.all(
           (agentsData || []).map(async (agent: Agent) => {
             const { count, error: countError } = await supabase
@@ -79,44 +81,83 @@ export const AgentsList = () => {
     (agent.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
-  const handleDeleteClick = (agent: AgentWithClients) => {
+  const handleEditClick = (agent: AgentWithClients) => {
+    // التنقل إلى صفحة تعديل المندوب
+    navigate(`/agents/edit/${agent.id}`);
+  };
+
+  const handleDeleteClick = async (agent: AgentWithClients) => {
     setAgentToDelete(agent);
     setShowDeleteModal(true);
+    
+    // إذا كان لديه عملاء، نحتاج إلى تحضير الخيارات
+    if (agent.clients_count > 0) {
+      // الحصول على قائمة المندوبين الآخرين للترحيل
+      const { data, error } = await supabase
+        .from('agents')
+        .select('*')
+        .neq('id', agent.id);
+      
+      if (error) {
+        console.error('Error fetching available agents:', error);
+        setAvailableAgents([]);
+      } else {
+        setAvailableAgents(data || []);
+      }
+    }
   };
 
   const confirmDelete = async () => {
     if (!agentToDelete) return;
+    
     setIsProcessing(true);
     setError(null);
+    
     try {
+      // إذا كان لديه عملاء ويريد المستخدم ترحيلهم
       if (agentToDelete.clients_count > 0 && deleteOption === 'transfer' && targetAgentId) {
+        // تحديث العملاء لتعيينهم إلى المندوب الجديد
         const { error: updateError } = await supabase
           .from('clients')
           .update({ agent_id: targetAgentId })
           .eq('agent_id', agentToDelete.id);
+        
         if (updateError) {
           throw new Error(updateError.message);
         }
+        
         setSuccessMessage(t('messages.clientsTransferredSuccess'));
-      } else if (agentToDelete.clients_count > 0 && deleteOption === 'delete') {
+      } 
+      // إذا كان لديه عملاء ويريد المستخدم حذفهم
+      else if (agentToDelete.clients_count > 0 && deleteOption === 'delete') {
+        // حذف العملاء المرتبطين بالمندوب
         const { error: deleteClientsError } = await supabase
           .from('clients')
           .delete()
           .eq('agent_id', agentToDelete.id);
+        
         if (deleteClientsError) {
           throw new Error(deleteClientsError.message);
         }
+        
         setSuccessMessage(t('messages.clientsDeletedSuccess'));
       }
+      
+      // حذف المندوب من جدول agents
       const { error: deleteAgentError } = await supabase
         .from('agents')
         .delete()
         .eq('id', agentToDelete.id);
+      
       if (deleteAgentError) {
         throw new Error(deleteAgentError.message);
       }
+      
+      // تحديث قائمة المندوبين
       setAgents(agents.filter((a: AgentWithClients) => a.id !== agentToDelete.id));
       setSuccessMessage(t('messages.agentDeletedSuccess'));
+      
+      // إغلاق النافذة المنبثقة
       closeModal();
     } catch (error) {
       console.error('Error deleting agent:', error);
@@ -132,12 +173,18 @@ export const AgentsList = () => {
     setDeleteOption(null);
     setTargetAgentId('');
     setError(null);
+  };
+
+  // إضافة مؤقت لإزالة رسالة النجاح بعد 3 ثوانٍ
+  useEffect(() => {
     if (successMessage) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setSuccessMessage(null);
       }, 3000);
+      
+      return () => clearTimeout(timer);
     }
-  };
+  }, [successMessage]);
 
   if (loading) {
     return (
@@ -152,8 +199,15 @@ export const AgentsList = () => {
       {successMessage && (
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
           <span className="block sm:inline">{successMessage}</span>
+          <button 
+            onClick={() => setSuccessMessage(null)} 
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
+          >
+            <X className="h-5 w-5 text-green-700" />
+          </button>
         </div>
       )}
+      
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
           {t('nav.agents')}
@@ -166,6 +220,7 @@ export const AgentsList = () => {
           {t('nav.addAgent')}
         </Link>
       </div>
+
       <div className="flex items-center justify-between space-x-4">
         <div className="flex-1 max-w-md">
           <div className="relative">
@@ -182,6 +237,7 @@ export const AgentsList = () => {
           </div>
         </div>
       </div>
+
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white dark:bg-gray-800 shadow rounded-lg">
           <thead>
@@ -237,7 +293,10 @@ export const AgentsList = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-no-wrap text-sm leading-5 font-medium">
                     <div className="flex items-center justify-end space-x-4">
-                      <button className="text-indigo-600 hover:text-indigo-900">
+                      <button 
+                        className="text-indigo-600 hover:text-indigo-900"
+                        onClick={() => handleEditClick(agent)}
+                      >
                         <Edit className="h-5 w-5" />
                       </button>
                       <button 
@@ -261,17 +320,20 @@ export const AgentsList = () => {
         </table>
       </div>
 
+      {/* نافذة منبثقة لتأكيد الحذف */}
       {showDeleteModal && agentToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
               {t('dialogs.deleteAgent')}
             </h3>
+            
             {agentToDelete.clients_count > 0 ? (
               <>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                   {t('dialogs.agentHasClients')}
                 </p>
+                
                 <div className="mb-4">
                   <div className="flex items-center mb-2">
                     <input
@@ -287,6 +349,7 @@ export const AgentsList = () => {
                       {t('dialogs.transferClients')}
                     </label>
                   </div>
+                  
                   {deleteOption === 'transfer' && (
                     <div className="mr-6 mt-2">
                       {availableAgents.length > 0 ? (
@@ -309,6 +372,7 @@ export const AgentsList = () => {
                       )}
                     </div>
                   )}
+                  
                   <div className="flex items-center mt-3">
                     <input
                       type="radio"
@@ -330,11 +394,13 @@ export const AgentsList = () => {
                 {t('dialogs.deleteAgentConfirm')}
               </p>
             )}
+            
             {error && (
               <div className="mb-4 text-sm text-red-500">
                 {error}
               </div>
             )}
+            
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
@@ -344,6 +410,7 @@ export const AgentsList = () => {
               >
                 {t('actions.cancel')}
               </button>
+              
               <button
                 type="button"
                 onClick={confirmDelete}
