@@ -72,7 +72,11 @@
     "clientsTransferredSuccess": "Clients transferred successfully",
     "clientsDeletedSuccess": "Clients deleted successfully",
     "errorOccurred": "An error occurred, please try again",
-    "futureDateNotAllowed": "Future date is not allowed"
+    "futureDateNotAllowed": "Future date is not allowed",
+    "requiredFieldsMissing": "Please fill in all required fields",
+    "invalidSubscriptionType": "Invalid subscription type",
+    "duplicateClient": "This client already exists",
+    "clientAddedSuccess": "Client added successfully"
   },
   "common": {
     "actions": "Actions",

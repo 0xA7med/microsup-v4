@@ -1,55 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Monitor, Smartphone, Calendar, Save, X, ArrowRight, Clipboard } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../store/authStore';
+import { Monitor, Smartphone, Clipboard, Calendar, Loader2 } from 'lucide-react';
 import { format, isAfter, startOfToday } from 'date-fns';
-import CustomerField from '../components/CustomerField';
-import CustomerInput from '../components/CustomerInput';
-import CustomerSelect from '../components/CustomerSelect';
-import CustomerTextArea from '../components/CustomerTextArea';
-import Button from '../components/ui/Button';
-import toast from 'react-hot-toast';
+import { ar, enUS } from 'date-fns/locale';
+import { toast } from 'react-toastify';
+import styled from 'styled-components';
+import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../stores/authStore';
+import { Button } from '../components/ui/button';
+import { CustomerField, CustomerInput } from '../components/ui/customer-field';
 
-interface ClientType {
-  id?: string;
-  client_name: string;
-  organization_name: string;
-  activity_type: string;
-  phone: string;
-  activation_code: string;
-  subscription_type: string;
-  address: string;
-  device_count: number;
-  software_version: string;
-  subscription_start: string;
-  subscription_end: string;
-  notes?: string;
-  agent_id?: string;
-  created_by?: string;
-}
-
+// تعريف أنواع الاشتراك - تحديث القيم لتتوافق مع قيود قاعدة البيانات
 const SUBSCRIPTION_TYPES = [
   { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
-  { value: 'biannual', label: 'نصف سنوي', labelEn: 'Biannual' },
+  { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Biannual' },
   { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
   { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
 ];
 
+// تعريف أنواع النسخة
 const VERSION_TYPES = [
   { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer', icon: <Monitor className="h-5 w-5" /> },
-  { value: 'mobile', label: 'موبايل', labelEn: 'Mobile', icon: <Smartphone className="h-5 w-5" /> }
+  { value: 'android', label: 'موبايل', labelEn: 'Mobile', icon: <Smartphone className="h-5 w-5" /> }
 ];
 
 export const AddClient: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const [loading, setLoading] = useState(false);
   const today = startOfToday();
-  const [dateInputValue, setDateInputValue] = useState('');
   const isRTL = i18n.language === 'ar';
+
+  const [dateInputValue, setDateInputValue] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  const calculateEndDate = (startDate: Date, subscriptionType: string) => {
+    let endDate = new Date(startDate);
+
+    switch (subscriptionType) {
+      case 'monthly':
+        endDate.setMonth(startDate.getMonth() + 1);
+        break;
+      case 'semi_annual':
+        endDate.setMonth(startDate.getMonth() + 6);
+        break;
+      case 'annual':
+        endDate.setFullYear(startDate.getFullYear() + 1);
+        break;
+      case 'permanent':
+        endDate = new Date(2099, 11, 31); // تاريخ بعيد للاشتراك الدائم
+        break;
+    }
+
+    return format(endDate, 'yyyy-MM-dd');
+  };
 
   const [formData, setFormData] = useState<Partial<ClientType>>({
     client_name: '',
@@ -61,9 +66,9 @@ export const AddClient: React.FC = () => {
     address: '',
     device_count: 1,
     software_version: 'computer',
-    subscription_start: new Date().toISOString().split('T')[0],
-    subscription_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    notes: '',
+    subscription_start: format(today, 'yyyy-MM-dd'),
+    subscription_end: calculateEndDate(today, 'monthly'),
+    notes: ''
   });
 
   useEffect(() => {
@@ -79,7 +84,7 @@ export const AddClient: React.FC = () => {
         case 'monthly':
           endDate.setMonth(startDate.getMonth() + 1);
           break;
-        case 'biannual':
+        case 'semi_annual':
           endDate.setMonth(startDate.getMonth() + 6);
           break;
         case 'annual':
@@ -110,54 +115,47 @@ export const AddClient: React.FC = () => {
     }
   };
 
+  // تحسين معالجة التاريخ
   const handleDateInput = (value: string) => {
     setDateInputValue(value);
-    try {
-      const dateParts = value.split('/');
-      if (dateParts.length === 3) {
-        const day = parseInt(dateParts[0], 10);
-        const month = parseInt(dateParts[1], 10) - 1; 
-        const year = parseInt(dateParts[2], 10);
+    
+    // تنسيق إدخال التاريخ تلقائيًا
+    let cleanValue = value.replace(/[^\d/]/g, '');
+    
+    if (cleanValue.length === 2 && !cleanValue.includes('/')) {
+      cleanValue = cleanValue + '/';
+    } else if (cleanValue.length === 5 && cleanValue.split('/').length === 2) {
+      cleanValue = cleanValue + '/';
+    }
+    
+    cleanValue = cleanValue.slice(0, 10);
+    setDateInputValue(cleanValue);
+    
+    // معالجة التاريخ عند إدخال تاريخ كامل
+    if (cleanValue.length === 10) {
+      const [day, month, year] = cleanValue.split('/');
+      try {
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         
-        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
-          const date = new Date(year, month, day);
-          
+        if (!isNaN(date.getTime())) {
+          // التحقق من أن التاريخ ليس في المستقبل
           if (isAfter(date, today)) {
             toast.error(t('messages.futureDateNotAllowed', 'لا يمكن إدخال تاريخ مستقبلي'));
             return;
           }
           
+          // تحديث تاريخ بداية الاشتراك
           setFormData((prev) => ({
             ...prev,
             subscription_start: format(date, 'yyyy-MM-dd'),
+            // حساب تاريخ نهاية الاشتراك بناءً على نوع الاشتراك
             subscription_end: calculateEndDate(date, prev.subscription_type || 'monthly')
           }));
         }
+      } catch (error) {
+        console.error('Error parsing date:', error);
       }
-    } catch (error) {
-      console.error('Error parsing date:', error);
     }
-  };
-
-  const calculateEndDate = (startDate: Date, subscriptionType: string) => {
-    let endDate = new Date(startDate);
-
-    switch (subscriptionType) {
-      case 'monthly':
-        endDate.setMonth(startDate.getMonth() + 1);
-        break;
-      case 'biannual':
-        endDate.setMonth(startDate.getMonth() + 6);
-        break;
-      case 'annual':
-        endDate.setFullYear(startDate.getFullYear() + 1);
-        break;
-      case 'permanent':
-        endDate = new Date(2099, 11, 31); 
-        break;
-    }
-
-    return endDate.toISOString().split('T')[0];
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,19 +163,42 @@ export const AddClient: React.FC = () => {
     setLoading(true);
 
     try {
+      // التحقق من صحة البيانات قبل الإرسال
+      if (!formData.client_name || !formData.organization_name || !formData.phone) {
+        toast.error(t('messages.requiredFieldsMissing', 'يرجى ملء جميع الحقول المطلوبة'));
+        setLoading(false);
+        return;
+      }
+
       const clientData = {
         ...formData,
         agent_id: user?.id,
         created_by: user?.id,
       };
 
-      const { error } = await supabase.from('clients').insert(clientData);
+      const { error } = await supabase.from('clients').insert([clientData]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error adding client:', error);
+        
+        // معالجة أنواع الأخطاء المختلفة
+        if (error.code === '23514' && error.message.includes('clients_subscription_type_check')) {
+          toast.error(t('messages.invalidSubscriptionType', 'نوع الاشتراك غير صالح'));
+        } else if (error.code === '23505') {
+          toast.error(t('messages.duplicateClient', 'هذا العميل موجود بالفعل'));
+        } else {
+          toast.error(t('messages.errorOccurred', 'حدث خطأ أثناء إضافة العميل، يرجى المحاولة مرة أخرى'));
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      toast.success(t('messages.clientAddedSuccess', 'تمت إضافة العميل بنجاح'));
       navigate('/clients');
     } catch (error) {
-      console.error('Error adding client:', error);
-    } finally {
+      console.error('Error:', error);
+      toast.error(t('messages.errorOccurred', 'حدث خطأ، يرجى المحاولة مرة أخرى'));
       setLoading(false);
     }
   };
@@ -214,7 +235,7 @@ export const AddClient: React.FC = () => {
       </div>
 
       <div className="p-4">
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* اسم العميل */}
             <CustomerField label={t('client.name', 'اسم العميل')} children={
@@ -283,8 +304,8 @@ export const AddClient: React.FC = () => {
             } />
 
             {/* رمز التفعيل */}
-            <CustomerField label={t('client.activationCode', 'رمز التفعيل')} children={
-              <div className="flex gap-2">
+            <CustomerField label={t('client.activationCode', 'رمز التفعيل')} className="md:col-span-2" children={
+              <div className="flex gap-2 items-center">
                 <CustomerInput
                   type="text"
                   name="activation_code"
@@ -293,12 +314,14 @@ export const AddClient: React.FC = () => {
                   onChange={handleChange}
                   isEditing={true}
                   className="h-12 text-lg flex-grow border-gray-300 dark:border-gray-600"
+                  style={{ minWidth: 'calc(100% - 110px)' }}
                 />
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={handlePaste}
                   className="flex-shrink-0 h-12 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                  style={{ marginTop: '0' }}
                   children={
                     <span className="flex items-center">
                       <Clipboard className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
@@ -379,7 +402,7 @@ export const AddClient: React.FC = () => {
                   type="text"
                   name="subscriptionStartDisplay"
                   required
-                  value={dateInputValue || ''}
+                  value={dateInputValue || formatDateForDisplay(formData.subscription_start) || ''}
                   onChange={(e) => handleDateInput(e.target.value)}
                   isEditing={true}
                   placeholder="DD/MM/YYYY"
@@ -420,41 +443,30 @@ export const AddClient: React.FC = () => {
 
             {/* ملاحظات */}
             <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2" children={
-              <CustomerTextArea
+              <textarea
                 name="notes"
                 value={formData.notes || ''}
                 onChange={handleChange}
-                rows={4}
-                isEditing={true}
-                className="text-lg border-gray-300 dark:border-gray-600"
+                className="h-24 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
               />
             } />
           </div>
 
           {/* أزرار الإرسال */}
-          <div className="flex justify-end gap-3 mt-6">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => navigate('/clients')}
-              className="flex items-center h-12 px-6"
-              children={
-                <span className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <X className={`h-5 w-5 ${isRTL ? 'mr-2' : 'ml-2'}`} />
-                  {t('actions.cancel', 'إلغاء')}
-                </span>
-              }
-            />
+          <div className="flex justify-end">
             <Button
               type="submit"
-              variant="primary"
               disabled={loading}
-              className="flex items-center h-12 px-6"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md flex items-center justify-center"
               children={
-                <span className={`flex items-center ${isRTL ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <Save className={`h-5 w-5 ${isRTL ? 'mr-2' : 'ml-2'}`} />
-                  {t('actions.save', 'حفظ')}
-                </span>
+                loading ? (
+                  <div className="flex items-center">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    {t('actions.save', 'حفظ')}
+                  </div>
+                ) : (
+                  t('actions.save', 'حفظ')
+                )
               }
             />
           </div>
