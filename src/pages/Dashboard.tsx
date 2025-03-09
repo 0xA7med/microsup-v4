@@ -24,9 +24,8 @@ export const Dashboard: React.FC = () => {
 
         // Fetch total agents
         const { count: agentsCount } = await supabase
-          .from('users')
-          .select('*', { count: 'exact', head: true })
-          .or('role.eq.agent,role.eq.admin');
+          .from('agents')
+          .select('*', { count: 'exact', head: true });
 
         // Fetch active subscriptions
         const { count: activeCount } = await supabase

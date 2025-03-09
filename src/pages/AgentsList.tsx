@@ -5,22 +5,31 @@ import { PlusCircle, Search } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
 
-type Agent = Database['public']['Tables']['users']['Row'];
+type User = Database['public']['Tables']['users']['Row'];
+
+interface AgentWithDetails {
+  id: string;
+  user_id: string;
+  created_at: string;
+  user: User;
+}
 
 export const AgentsList: React.FC = () => {
   const { t } = useTranslation();
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agents, setAgents] = useState<AgentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const fetchAgents = async () => {
       try {
-        // استعلام للحصول على المندوبين من جدول users حيث role = 'agent' أو 'admin'
+        // استعلام للحصول على المندوبين من جدول agents مع معلومات المستخدم
         const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .or('role.eq.agent,role.eq.admin')
+          .from('agents')
+          .select(`
+            *,
+            user:users(*)
+          `)
           .order('created_at', { ascending: false });
         
         if (error) {
@@ -40,8 +49,8 @@ export const AgentsList: React.FC = () => {
   }, []);
 
   const filteredAgents = agents.filter((agent) =>
-    (agent.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (agent.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    (agent.user?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (agent.user?.email?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -93,28 +102,28 @@ export const AgentsList: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-primary-600 truncate">
-                        {agent.name}
+                        {agent.user?.name}
                       </p>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {agent.email}
+                        {agent.user?.email}
                       </p>
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          agent.role === 'admin'
+                          agent.user?.role === 'admin'
                             ? 'bg-purple-100 text-purple-800'
                             : 'bg-green-100 text-green-800'
                         }`}
                       >
-                        {agent.role}
+                        {agent.user?.role}
                       </span>
                     </div>
                   </div>
                   <div className="mt-2 sm:flex sm:justify-between">
                     <div className="sm:flex">
                       <p className="flex items-center text-sm text-gray-500 dark:text-gray-400">
-                        {agent.phone}
+                        {agent.user?.phone}
                       </p>
                     </div>
                   </div>
