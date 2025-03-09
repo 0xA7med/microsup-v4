@@ -1,15 +1,34 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Monitor, Smartphone, Clipboard, Calendar, Loader2 } from 'lucide-react';
-import { format, isAfter, startOfToday } from 'date-fns';
-import { ar, enUS } from 'date-fns/locale';
-import { toast } from 'react-toastify';
-import styled from 'styled-components';
+import { Monitor, Smartphone, Calendar, X, Clipboard, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useAuthStore } from '../stores/authStore';
-import { Button } from '../components/ui/button';
-import { CustomerField, CustomerInput } from '../components/ui/customer-field';
+import { useAuthStore } from '../store/authStore';
+import { format, isAfter, startOfToday } from 'date-fns';
+import CustomerField from '../components/CustomerField';
+import CustomerInput from '../components/CustomerInput';
+import CustomerSelect from '../components/CustomerSelect';
+import CustomerTextArea from '../components/CustomerTextArea';
+import Button from '../components/ui/Button';
+import toast from 'react-hot-toast';
+
+interface ClientType {
+  id?: string;
+  client_name: string;
+  organization_name: string;
+  activity_type: string;
+  phone: string;
+  activation_code: string;
+  subscription_type: string;
+  address: string;
+  device_count: number;
+  software_version: string;
+  subscription_start: string;
+  subscription_end: string;
+  notes?: string;
+  agent_id?: string;
+  created_by?: string;
+}
 
 // تعريف أنواع الاشتراك - تحديث القيم لتتوافق مع قيود قاعدة البيانات
 const SUBSCRIPTION_TYPES = [
@@ -203,7 +222,7 @@ export const AddClient: React.FC = () => {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -230,7 +249,7 @@ export const AddClient: React.FC = () => {
           className="flex items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400"
         >
           <span className="mr-1">{t('actions.back', 'رجوع')}</span>
-          <ArrowRight className={`h-4 w-4 ${isRTL ? 'transform rotate-180' : ''}`} />
+          <X className={`h-4 w-4 ${isRTL ? 'transform rotate-180' : ''}`} />
         </button>
       </div>
 
@@ -443,11 +462,13 @@ export const AddClient: React.FC = () => {
 
             {/* ملاحظات */}
             <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2" children={
-              <textarea
+              <CustomerTextArea
                 name="notes"
                 value={formData.notes || ''}
                 onChange={handleChange}
-                className="h-24 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
+                rows={4}
+                isEditing={true}
+                className="text-lg border-gray-300 dark:border-gray-600"
               />
             } />
           </div>
