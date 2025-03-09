@@ -4,6 +4,7 @@ import { User, AlertCircle, UserPlus, Mail, Phone, MapPin, Lock, ArrowLeft, Arro
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import crypto from 'crypto';
 
 export const LoginForm: React.FC = () => {
   const { t } = useTranslation();
@@ -27,6 +28,14 @@ export const LoginForm: React.FC = () => {
   const [registerLoading, setRegisterLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.name === 'email') {
+      setEmail(e.target.value);
+    } else if (e.target.name === 'password') {
+      setPassword(e.target.value);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -41,9 +50,11 @@ export const LoginForm: React.FC = () => {
     }
   };
   
-  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setRegisterData((prev) => ({ ...prev, [name]: value }));
+  const handleRegisterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRegisterData({
+      ...registerData,
+      [e.target.name]: e.target.value
+    });
   };
   
   const handleRegisterSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -59,40 +70,41 @@ export const LoginForm: React.FC = () => {
     }
     
     try {
-      // إنشاء حساب مستخدم في نظام المصادقة
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: registerData.email,
-        password: registerData.password,
-        options: {
-          data: {
-            name: registerData.name,
-            role: 'agent'
-          }
-        }
-      });
+      // التحقق من وجود المستخدم في جدول agents قبل التسجيل
+      const { data: existingAgent, error: checkError } = await supabase
+        .from('agents')
+        .select('id')
+        .eq('email', registerData.email)
+        .maybeSingle();
       
-      if (authError) throw authError;
-      
-      if (!authData.user) {
-        throw new Error('فشل إنشاء حساب المستخدم');
+      if (checkError) {
+        console.error('خطأ في التحقق من وجود المستخدم:', checkError);
       }
       
-      // إضافة المندوب إلى جدول agents مع حالة موافقة معلقة
+      if (existingAgent) {
+        throw new Error('البريد الإلكتروني مستخدم بالفعل');
+      }
+      
+      // إنشاء UUID جديد للمستخدم
+      const userId = crypto.randomUUID();
+      
+      // إضافة المندوب إلى جدول agents مباشرة مع حالة موافقة معلقة
       const { error: agentError } = await supabase
         .from('agents')
         .insert({
-          id: authData.user.id,
+          id: userId,
           email: registerData.email,
           name: registerData.name,
           role: 'agent',
           phone: registerData.phone || null,
           address: registerData.address || null,
-          approval_status: 'pending'
+          approval_status: 'pending',
+          password: registerData.password // تخزين كلمة المرور مؤقتًا للتحقق منها عند تسجيل الدخول
         });
       
       if (agentError) {
-        console.error('تم إنشاء حساب المستخدم ولكن فشل إضافة المندوب:', agentError);
-        throw new Error('تم إنشاء حساب المستخدم ولكن فشل إضافة المندوب إلى قاعدة البيانات');
+        console.error('فشل إضافة المندوب:', agentError);
+        throw new Error('فشل إضافة المندوب إلى قاعدة البيانات: ' + agentError.message);
       }
       
       // إظهار رسالة نجاح
@@ -315,8 +327,9 @@ export const LoginForm: React.FC = () => {
                   </div>
                   <input
                     type="email"
+                    name="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={handleChange}
                     className="pr-10 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
                     required
                   />
@@ -333,8 +346,9 @@ export const LoginForm: React.FC = () => {
                   </div>
                   <input
                     type="password"
+                    name="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handleChange}
                     className="pr-10 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-purple-500 focus:border-purple-500"
                     required
                   />

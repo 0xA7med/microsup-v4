@@ -20,29 +20,50 @@ export const useAuthStore = create<AuthState>((set) => ({
   loading: true,
   initializeAuth: async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // التحقق من وجود بيانات المستخدم في التخزين المحلي
+      const storedUser = localStorage.getItem('currentUser');
       
-      if (session?.user) {
-        const { data: userData, error: userError } = await supabase
-          .from('agents')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (userError) {
-          console.error('Error fetching user data:', userError);
-          set({ user: null, loading: false });
-          return;
+      if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          
+          // التحقق من صحة البيانات المخزنة
+          if (userData && userData.id && userData.email) {
+            // التحقق من وجود المستخدم في قاعدة البيانات
+            const { data: agentData, error: agentError } = await supabase
+              .from('agents')
+              .select('*')
+              .eq('id', userData.id)
+              .single();
+            
+            if (agentError) {
+              console.error('Error fetching user data:', agentError);
+              localStorage.removeItem('currentUser');
+              set({ user: null, loading: false });
+              return;
+            }
+            
+            if (agentData) {
+              // التحقق من حالة الموافقة للمناديب
+              if (agentData.role === 'agent' && 'approval_status' in agentData && agentData.approval_status !== 'approved') {
+                localStorage.removeItem('currentUser');
+                set({ user: null, loading: false });
+                return;
+              }
+              
+              set({ user: agentData, loading: false });
+              return;
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing stored user data:', e);
         }
-
-        if (userData) {
-          set({ user: userData, loading: false });
-        } else {
-          set({ user: null, loading: false });
-        }
-      } else {
-        set({ user: null, loading: false });
+        
+        // إذا وصلنا إلى هنا، فهناك مشكلة في البيانات المخزنة
+        localStorage.removeItem('currentUser');
       }
+      
+      set({ user: null, loading: false });
     } catch (error) {
       console.error('Error initializing auth:', error);
       set({ user: null, loading: false });
@@ -52,49 +73,41 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       console.log('Attempting to sign in with email:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        console.error('Supabase auth error:', error);
-        throw error;
-      }
-
-      if (!data.session?.user) {
-        console.error('No user session returned');
-        throw new Error('فشل تسجيل الدخول: لم يتم إرجاع جلسة المستخدم');
-      }
-
-      console.log('Auth successful, fetching user data for ID:', data.session.user.id);
-      
-      const { data: userData, error: userError } = await supabase
+      // أولاً، نتحقق مما إذا كان البريد الإلكتروني موجودًا في جدول agents
+      const { data: agentData, error: agentError } = await supabase
         .from('agents')
         .select('*')
-        .eq('id', data.session.user.id)
+        .eq('email', email)
         .single();
-
-      if (userError) {
-        console.error('Error fetching user data:', userError);
+      
+      if (agentError) {
+        console.error('Error fetching agent data:', agentError);
+        if (agentError.code === 'PGRST116') {
+          // لم يتم العثور على المستخدم
+          throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+        }
         throw new Error('فشل في الحصول على بيانات المستخدم');
       }
-
-      if (!userData) {
-        console.error('No user data found for ID:', data.session.user.id);
-        throw new Error('لم يتم العثور على بيانات المستخدم');
+      
+      if (!agentData) {
+        console.error('No agent data found for email:', email);
+        throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
       }
-
-      console.log('User data retrieved:', userData);
-
+      
+      // التحقق من كلمة المرور
+      if (agentData.password !== password) {
+        console.error('Password mismatch for email:', email);
+        throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+      }
+      
       // التحقق من حالة الموافقة للمناديب
-      if (userData.role === 'agent') {
+      if (agentData.role === 'agent') {
         // التحقق من وجود حقل approval_status
-        if ('approval_status' in userData) {
-          if (userData.approval_status !== 'approved') {
-            if (userData.approval_status === 'pending') {
+        if ('approval_status' in agentData) {
+          if (agentData.approval_status !== 'approved') {
+            if (agentData.approval_status === 'pending') {
               throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
-            } else if (userData.approval_status === 'rejected') {
+            } else if (agentData.approval_status === 'rejected') {
               throw new Error('تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
             } else {
               throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
@@ -107,9 +120,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       }
 
       // إذا كان المستخدم مديرًا أو مندوبًا معتمدًا، قم بتسجيل الدخول
-      console.log('Login successful for user:', userData.name);
-      toast.success(`مرحباً ${userData.name}!`);
-      set({ user: userData });
+      console.log('Login successful for user:', agentData.name);
+      
+      // تخزين بيانات المستخدم في التخزين المحلي
+      localStorage.setItem('currentUser', JSON.stringify(agentData));
+      
+      toast.success(`مرحباً ${agentData.name}!`);
+      set({ user: agentData });
     } catch (error: any) {
       console.error('Login process error:', error);
       toast.error(error.message || 'حدث خطأ أثناء تسجيل الدخول');
@@ -118,11 +135,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   signOut: async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Sign out error:', error);
-        throw error;
-      }
+      // إزالة بيانات المستخدم من التخزين المحلي
+      localStorage.removeItem('currentUser');
+      
       toast.success('تم تسجيل الخروج بنجاح');
       set({ user: null });
     } catch (error) {
