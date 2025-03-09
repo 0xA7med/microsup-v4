@@ -1,4 +1,4 @@
-import React, { useEffect, useState, ChangeEvent } from 'react';
+import { useEffect, useState, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { PlusCircle, Search, Edit, Trash, X } from 'lucide-react';
@@ -41,7 +41,6 @@ export const AgentsList = () => {
         const { data: agentsData, error: agentsError } = await supabase
           .from('agents')
           .select('*')
-          .in('role', ['admin', 'agent']) // يشمل المدراء والمندوبين
           .order('created_at', { ascending: false });
         
         if (agentsError) {

@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, UserPlus, List, PlusCircle } from 'lucide-react';
+import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck } from 'lucide-react';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { t } = useTranslation();
@@ -73,6 +73,17 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   >
                     <UserPlus className="inline-block w-4 h-4 mr-2" />
                     {t('nav.addAgent')}
+                  </Link>
+                  <Link
+                    to="/pending-agents"
+                    className={`px-3 py-2 rounded-md text-sm font-medium ${
+                      isActive('/pending-agents')
+                        ? 'bg-gray-900 text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    <UserCheck className="inline-block w-4 h-4 mr-2" />
+                    طلبات المناديب
                   </Link>
                 </>
               )}
