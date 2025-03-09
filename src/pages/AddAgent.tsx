@@ -17,7 +17,6 @@ interface AgentType {
   address?: string;
   role: string;
   password?: string;
-  created_by?: string;
   created_at?: string;
 }
 
@@ -119,36 +118,30 @@ export const AddAgent: React.FC = () => {
         
         // تحديث كلمة المرور إذا تم تغييرها
         if (formData.password && formData.password.length > 0) {
-          // لا يمكن تحديث كلمة المرور مباشرة من واجهة العميل
-          // يمكن إضافة وظيفة خاصة في الخادم لتغيير كلمة المرور
-          toast('لتغيير كلمة المرور، يرجى استخدام وظيفة إعادة تعيين كلمة المرور');
+          // تحديث كلمة المرور مباشرة في جدول agents
+          const { error: passwordError } = await supabase
+            .from('agents')
+            .update({ password: formData.password })
+            .eq('id', id);
+            
+          if (passwordError) {
+            console.error('فشل تحديث كلمة المرور:', passwordError);
+            toast.error('تم تحديث بيانات المندوب ولكن فشل تحديث كلمة المرور');
+          }
         }
         
         toast.success('تم تحديث بيانات المندوب بنجاح');
       } else {
-        // إضافة created_by فقط عند إنشاء مندوب جديد
-        agentData.created_by = user.id;
+        // إضافة كلمة المرور وحالة الموافقة
+        agentData.password = formData.password || '';
         
-        // إنشاء حساب مستخدم في نظام المصادقة أولاً
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: formData.email,
-          password: formData.password || '',
-          options: {
-            data: {
-              name: formData.name,
-              role: formData.role
-            }
-          }
-        });
-        
-        if (authError) throw authError;
-        
-        if (!authData.user) {
-          throw new Error('فشل إنشاء حساب المستخدم');
+        // إذا كان المستخدم الحالي مديرًا والمندوب الجديد هو مندوب، نضع حالة الموافقة على "approved"
+        // وإلا إذا كان المستخدم الحالي مندوبًا يضيف مندوبًا آخر، نضع حالة الموافقة على "pending"
+        if (user.role === 'admin' && formData.role === 'agent') {
+          agentData.approval_status = 'approved';
+        } else if (formData.role === 'agent') {
+          agentData.approval_status = 'pending';
         }
-        
-        // إضافة معرف المستخدم من نظام المصادقة إلى بيانات المندوب
-        agentData.id = authData.user.id;
         
         // إنشاء مندوب جديد في جدول agents
         result = await supabase
@@ -156,14 +149,17 @@ export const AddAgent: React.FC = () => {
           .insert(agentData);
         
         if (result.error) {
-          // إذا فشلت إضافة المندوب، لا يمكننا حذف حساب المستخدم من واجهة العميل
-          // لكن يمكننا تسجيل الخطأ وإبلاغ المستخدم
-          console.error('تم إنشاء حساب المستخدم ولكن فشل إضافة المندوب:', result.error);
-          throw new Error('تم إنشاء حساب المستخدم ولكن فشل إضافة المندوب إلى قاعدة البيانات');
+          console.error('فشل إضافة المندوب:', result.error);
+          throw new Error('فشل إضافة المندوب إلى قاعدة البيانات');
         }
         
         toast.success('تم إضافة المندوب بنجاح');
-        toast('يمكن للمندوب الآن تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور');
+        
+        if (formData.role === 'agent' && agentData.approval_status === 'pending') {
+          toast('سيتم مراجعة حساب المندوب من قبل المدير قبل أن يتمكن من تسجيل الدخول');
+        } else {
+          toast('يمكن للمندوب الآن تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور');
+        }
       }
       
       navigate('/agents');

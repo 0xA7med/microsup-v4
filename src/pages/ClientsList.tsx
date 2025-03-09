@@ -1,15 +1,13 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { Search, Phone, Calendar, X, User } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
+import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
 import Button from '../components/ui/Button';
-import CustomerField from '../components/CustomerField';
 import CustomerInput from '../components/CustomerInput';
-import CustomerSelect from '../components/CustomerSelect';
 import CustomerTextArea from '../components/CustomerTextArea';
+import { supabase } from '../lib/supabase';
 
 interface ClientType {
   id?: string;
@@ -52,7 +50,6 @@ const VERSION_TYPES = [
 
 export const ClientsList: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const supabaseClient = useSupabaseClient();
   const isRTL = i18n.language === 'ar';
 
   const [clients, setClients] = useState<ClientType[]>([]);
@@ -68,7 +65,7 @@ export const ClientsList: React.FC = () => {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabase
         .from('clients')
         .select('*')
         .order('client_name', { ascending: true });
@@ -85,7 +82,7 @@ export const ClientsList: React.FC = () => {
 
   const fetchAgents = async () => {
     try {
-      const { data, error } = await supabaseClient
+      const { data, error } = await supabase
         .from('agents')
         .select('id, email, name');
       if (error) throw error;
@@ -131,7 +128,7 @@ export const ClientsList: React.FC = () => {
     if (!selectedClient) return;
 
     try {
-      const { error } = await supabaseClient
+      const { error } = await supabase
         .from('clients')
         .update({
           client_name: selectedClient.client_name,
@@ -164,7 +161,7 @@ export const ClientsList: React.FC = () => {
     if (!selectedClient) return;
 
     try {
-      const { error } = await supabaseClient
+      const { error } = await supabase
         .from('clients')
         .delete()
         .eq('id', selectedClient.id);
@@ -393,7 +390,8 @@ export const ClientsList: React.FC = () => {
             </DialogHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-              <CustomerField label={t('client.name', 'اسم العميل')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.name', 'اسم العميل')}</label>
                 <CustomerInput
                   name="client_name"
                   value={selectedClient.client_name}
@@ -401,9 +399,10 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.namePlaceholder', 'أدخل اسم العميل') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.organization', 'اسم المؤسسة')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.organization', 'اسم المؤسسة')}</label>
                 <CustomerInput
                   name="organization_name"
                   value={selectedClient.organization_name}
@@ -411,9 +410,10 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.organizationPlaceholder', 'أدخل اسم المؤسسة') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.activityType', 'نوع النشاط')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.activityType', 'نوع النشاط')}</label>
                 <CustomerInput
                   name="activity_type"
                   value={selectedClient.activity_type}
@@ -421,9 +421,10 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.activityTypePlaceholder', 'أدخل نوع النشاط') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.phone', 'رقم الهاتف')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.phone', 'رقم الهاتف')}</label>
                 <CustomerInput
                   name="phone"
                   value={selectedClient.phone}
@@ -431,9 +432,10 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.phonePlaceholder', 'أدخل رقم الهاتف') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.activationCode', 'كود التفعيل')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.activationCode', 'كود التفعيل')}</label>
                 <CustomerInput
                   name="activation_code"
                   value={selectedClient.activation_code}
@@ -441,24 +443,28 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.activationCodePlaceholder', 'أدخل كود التفعيل') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.subscriptionType', 'نوع الاشتراك')}>
-                <CustomerSelect
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.subscriptionType', 'نوع الاشتراك')}</label>
+                <select
                   name="subscription_type"
                   value={selectedClient.subscription_type}
                   onChange={handleChange}
-                  isEditing={isEditing}
+                  className={`block w-full py-2 pl-10 pr-4 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white ${
+                    isEditing ? 'bg-gray-100 dark:bg-gray-800' : ''
+                  }`}
                 >
                   {SUBSCRIPTION_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
                       {i18n.language === 'en' ? type.labelEn : type.label}
                     </option>
                   ))}
-                </CustomerSelect>
-              </CustomerField>
+                </select>
+              </div>
 
-              <CustomerField label={t('client.address', 'العنوان')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.address', 'العنوان')}</label>
                 <CustomerInput
                   name="address"
                   value={selectedClient.address}
@@ -466,9 +472,10 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   placeholder={t('client.addressPlaceholder', 'أدخل العنوان') as string}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.deviceCount', 'عدد الأجهزة')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.deviceCount', 'عدد الأجهزة')}</label>
                 <CustomerInput
                   type="number"
                   name="device_count"
@@ -477,24 +484,28 @@ export const ClientsList: React.FC = () => {
                   isEditing={isEditing}
                   min="1"
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.softwareVersion', 'نوع النسخة')}>
-                <CustomerSelect
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.softwareVersion', 'نوع النسخة')}</label>
+                <select
                   name="software_version"
                   value={selectedClient.software_version}
                   onChange={handleChange}
-                  isEditing={isEditing}
+                  className={`block w-full py-2 pl-10 pr-4 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white ${
+                    isEditing ? 'bg-gray-100 dark:bg-gray-800' : ''
+                  }`}
                 >
                   {VERSION_TYPES.map((type) => (
                     <option key={type.value} value={type.value}>
                       {i18n.language === 'en' ? type.labelEn : type.label}
                     </option>
                   ))}
-                </CustomerSelect>
-              </CustomerField>
+                </select>
+              </div>
 
-              <CustomerField label={t('client.subscriptionStart', 'تاريخ بداية الاشتراك')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.subscriptionStart', 'تاريخ بداية الاشتراك')}</label>
                 <CustomerInput
                   type="date"
                   name="subscription_start"
@@ -502,9 +513,10 @@ export const ClientsList: React.FC = () => {
                   onChange={handleChange}
                   isEditing={isEditing}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.subscriptionEnd', 'تاريخ نهاية الاشتراك')}>
+              <div className="grid grid-cols-1 gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.subscriptionEnd', 'تاريخ نهاية الاشتراك')}</label>
                 <CustomerInput
                   type="date"
                   name="subscription_end"
@@ -512,9 +524,10 @@ export const ClientsList: React.FC = () => {
                   onChange={handleChange}
                   isEditing={isEditing}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2">
+              <div className="grid grid-cols-1 gap-2 md:col-span-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.notes', 'ملاحظات')}</label>
                 <CustomerTextArea
                   name="notes"
                   value={selectedClient.notes || ''}
@@ -523,14 +536,17 @@ export const ClientsList: React.FC = () => {
                   placeholder={t('client.notesPlaceholder', 'أدخل ملاحظات إضافية') as string}
                   rows={3}
                 />
-              </CustomerField>
+              </div>
 
-              <CustomerField label={t('client.agent', 'المندوب')} className="md:col-span-2">
-                <CustomerSelect
+              <div className="grid grid-cols-1 gap-2 md:col-span-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.agent', 'المندوب')}</label>
+                <select
                   name="agent_id"
                   value={selectedClient.agent_id || ''}
                   onChange={handleChange}
-                  isEditing={isEditing}
+                  className={`block w-full py-2 pl-10 pr-4 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white ${
+                    isEditing ? 'bg-gray-100 dark:bg-gray-800' : ''
+                  }`}
                 >
                   <option value="">{t('client.selectAgent', 'اختر المندوب')}</option>
                   {agents.map((agent) => (
@@ -538,14 +554,14 @@ export const ClientsList: React.FC = () => {
                       {agent.name || agent.email}
                     </option>
                   ))}
-                </CustomerSelect>
-              </CustomerField>
+                </select>
+              </div>
             </div>
 
             <DialogFooter>
               {isEditing ? (
                 <>
-                  <Button onClick={handleSaveChanges} className="ml-2">
+                  <Button onClick={handleSaveChanges} className="bg-primary-600 hover:bg-primary-700 text-white">
                     {t('actions.save', 'حفظ')}
                   </Button>
                   <Button onClick={() => setIsEditing(false)} variant="secondary">
@@ -554,7 +570,7 @@ export const ClientsList: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <Button onClick={handleEdit} className="ml-2">
+                  <Button onClick={handleEdit} className="bg-primary-600 hover:bg-primary-700 text-white">
                     {t('actions.edit', 'تعديل')}
                   </Button>
                   <Button onClick={handleConfirmDelete} variant="danger">

@@ -100,22 +100,21 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
       }
       
+      // التحقق من حالة نشاط الحساب
+      if (agentData.is_active === false) {
+        throw new Error('هذا الحساب غير نشط. يرجى التواصل مع المدير');
+      }
+      
       // التحقق من حالة الموافقة للمناديب
-      if (agentData.role === 'agent') {
-        // التحقق من وجود حقل approval_status
-        if ('approval_status' in agentData) {
-          if (agentData.approval_status !== 'approved') {
-            if (agentData.approval_status === 'pending') {
-              throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
-            } else if (agentData.approval_status === 'rejected') {
-              throw new Error('تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
-            } else {
-              throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
-            }
+      if (agentData.role === 'agent' && agentData.approval_status) {
+        if (agentData.approval_status !== 'approved') {
+          if (agentData.approval_status === 'pending') {
+            throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
+          } else if (agentData.approval_status === 'rejected') {
+            throw new Error('تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
+          } else {
+            throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
           }
-        } else {
-          // إذا لم يكن هناك حقل approval_status، نفترض أن المستخدم معتمد (للتوافق مع الإصدارات القديمة)
-          console.log('No approval_status field found, assuming approved for backwards compatibility');
         }
       }
 

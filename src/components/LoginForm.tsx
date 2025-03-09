@@ -86,7 +86,12 @@ export const LoginForm: React.FC = () => {
       }
       
       // إنشاء UUID جديد للمستخدم
-      const userId = crypto.randomUUID();
+      const userId = crypto.randomUUID ? crypto.randomUUID() : 
+        'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, 
+                v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
       
       // إضافة المندوب إلى جدول agents مباشرة مع حالة موافقة معلقة
       const { error: agentError } = await supabase
