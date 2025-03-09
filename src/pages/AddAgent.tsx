@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { User, Phone, MapPin, Mail, Lock, UserPlus, X, UserCog } from 'lucide-react';
+import { User, Phone, MapPin, Mail, Lock, UserPlus, X, UserCog, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import AgentField from '../components/AgentField';
@@ -180,12 +180,23 @@ export const AddAgent: React.FC = () => {
               </>
             )}
           </h1>
-          <button 
-            onClick={() => navigate('/agents')}
-            className="text-white hover:text-gray-200"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center">
+            <button 
+              onClick={() => navigate('/dashboard')}
+              className="text-white hover:text-gray-200 ml-2 flex items-center"
+              title="الرجوع إلى لوحة التحكم"
+            >
+              <ArrowRight size={20} />
+              <span className="mr-1">لوحة التحكم</span>
+            </button>
+            <button 
+              onClick={() => navigate('/agents')}
+              className="text-white hover:text-gray-200"
+              title="إغلاق"
+            >
+              <X size={24} />
+            </button>
+          </div>
         </div>
         
         <form onSubmit={handleSubmit} className="p-6">
