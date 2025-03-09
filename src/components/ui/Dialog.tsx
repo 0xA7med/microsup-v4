@@ -12,27 +12,64 @@ const Dialog: React.FC<DialogProps> = ({ open, onOpenChange, children, className
 
   return (
     <div className={`dialog-overlay ${className}`} onClick={() => onOpenChange(false)}>
-      <div className="dialog-content" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog-content" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         {children}
       </div>
     </div>
   );
 };
 
-const DialogContent: React.FC<{ className?: string; children: React.ReactNode }> = ({ className, children }) => (
-  <div className={`dialog-content ${className}`}>{children}</div>
-);
+interface DialogContentProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-const DialogHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="dialog-header">{children}</div>
-);
+const DialogContent: React.FC<DialogContentProps> = ({ children, className }) => {
+  return (
+    <div className={`dialog-content-container ${className}`}>
+      {children}
+    </div>
+  );
+};
 
-const DialogTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <h2 className="dialog-title">{children}</h2>
-);
+interface DialogHeaderProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-const DialogFooter: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="dialog-footer">{children}</div>
-);
+const DialogHeader: React.FC<DialogHeaderProps> = ({ children, className }) => {
+  return (
+    <div className={`dialog-header ${className}`}>
+      {children}
+    </div>
+  );
+};
+
+interface DialogTitleProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+const DialogTitle: React.FC<DialogTitleProps> = ({ children, className }) => {
+  return (
+    <h2 className={`dialog-title ${className}`}>
+      {children}
+    </h2>
+  );
+};
+
+interface DialogFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+const DialogFooter: React.FC<DialogFooterProps> = ({ children, className }) => {
+  return (
+    <div className={`dialog-footer ${className}`}>
+      {children}
+    </div>
+  );
+};
 
 export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter };
+export default Dialog;

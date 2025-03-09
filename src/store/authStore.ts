@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import type { User } from '../types/database.types';
+import type { Database } from '../types/database.types';
+
+// تعريف نوع المستخدم من نوع الصف agents
+type User = Database['public']['Tables']['agents']['Row'];
 
 interface AuthState {
   user: User | null;
@@ -53,9 +56,23 @@ export const useAuthStore = create<AuthState>((set) => ({
         .eq('id', session.user.id)
         .single();
 
-      if (userData) {
-        set({ user: userData });
+      if (!userData) {
+        throw new Error('لم يتم العثور على بيانات المستخدم');
       }
+
+      // التحقق من حالة الموافقة للمناديب
+      if (userData.role === 'agent' && userData.approval_status !== 'approved') {
+        if (userData.approval_status === 'pending') {
+          throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
+        } else if (userData.approval_status === 'rejected') {
+          throw new Error('تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
+        } else {
+          throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
+        }
+      }
+
+      // إذا كان المستخدم مديرًا أو مندوبًا معتمدًا، قم بتسجيل الدخول
+      set({ user: userData });
     }
   },
   signOut: async () => {

@@ -14,16 +14,37 @@ export interface Database {
           id: string
           user_id: string
           created_at: string
+          approval_status: 'pending' | 'approved' | 'rejected'
+          email: string
+          name: string
+          role: string
+          phone: string | null
+          address: string | null
+          created_by: string | null
         }
         Insert: {
           id?: string
           user_id: string
           created_at?: string
+          approval_status?: 'pending' | 'approved' | 'rejected'
+          email: string
+          name: string
+          role: string
+          phone?: string | null
+          address?: string | null
+          created_by?: string | null
         }
         Update: {
           id?: string
           user_id?: string
           created_at?: string
+          approval_status?: 'pending' | 'approved' | 'rejected'
+          email?: string
+          name?: string
+          role?: string
+          phone?: string | null
+          address?: string | null
+          created_by?: string | null
         }
       }
       clients: {
