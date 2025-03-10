@@ -347,13 +347,9 @@ export const ClientsList: React.FC = () => {
 
       {selectedClient && (
         <Dialog open={showClientDetails} onOpenChange={setShowClientDetails}>
-          <>
           <DialogContent className="max-w-3xl">
-          <>
             <DialogHeader>
-            <>
               <DialogTitle>
-                <>
                 {isEditing
                  ? t('dialogs.editClient', 'تعديل بيانات العميل')
                   : t('dialogs.clientDetails', 'تفاصيل العميل')}
@@ -363,10 +359,8 @@ export const ClientsList: React.FC = () => {
                 className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
               >
                 <X className="h-5 w-5" />
-              </button>
-                </>
+              </DialogTitle>
             </DialogHeader>
-            </>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
               <div className="grid grid-cols-1 gap-2">
@@ -537,7 +531,6 @@ export const ClientsList: React.FC = () => {
               </div>
             </div>
             
-
             <DialogFooter>
               {isEditing ? (
                 <>
@@ -565,19 +558,14 @@ export const ClientsList: React.FC = () => {
                 </>
               )}
             </DialogFooter>
-            </>
           </DialogContent>
-          </>
         </Dialog>
       )}
 
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-       <>
         <DialogContent className="max-w-md">
-          <>
           <DialogHeader>
-           <>
-            <DialogTitle>
+           <DialogTitle>
              {t('dialogs.confirmDelete', 'تأكيد الحذف')}
             </DialogTitle>
           </DialogHeader>
@@ -600,12 +588,10 @@ export const ClientsList: React.FC = () => {
               {t('actions.confirmDelete', 'تأكيد الحذف')}
             </Button>
           </DialogFooter>
-           </>
         </DialogContent>
-         </>
-
       </Dialog>
 
+     
       {selectedClient && (
         <ClientDetailsModal
           client={selectedClient}
