@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { Search, Phone, Calendar, X, User, Edit, Trash2 } from 'lucide-react';
-import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../components/ui/Dialog';
+import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter, } from '../components/ui/Dialog';
 import Button from '../components/ui/Button';
 import CustomerInput from '../components/CustomerInput';
 import CustomerTextArea from '../components/CustomerTextArea';
@@ -353,13 +353,12 @@ export const ClientsList: React.FC = () => {
                 {isEditing
                  ? t('dialogs.editClient', 'تعديل بيانات العميل')
                   : t('dialogs.clientDetails', 'تفاصيل العميل')}
-              </DialogTitle>
-              <button
-                onClick={handleCloseDetails}
-                className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
-              >              
-                <X className="h-5 w-5" />
-              </button>
+                  <button
+                  onClick={handleCloseDetails}
+                  className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
+                >              
+                  <X className="h-5 w-5" />
+                </button>
               </DialogTitle>
               
             </DialogHeader>
@@ -562,15 +561,11 @@ export const ClientsList: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      )}
-
+          )}
+      
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-           <DialogTitle>
-             {t('dialogs.confirmDelete', 'تأكيد الحذف')}
-            </DialogTitle>
-          </DialogHeader>
+           <DialogHeader><DialogTitle>{t('dialogs.confirmDelete', 'تأكيد الحذف')}</DialogTitle></DialogHeader>
           <div className="p-4">
             <p className="text-gray-700 dark:text-gray-300">
               {t('dialogs.confirmDeleteMessage', 'هل أنت متأكد من رغبتك في حذف هذا العميل؟ لا يمكن التراجع عن هذا الإجراء.')}
@@ -592,20 +587,7 @@ export const ClientsList: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-     
-      {selectedClient && (
-        <ClientDetailsModal
-          client={selectedClient}
-          onClose={() => setSelectedClient(null)}
-          onEdit={handleEditClient}
-          onDelete={() => {
-            if (selectedClient && selectedClient.id) {
-              handleDeleteClient(selectedClient.id);
-            }
-          }}
-        />
-      )}
+      
     </div>
   );
 };
