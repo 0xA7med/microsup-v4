@@ -6,7 +6,14 @@ import type { Database } from '../types/database.types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { toast } from 'react-hot-toast';
-
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 type Client = Database['public']['Tables']['clients']['Row'];
 
 export const Dashboard: React.FC = () => {
