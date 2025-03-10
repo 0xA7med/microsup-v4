@@ -357,12 +357,14 @@ export const ClientsList: React.FC = () => {
               <button
                 onClick={handleCloseDetails}
                 className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-500 focus:outline-none"
-              >
+              >              
                 <X className="h-5 w-5" />
+              </button>
               </DialogTitle>
+              
             </DialogHeader>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">        
               <div className="grid grid-cols-1 gap-2">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('client.name', 'اسم العميل')}</label>
                 <CustomerInput
