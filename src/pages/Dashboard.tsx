@@ -3,20 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, ClipboardList, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import Table from '@/components/ui/Table';
 import { Button } from '../components/ui/button';
 import { toast } from 'react-hot-toast';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 type Client = Database['public']['Tables']['clients']['Row'];
 
-export const Dashboard: React.FC = () => {
+export const Dashboard: React.FC = () => { 
   const { t } = useTranslation();
   const [totalClients, setTotalClients] = useState(0);
   const [totalAgents, setTotalAgents] = useState(0);
@@ -94,7 +86,7 @@ export const Dashboard: React.FC = () => {
                 <TableRow key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                   <TableCell className="font-medium">{client.client_name}</TableCell>
                   <TableCell>{t(client.subscription_type || '')}</TableCell>
-                  <TableCell>{client.device_count}</TableCell>
+                  <TableCell>{client.device_count || 0}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs ${new Date(client.subscription_end || '') > new Date() ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {new Date(client.subscription_end || '') > new Date() ? t('active') : t('expired')}

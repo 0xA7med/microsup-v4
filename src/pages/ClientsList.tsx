@@ -206,7 +206,7 @@ export const ClientsList: React.FC = () => {
             type="text"
             placeholder={t('actions.search', 'بحث...') as string}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
             className={`pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white ${
               isRTL ? 'text-right' : 'text-left'
             }`}
@@ -347,11 +347,15 @@ export const ClientsList: React.FC = () => {
 
       {selectedClient && (
         <Dialog open={showClientDetails} onOpenChange={setShowClientDetails}>
+          <>
           <DialogContent className="max-w-3xl">
+          <>
             <DialogHeader>
+            <>
               <DialogTitle>
+                <>
                 {isEditing
-                  ? t('dialogs.editClient', 'تعديل بيانات العميل')
+                 ? t('dialogs.editClient', 'تعديل بيانات العميل')
                   : t('dialogs.clientDetails', 'تفاصيل العميل')}
               </DialogTitle>
               <button
@@ -360,7 +364,9 @@ export const ClientsList: React.FC = () => {
               >
                 <X className="h-5 w-5" />
               </button>
+                </>
             </DialogHeader>
+            </>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
               <div className="grid grid-cols-1 gap-2">
@@ -530,6 +536,7 @@ export const ClientsList: React.FC = () => {
                 </select>
               </div>
             </div>
+            
 
             <DialogFooter>
               {isEditing ? (
@@ -558,15 +565,20 @@ export const ClientsList: React.FC = () => {
                 </>
               )}
             </DialogFooter>
+            </>
           </DialogContent>
+          </>
         </Dialog>
       )}
 
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+       <>
         <DialogContent className="max-w-md">
+          <>
           <DialogHeader>
+           <>
             <DialogTitle>
-              {t('dialogs.confirmDelete', 'تأكيد الحذف')}
+             {t('dialogs.confirmDelete', 'تأكيد الحذف')}
             </DialogTitle>
           </DialogHeader>
           <div className="p-4">
@@ -588,7 +600,10 @@ export const ClientsList: React.FC = () => {
               {t('actions.confirmDelete', 'تأكيد الحذف')}
             </Button>
           </DialogFooter>
+           </>
         </DialogContent>
+         </>
+
       </Dialog>
 
       {selectedClient && (

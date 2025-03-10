@@ -1,10 +1,13 @@
-import React from 'react';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
+  getFilteredRowModel,
   flexRender,
+  HeaderGroup,
+  Header,
+  Row,
+  Cell,
 } from '@tanstack/react-table';
 import Button from './Button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -35,11 +38,11 @@ export default function Table({ data, columns, searchValue, onSearchChange }: Ta
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
-            {table.getHeaderGroups().map((headerGroup) => (
+            {table.getHeaderGroups().map((headerGroup: HeaderGroup<any>) => (
               <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
+                {headerGroup.headers.map((header: Header<any, unknown>) => (
                   <th
-                    key={header.id}
+                    key={header.id} 
                     className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
                   >
                     {flexRender(
@@ -52,9 +55,9 @@ export default function Table({ data, columns, searchValue, onSearchChange }: Ta
             ))}
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-            {table.getRowModel().rows.map((row) => (
+            {table.getRowModel().rows.map((row: Row<any>) => (
               <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                {row.getVisibleCells().map((cell) => (
+                {row.getVisibleCells().map((cell: Cell<any, unknown>) => (
                   <td key={cell.id} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
@@ -69,7 +72,6 @@ export default function Table({ data, columns, searchValue, onSearchChange }: Ta
         <div className="flex gap-2">
           <Button
             variant="secondary"
-            size="sm"
             icon={ChevronRight}
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
@@ -78,7 +80,6 @@ export default function Table({ data, columns, searchValue, onSearchChange }: Ta
           </Button>
           <Button
             variant="secondary"
-            size="sm"
             icon={ChevronLeft}
             iconPosition="right"
             onClick={() => table.nextPage()}

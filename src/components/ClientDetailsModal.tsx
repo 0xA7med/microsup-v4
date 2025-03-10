@@ -1,40 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { X, Edit, Trash2, Building, Phone, Calendar, MapPin, Monitor, Tag, User, Info, PlusCircle } from 'lucide-react';
 import Button from './ui/Button';
+import { ClientType } from '@/pages/ClientsList';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useTranslation } from 'react-i18next';
 import { format, isValid, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
-
-// تعريف واجهة نموذج العميل لتحسين التنميط
-interface ClientModel {
-  id: string;
-  client_name?: string;
-  organization_name?: string;
-  activity_type?: string;
-  phone?: string;
-  address?: string;
-  device_count?: number;
-  subscription_start?: string;
-  subscription_end?: string;
-  notes?: string;
-  services?: ServiceModel[];
-}
 
 // تعريف واجهة نموذج الخدمة
 interface ServiceModel {
   id: string;
   name: string;
   description?: string;
-  price?: number;
+  price?: number;  
   start_date?: string;
   end_date?: string;
 }
 
 interface ClientDetailsModalProps {
-  client: ClientModel;
+  client: ClientType;
   onClose: () => void;
-  onEdit: (client: ClientModel) => void;
+  onEdit: (client: ClientType) => void;
   onDelete: (clientId: string) => void;
   onAddService?: (clientId: string) => void;
   onRemoveService?: (clientId: string, serviceId: string) => void;
@@ -164,7 +150,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.name', 'اسم العميل')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.client_name || t('common.notAvailable', 'غير متوفر')}
+                  {client.client_name || ''}
                 </div>
               </div>
               
@@ -174,7 +160,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.organization', 'اسم المؤسسة')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.organization_name || t('common.notAvailable', 'غير متوفر')}
+                  {client.organization_name || ''}
                 </div>
               </div>
               
@@ -184,7 +170,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.activityType', 'نوع النشاط')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.activity_type || t('common.notAvailable', 'غير متوفر')}
+                  {client.activity_type || ''}
                 </div>
               </div>
               
@@ -194,7 +180,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.phone', 'رقم الهاتف')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.phone || t('common.notAvailable', 'غير متوفر')}
+                  {client.phone || ''}
                 </div>
               </div>
             </div>
@@ -206,7 +192,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.address', 'العنوان')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.address || t('common.notAvailable', 'غير متوفر')}
+                  {client.address || ''}
                 </div>
               </div>
               
@@ -216,7 +202,7 @@ export default function ClientDetailsModal({
                   {t('clientDetails.deviceCount', 'عدد الأجهزة')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                  {client.device_count ?? '0'}
+                  {client.device_count || '0'}
                 </div>
               </div>
               
@@ -224,6 +210,16 @@ export default function ClientDetailsModal({
                 <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                   <Calendar className="inline-block w-4 h-4 mr-1" />
                   {t('clientDetails.subscriptionStart', 'بداية الاشتراك')}
+                </label>
+                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                  {formatDate(client.subscription_start)}
+                </div>
+              </div>
+              
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  <Calendar className="inline-block w-4 h-4 mr-1" />
+                  {t('clientDetails.software_version', 'نسخة البرنامج')}
                 </label>
                 <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'}`}>
                   {formatDate(client.subscription_start)}
@@ -248,7 +244,7 @@ export default function ClientDetailsModal({
               {t('clientDetails.notes', 'ملاحظات')}
             </label>
             <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-800'} min-h-[80px]`}>
-              {client.notes || t('clientDetails.noNotes', 'لا توجد ملاحظات')}
+              {client.notes || ''}
             </div>
           </div>
 
@@ -275,7 +271,7 @@ export default function ClientDetailsModal({
                   <thead className={`${isDarkMode ? 'bg-gray-700 text-gray-200' : 'bg-gray-100 text-gray-700'}`}>
                     <tr>
                       <th className="py-2 px-4 text-right">{t('serviceDetails.name', 'اسم الخدمة')}</th>
-                      <th className="py-2 px-4 text-right">{t('serviceDetails.description', 'الوصف')}</th>
+                      <th className="py-2 px-4 text-right">{t('serviceDetails.description', 'الوصف')}</th>      
                       <th className="py-2 px-4 text-right">{t('serviceDetails.price', 'السعر')}</th>
                       <th className="py-2 px-4 text-right">{t('serviceDetails.period', 'الفترة')}</th>
                       <th className="py-2 px-4 text-center">{t('actions.actions', 'الإجراءات')}</th>
