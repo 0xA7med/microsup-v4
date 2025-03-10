@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Edit, Trash2, Building, Phone, Calendar, MapPin, Monitor, Tag, User, Info, PlusCircle } from 'lucide-react';
 import Button from './ui/Button';
 import { ClientType } from '@/pages/ClientsList';
@@ -7,15 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { format, isValid, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
-// تعريف واجهة نموذج الخدمة
-interface ServiceModel {
-  id: string;
-  name: string;
-  description?: string;
-  price?: number;  
-  start_date?: string;
-  end_date?: string;
-}
 
 interface ClientDetailsModalProps {
   client: ClientType;

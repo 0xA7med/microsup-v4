@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LoginForm } from './components/LoginForm';
@@ -32,11 +32,13 @@ function App() {
   }
 
   return (
-    <Router>
-      <Layout>
-        <AppRoutes />
+    <Router>    
+      <Layout>  
+        <div>
+          <AppRoutes />
+        </div>
       </Layout>
-    </Router>
+    </Router>  
   );
 }
 

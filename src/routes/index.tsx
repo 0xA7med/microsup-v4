@@ -34,24 +34,24 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
+          <ProtectedRoute> 
+             <Dashboard />
+          </ProtectedRoute> 
         }
       />
       <Route
         path="/clients"
         element={
-          <ProtectedRoute>
-            <ClientsList />
-          </ProtectedRoute>
+           <ProtectedRoute>
+              <ClientsList />
+           </ProtectedRoute>
         }
       />
       <Route
         path="/clients/add"
         element={
-          <ProtectedRoute>
-            <AddClient />
+          <ProtectedRoute> 
+             <AddClient />
           </ProtectedRoute>
         }
       />
@@ -59,20 +59,20 @@ export const AppRoutes: React.FC = () => {
         path="/agents"
         element={
           <ProtectedRoute>
-            <AdminRoute>
-              <AgentsList />
-            </AdminRoute>
-          </ProtectedRoute>
+               <AdminRoute>
+                  <AgentsList />
+               </AdminRoute>
+           </ProtectedRoute>
         }
       />
       <Route
         path="/agents/add"
         element={
-          <ProtectedRoute>
-            <AdminRoute>
-              <AddAgent />
-            </AdminRoute>
-          </ProtectedRoute>
+            <ProtectedRoute>
+              <AdminRoute>
+                <AddAgent />
+              </AdminRoute>
+            </ProtectedRoute> 
         }
       />
     </Routes>

@@ -15,8 +15,6 @@ export const Dashboard: React.FC = () => {
   const [activeSubscriptions, setActiveSubscriptions] = useState(0);
   const [recentClients, setRecentClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expiredSubscriptions, setExpiredSubscriptions] = useState(0);
-  const [averageDevices, setAverageDevices] = useState(0);
 
   useEffect(() => {
     async function fetchDashboardData() {
@@ -35,8 +33,6 @@ export const Dashboard: React.FC = () => {
         setTotalAgents(agentsCount || 0);
         setActiveSubscriptions(activeCount || 0);
         setRecentClients(recent || []);
-        setExpiredSubscriptions(expiredCount || 0);
-        setAverageDevices(totalClients ? totalDevices / totalClients : 0);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {

@@ -7,7 +7,6 @@ import Dialog, { DialogContent, DialogHeader, DialogTitle, DialogFooter, } from 
 import Button from '../components/ui/Button';
 import CustomerInput from '../components/CustomerInput';
 import CustomerTextArea from '../components/CustomerTextArea';
-import ClientDetailsModal from '../components/ClientDetailsModal';
 import { supabase } from '../lib/supabase';
 
 interface ClientType {
@@ -168,12 +167,6 @@ export const ClientsList: React.FC = () => {
       console.error('Error deleting client:', error);
       toast.error(t('messages.deleteError', 'حدث خطأ أثناء حذف العميل'));
     }
-  };
-
-  const handleEditClient = (client: ClientType) => {
-    setSelectedClient(client);
-    setShowClientDetails(true);
-    setIsEditing(true);
   };
 
   const getSubscriptionTypeLabel = (value: string) => {
@@ -360,7 +353,7 @@ export const ClientsList: React.FC = () => {
                   <X className="h-5 w-5" />
                 </button>
               </DialogTitle>
-              
+            </DialogHeader>
             </DialogHeader>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">        
@@ -531,7 +524,7 @@ export const ClientsList: React.FC = () => {
                 </select>
               </div>
             </div>
-            
+              
             <DialogFooter>
               {isEditing ? (
                 <>
@@ -561,10 +554,12 @@ export const ClientsList: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-          )}
+      )}
       
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md">
+
+
            <DialogHeader><DialogTitle>{t('dialogs.confirmDelete', 'تأكيد الحذف')}</DialogTitle></DialogHeader>
           <div className="p-4">
             <p className="text-gray-700 dark:text-gray-300">
@@ -585,7 +580,8 @@ export const ClientsList: React.FC = () => {
               {t('actions.confirmDelete', 'تأكيد الحذف')}
             </Button>
           </DialogFooter>
-        </DialogContent>
+              </DialogContent>
+
       </Dialog>
       
     </div>
