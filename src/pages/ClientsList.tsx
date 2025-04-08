@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
-import { Search, Phone, Calendar, Eye } from 'lucide-react';
+import { Search, Phone, Calendar, Eye, ChevronRight } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { supabase } from '../lib/supabase';
@@ -49,6 +50,8 @@ const VERSION_TYPES = [
 export const ClientsList: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const [clients, setClients] = useState<ClientType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -56,14 +59,49 @@ export const ClientsList: React.FC = () => {
   const [selectedClient, setSelectedClient] = useState<ClientType | null>(null);
   const [agents] = useState<Agent[]>([]);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
-  const fetchClients = async () => {
+  const fetchClients = async (filterOverride?: string | null) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('clients')
-        .select('*, agent:agents(id, name, email)')
-        .order('client_name', { ascending: true });
+        .select('*, agent:agents(id, name, email)');
+      
+      // Use the override filter if provided, otherwise use the component state
+      const filterToApply = filterOverride !== undefined ? filterOverride : activeFilter;
+      
+      // Apply filter if exists
+      if (filterToApply) {
+        const today = new Date().toISOString();
+        
+        switch (filterToApply) {
+          case 'active':
+            query = query.gt('subscription_end', today);
+            break;
+          case 'expired':
+            query = query.lt('subscription_end', today);
+            break;
+          case 'permanent':
+            query = query.eq('subscription_type', 'permanent');
+            break;
+          case 'monthly':
+            query = query.eq('subscription_type', 'monthly');
+            break;
+          case 'annual':
+            query = query.eq('subscription_type', 'annual');
+            break;
+          default:
+            // No filter
+            break;
+        }
+      }
+      
+      // Apply ordering
+      query = query.order('client_name', { ascending: true });
+      
+      const { data, error } = await query;
+      
       if (error) throw error;
       const formattedData = data?.map((client: ClientType) => ({
         ...client,
@@ -79,8 +117,24 @@ export const ClientsList: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    // Get filter from URL query parameters
+    const queryParams = new URLSearchParams(location.search);
+    const filterParam = queryParams.get('filter');
+    
+    // Update the filter state and fetch clients in one go to avoid race conditions
+    if (filterParam) {
+      // First fetch data with the filter to avoid any delay
+      fetchClients(filterParam);
+      // Then update the state
+      setActiveFilter(filterParam);
+    } else {
+      // First fetch all data without filter
+      fetchClients(null);
+      // Then update the state
+      setActiveFilter(null);
+    }
+    
+  }, [location.search]);
 
   const handleShowDetails = (client: ClientType) => {
     setSelectedClient(client);
@@ -155,7 +209,45 @@ export const ClientsList: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-lg">
-      <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">{t('clientsList.title', 'قائمة العملاء')}</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('clientsList.title', 'قائمة العملاء')}</h1>
+        
+        <div className="flex items-center">
+          <button 
+            onClick={() => navigate('/')}
+            className="flex items-center text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+          >
+            <span>{t('common.backToDashboard', 'العودة للوحة التحكم')}</span>
+            <ChevronRight className="h-5 w-5 mr-1" />
+          </button>
+        </div>
+        
+        {activeFilter && (
+          <div className="flex items-center">
+            <span className="mr-2 text-sm text-gray-600 dark:text-gray-300">
+              {t('clientsList.filterActive', 'الفلتر النشط')}:
+            </span>
+            <span className="px-3 py-1 bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 rounded-full text-sm font-medium">
+              {activeFilter === 'active' && t('clientsList.activeFilter', 'الاشتراكات النشطة')}
+              {activeFilter === 'expired' && t('clientsList.expiredFilter', 'الاشتراكات المنتهية')}
+              {activeFilter === 'permanent' && t('clientsList.permanentFilter', 'التراخيص الدائمة')}
+              {activeFilter === 'monthly' && t('clientsList.monthlyFilter', 'الاشتراكات الشهرية')}
+              {activeFilter === 'annual' && t('clientsList.annualFilter', 'الاشتراكات السنوية')}
+            </span>
+            <button 
+              onClick={() => {
+                // أولاً: تحميل جميع العملاء بدون فلتر
+                fetchClients(null);
+                // ثانياً: تحديث الرابط لإزالة معلمة الفلتر
+                navigate('/clients', { replace: true });
+              }}
+              className="mr-2 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+            >
+              {t('clientsList.clearFilter', 'إلغاء الفلتر')} ×
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="mb-6 relative">
         <input
