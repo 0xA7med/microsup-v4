@@ -1,239 +1,463 @@
-import React, { useState } from 'react';
-import { X, Edit, Trash2, Building, Phone, Calendar, MapPin, Monitor, Tag, User, Info, PlusCircle } from 'lucide-react';
-import Button from './ui/Button';
-import * as AlertDialog from '@radix-ui/react-alert-dialog';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import {
+  X, Edit, Save, Trash2, Ban, AlertTriangle, Calendar
+} from 'lucide-react';
+import Button from './ui/Button';
+import { ClientType, Agent, SubscriptionType, VersionType } from '../types';
+import CustomerField from './CustomerField';
+import CustomerInput from './CustomerInput';
+import CustomerSelect from './CustomerSelect';
+import CustomerTextArea from './CustomerTextArea';
 
 interface ClientDetailsModalProps {
-  client: any;
+  client: ClientType | null;
+  agents: Agent[];
+  subscriptionTypes: SubscriptionType[];
+  versionTypes: VersionType[];
+  isOpen: boolean;
   onClose: () => void;
-  onEdit: (client: any) => void;
-  onDelete: (clientId: string) => void;
+  onSave: (updatedClient: ClientType) => Promise<void>;
+  onDelete: (clientId: string) => Promise<void>;
 }
 
-export default function ClientDetailsModal({ client, onClose, onEdit, onDelete }: ClientDetailsModalProps) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const { t } = useTranslation();
+export default function ClientDetailsModal({
+  client,
+  agents,
+  subscriptionTypes,
+  versionTypes,
+  isOpen,
+  onClose,
+  onSave,
+  onDelete
+}: ClientDetailsModalProps) {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.dir() === 'rtl';
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<ClientType | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  React.useEffect(() => {
-    setIsDarkMode(document.documentElement.classList.contains('dark'));
-  }, []);
+  useEffect(() => {
+    if (client && isOpen) {
+      setFormData({ ...client }); 
+      setIsEditing(false); 
+      setShowDeleteConfirm(false);
+      setIsSaving(false);
+      setIsDeleting(false);
+    } else if (!isOpen) {
+      setTimeout(() => {
+        setFormData(null);
+        setIsEditing(false);
+        setShowDeleteConfirm(false);
+      }, 200); 
+    }
+  }, [client, isOpen]);
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev: ClientType | null) => prev ? { ...prev, [name]: value } : null);
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target; 
+    setFormData((prev: ClientType | null) => prev ? { ...prev, [name]: value } : null);
+  };
+
+  const handleSaveClick = async () => {
+    if (!formData) return;
+    setIsSaving(true);
     try {
-      return format(new Date(dateString), 'yyyy-MM-dd');
+      await onSave(formData);
+      setIsEditing(false); 
     } catch (error) {
-      return dateString || 'N/A';
+      console.error("Error saving client:", error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleEdit = () => {
-    onEdit(client);
+  const handleCancelEdit = () => {
+    if (client) {
+      setFormData({ ...client }); 
+    }
+    setIsEditing(false);
   };
 
-  const handleDelete = () => {
-    setIsDeleteDialogOpen(true);
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
   };
 
-  const handleAddServiceClick = () => {
-    // سيتم تنفيذ إضافة خدمة جديدة في المستقبل
-    console.log('إضافة خدمة جديدة');
+  const handleConfirmDelete = async () => {
+    if (!client?.id) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(client.id);
+      setShowDeleteConfirm(false);
+      onClose(); 
+    } catch (error) {
+      console.error("Error deleting client:", error);
+    } finally {
+      setIsDeleting(false);
+    }
   };
+
+  const formatInputDate = (dateString?: string | null): string => {
+    if (!dateString) return '';
+    try {
+      return format(parseISO(dateString), 'yyyy-MM-dd');
+    } catch (error) {
+      console.warn("Error formatting input date:", dateString, error);
+      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString;
+      }
+      return '';
+    }
+  };
+
+  const getVersionLabel = (value?: string) => {
+    const type = versionTypes.find(vt => vt.value === value);
+    return type ? (i18n.language === 'ar' ? type.label : type.labelEn) : (value || 'N/A');
+  };
+
+  if (!isOpen && !formData) return null; 
+  if (!client && !formData) return null; 
+
+  const displayClient = isEditing ? formData : client; 
 
   return (
-    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50">
-      <div className={`max-w-4xl w-full rounded-2xl p-6 space-y-6 max-h-[90vh] overflow-y-auto shadow-lg ${
-        isDarkMode ? 'bg-gray-800' : 'bg-white'
-      }`}>
-        <div className="flex justify-between items-center">
-          <h3 className={`text-xl font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            {t('clientDetails.title', 'تفاصيل العميل')}
-          </h3>
-          <Button
-            variant="secondary"
-            onClick={() => onClose()}
-            className="!p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
-          >
-            <X className="w-4 h-4" />
-            <span className="sr-only">{t('actions.close', 'إغلاق')}</span>
-          </Button>
-        </div>
+    <>
+      <div
+        className={`fixed inset-0 bg-black/50 dark:bg-black/70 z-50 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose} 
+      />
 
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <User className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.name', 'اسم العميل')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.client_name || 'N/A'}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Building className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.organization', 'اسم المؤسسة')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.organization_name || 'N/A'}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Tag className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.activityType', 'نوع النشاط')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.activity_type || 'N/A'}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Phone className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.phone', 'رقم الهاتف')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.phone || 'N/A'}
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <MapPin className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.address', 'العنوان')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.address || 'N/A'}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Monitor className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.deviceCount', 'عدد الأجهزة')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {client?.device_count || '0'}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Calendar className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.subscriptionStart', 'بداية الاشتراك')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {formatDate(client?.subscription_start)}
-                </div>
-              </div>
-              
-              <div>
-                <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <Calendar className="inline-block w-4 h-4 mr-1" />
-                  {t('clientDetails.subscriptionEnd', 'نهاية الاشتراك')}
-                </label>
-                <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {formatDate(client?.subscription_end)}
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <label className={`block text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-              <Info className="inline-block w-4 h-4 mr-1" />
-              {t('clientDetails.notes', 'ملاحظات')}
-            </label>
-            <div className={`p-3 rounded-md ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} min-h-[80px]`}>
-              {client?.notes || t('clientDetails.noNotes', 'لا توجد ملاحظات')}
-            </div>
+      <div
+        className={`fixed inset-0 flex items-center justify-center p-4 z-[60] transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
+        <div
+          className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+          onClick={(e) => e.stopPropagation()} 
+        >
+          <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              {t('clientDetails.title', 'تفاصيل العميل')}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
 
-          <div className="flex gap-2 justify-end mt-4">
-            <Button
-              variant="secondary"
-              onClick={() => onClose()}
-              className="flex items-center"
-            >
-              <X className="w-4 h-4 mr-1" />
-              <span>{t('actions.close', 'إغلاق')}</span>
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleEdit()}
-              className="flex items-center"
-            >
-              <Edit className="w-4 h-4 mr-1" />
-              <span>{t('actions.edit', 'تعديل')}</span>
-            </Button>
-            <Button
-              variant="danger"
-              onClick={() => handleDelete()}
-              className="flex items-center"
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              <span>{t('actions.delete', 'حذف')}</span>
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={handleAddServiceClick}
-              className="flex items-center"
-            >
-              <PlusCircle className="w-4 h-4 mr-1" />
-              <span>{t('actions.addService', 'إضافة خدمة')}</span>
-            </Button>
-            <Button
-              variant="danger"
-              className="flex items-center"
-              onClick={() => console.log('إزالة الخدمة')}
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              <span>{t('actions.removeService', 'إزالة الخدمة')}</span>
-            </Button>
+          <div className="p-6 overflow-y-auto flex-grow">
+            {displayClient ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* اسم العميل */}
+                <CustomerField label={t('client.clientName', 'اسم العميل')} children={
+                  <CustomerInput
+                    type="text"
+                    name="client_name"
+                    value={formData?.client_name || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* اسم المؤسسة */}
+                <CustomerField label={t('client.organizationName', 'اسم المؤسسة')} children={
+                  <CustomerInput
+                    type="text"
+                    name="organization_name"
+                    value={formData?.organization_name || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* نوع النشاط */}
+                <CustomerField label={t('client.activityType', 'نوع النشاط')} children={
+                  <CustomerInput
+                    type="text"
+                    name="activity_type"
+                    value={formData?.activity_type || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* رقم الهاتف */}
+                <CustomerField label={t('client.phone', 'رقم الهاتف')} children={
+                  <CustomerInput
+                    type="tel"
+                    name="phone"
+                    value={formData?.phone || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    dir="ltr"
+                  />
+                } />
+
+                {/* العنوان */}
+                <CustomerField label={t('client.address', 'العنوان')} children={
+                  <CustomerInput
+                    type="text"
+                    name="address"
+                    value={formData?.address || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* كود التفعيل */}
+                <CustomerField label={t('client.activationCode', 'كود التفعيل')} children={
+                  <CustomerInput
+                    type="text"
+                    name="activation_code"
+                    value={formData?.activation_code || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* نوع الاشتراك */}
+                <CustomerField label={t('client.subscriptionType', 'نوع الاشتراك')} children={
+                  <CustomerSelect
+                    name="subscription_type"
+                    value={formData?.subscription_type || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    options={subscriptionTypes.map(type => ({
+                      value: type.value,
+                      label: i18n.language === 'ar' ? type.label : type.labelEn
+                    }))}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* نوع النسخة */}
+                <CustomerField label={t('client.softwareVersion', 'نوع النسخة')} children={
+                  isEditing ? (
+                    <div className="flex flex-wrap gap-3">
+                      {versionTypes.map((type) => (
+                        <button
+                          key={type.value}
+                          type="button"
+                          onClick={() => setFormData((prev: ClientType | null) => prev ? { ...prev, software_version: type.value } : null)}
+                          className={`flex items-center gap-2 px-4 py-3 rounded-lg border ${formData?.software_version === type.value
+                            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
+                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                            } transition-colors`}
+                        >
+                          <span className="flex items-center gap-2">
+                            {type.icon}
+                            <span className="font-medium">
+                              {i18n.language === 'ar' ? type.label : type.labelEn}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center h-12 text-lg">
+                      {getVersionLabel(displayClient.software_version)}
+                    </div>
+                  )
+                } />
+
+                {/* عدد الأجهزة */}
+                <CustomerField label={t('client.deviceCount', 'عدد الأجهزة')} children={
+                  <CustomerInput
+                    type="number"
+                    name="device_count"
+                    value={String(formData?.device_count || 1)}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    min="1"
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* المندوب */}
+                <CustomerField label={t('client.agent', 'المندوب')} children={
+                  <CustomerSelect
+                    name="agent_id"
+                    value={formData?.agent_id || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    options={[
+                      { value: '', label: t('client.noAgent', 'بدون مندوب') },
+                      ...agents.map(agent => ({
+                        value: agent.id,
+                        label: agent.name || agent.email
+                      }))
+                    ]}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+
+                {/* تاريخ بداية الاشتراك */}
+                <CustomerField label={t('client.subscriptionStart', 'تاريخ بداية الاشتراك')} children={
+                  <div className="relative">
+                    <CustomerInput
+                      type="date"
+                      name="subscription_start"
+                      value={formatInputDate(formData?.subscription_start)}
+                      onChange={handleDateChange}
+                      isEditing={isEditing}
+                      required
+                      className={`h-12 text-lg border-gray-300 dark:border-gray-600 ${isEditing ? 'pr-3' : ''}`}
+                    />
+                    {!isEditing && (
+                      <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-3' : 'left-0 pl-3'} flex items-center pointer-events-none`}>
+                        <Calendar className="h-5 w-5 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                } />
+
+                {/* تاريخ نهاية الاشتراك */}
+                <CustomerField label={t('client.subscriptionEnd', 'تاريخ نهاية الاشتراك')} children={
+                  <div className="relative">
+                    <CustomerInput
+                      type="date"
+                      name="subscription_end"
+                      value={formatInputDate(formData?.subscription_end)}
+                      onChange={handleDateChange}
+                      isEditing={isEditing}
+                      readOnly={!isEditing}
+                      className={`h-12 text-lg border-gray-300 dark:border-gray-600 ${!isEditing ? 'bg-gray-100 dark:bg-gray-700' : 'pr-3'}`}
+                    />
+                    {!isEditing && (
+                      <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-3' : 'left-0 pl-3'} flex items-center pointer-events-none`}>
+                        <Calendar className="h-5 w-5 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                } />
+
+                {/* ملاحظات */}
+                <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2" children={
+                  <CustomerTextArea
+                    name="notes"
+                    value={formData?.notes || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    rows={4}
+                    className="text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p>{t('clientDetails.loading', 'جار تحميل بيانات العميل...')}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={handleCancelEdit}
+                  className="flex items-center gap-2 px-5 py-2.5"
+                  disabled={isSaving}
+                >
+                  <Ban className="w-5 h-5" />
+                  <span>{t('actions.cancel', 'إلغاء')}</span>
+                </Button>
+                <Button
+                  variant="primary" 
+                  onClick={handleSaveClick}
+                  className="flex items-center gap-2 px-5 py-2.5"
+                  disabled={isSaving}
+                >
+                  <Save className="w-5 h-5" />
+                  <span>{isSaving ? t('actions.saving', 'جار الحفظ...') : t('actions.save', 'حفظ')}</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="danger" 
+                  onClick={handleDeleteClick}
+                  className="flex items-center gap-2 px-5 py-2.5"
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="w-5 h-5" />
+                  <span>{t('actions.delete', 'حذف')}</span>
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center gap-2 px-5 py-2.5"
+                  disabled={isDeleting}
+                >
+                  <Edit className="w-5 h-5" />
+                  <span>{t('actions.edit', 'تعديل')}</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <AlertDialog.Root open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="fixed inset-0 bg-black/50 dark:bg-black/70" />
-          <AlertDialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-md w-full rounded-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-800">
-            <AlertDialog.Title className="text-lg font-medium text-gray-900 dark:text-white">
-              {t('deleteConfirmation.title', 'تأكيد الحذف')}
-            </AlertDialog.Title>
-            <AlertDialog.Description className="text-sm text-gray-600 dark:text-gray-300">
-              {t('deleteConfirmation.description', 'هل أنت متأكد من رغبتك في حذف هذا العميل؟ لا يمكن التراجع عن هذا الإجراء.')}
-            </AlertDialog.Description>
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <AlertDialog.Cancel asChild>
-                <Button variant="secondary">
-                  <X className="w-4 h-4 mr-1" />
-                  <span>{t('actions.cancel', 'إلغاء')}</span>
-                </Button>
-              </AlertDialog.Cancel>
-              <AlertDialog.Action asChild>
-                <Button variant="danger" onClick={() => {
-                  onDelete(client.id);
-                  setIsDeleteDialogOpen(false);
-                }}>
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  <span>{t('actions.confirmDelete', 'تأكيد الحذف')}</span>
-                </Button>
-              </AlertDialog.Action>
+      {showDeleteConfirm && (
+        <>
+          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-[70] transition-opacity duration-150" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-md w-full rounded-xl p-6 space-y-5 shadow-2xl bg-white dark:bg-gray-800 z-[80]">
+            <div className="flex items-center gap-4">
+              <div className="bg-red-100 dark:bg-red-900/50 p-3 rounded-full">
+                <AlertTriangle className="w-7 h-7 text-red-600 dark:text-red-400" />
+              </div>
+              <h4 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {t('deleteConfirmation.title', 'تأكيد الحذف')}
+              </h4>
             </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-    </div>
+            <p className="text-base text-gray-600 dark:text-gray-300">
+              هل أنت متأكد من رغبتك في حذف العميل "{client?.client_name}"؟ لا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <div className="flex justify-end gap-3 pt-5 border-t border-gray-200 dark:border-gray-700">
+              <Button 
+                variant="secondary" 
+                onClick={() => setShowDeleteConfirm(false)} 
+                disabled={isDeleting}
+                className="px-5 py-2.5"
+              >
+                <span>{t('actions.cancel', 'إلغاء')}</span>
+              </Button>
+              <Button 
+                variant="danger" 
+                onClick={handleConfirmDelete} 
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-5 py-2.5"
+              >
+                <Trash2 className="w-5 h-5" />
+                <span>{isDeleting ? t('actions.deleting', 'جار الحذف...') : t('actions.confirmDelete', 'تأكيد الحذف')}</span>
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 }
+
+

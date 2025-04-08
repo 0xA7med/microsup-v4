@@ -1,11 +1,17 @@
 import React from 'react';
 
-interface CustomerSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  isEditing: boolean;
-  children: React.ReactNode;
+interface Option {
+  value: string;
+  label: string;
 }
 
-export default function CustomerSelect({ isEditing, children, className = '', ...props }: CustomerSelectProps) {
+interface CustomerSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  isEditing: boolean;
+  options?: Option[];
+  children?: React.ReactNode;
+}
+
+export default function CustomerSelect({ isEditing, options, children, className = '', ...props }: CustomerSelectProps) {
   return (
     <select
       {...props}
@@ -14,7 +20,15 @@ export default function CustomerSelect({ isEditing, children, className = '', ..
       } ${className}`}
       disabled={!isEditing}
     >
-      {children}
+      {options ? (
+        options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))
+      ) : (
+        children
+      )}
     </select>
   );
 }
