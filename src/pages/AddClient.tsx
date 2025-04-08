@@ -320,6 +320,20 @@ export const AddClient: React.FC = () => {
               />
             } />
 
+            {/* عدد الأجهزة */}
+            <CustomerField label={t('client.deviceCount', 'عدد الأجهزة')} children={
+              <CustomerInput
+                type="number"
+                name="device_count"
+                required
+                min="1"
+                value={String(formData.device_count)}
+                onChange={handleChange}
+                isEditing={true}
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
+              />
+            } />
+
             {/* رمز التفعيل */}
             <CustomerField label={t('client.activationCode', 'رمز التفعيل')} className="md:col-span-2" children={
               <div className="flex gap-2 items-center">
@@ -398,19 +412,7 @@ export const AddClient: React.FC = () => {
               </div>
             } />
 
-            {/* عدد الأجهزة */}
-            <CustomerField label={t('client.deviceCount', 'عدد الأجهزة')} children={
-              <CustomerInput
-                type="number"
-                name="device_count"
-                required
-                min="1"
-                value={String(formData.device_count)}
-                onChange={handleChange}
-                isEditing={true}
-                className="h-12 text-lg border-gray-300 dark:border-gray-600"
-              />
-            } />
+
 
             {/* تاريخ بداية الاشتراك */}
             <CustomerField label={t('client.subscriptionStart', 'تاريخ بداية الاشتراك')} children={
