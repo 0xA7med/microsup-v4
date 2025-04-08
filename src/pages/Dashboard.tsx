@@ -12,6 +12,7 @@ import {
   TableRow,
 } from '../components/ui/table';
 
+
 import type { Database } from '../types/database.types';
 
 type Client = Database['public']['Tables']['clients']['Row'];
