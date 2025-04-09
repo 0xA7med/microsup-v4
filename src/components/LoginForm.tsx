@@ -4,7 +4,6 @@ import { User, AlertCircle, UserPlus, Mail, Phone, MapPin, Lock, ArrowLeft, Arro
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
-import crypto from 'crypto';
 
 export const LoginForm: React.FC = () => {
   const { t } = useTranslation();
@@ -62,73 +61,145 @@ export const LoginForm: React.FC = () => {
     setRegisterError('');
     setRegisterLoading(true);
     
-    // التحقق من تطابق كلمات المرور
-    if (registerData.password !== registerData.confirmPassword) {
-      setRegisterError('كلمات المرور غير متطابقة');
-      setRegisterLoading(false);
-      return;
-    }
-    
     try {
-      // التحقق من وجود المستخدم في جدول agents قبل التسجيل
-      const { data: existingAgent, error: checkError } = await supabase
+      // التحقق من تطابق كلمات المرور
+      if (registerData.password !== registerData.confirmPassword) {
+        setRegisterError('كلمات المرور غير متطابقة');
+        return;
+      }
+      
+      // تسجيل بيانات النموذج للتشخيص
+      console.log('بيانات التسجيل:', {
+        ...registerData,
+        password: '*****', // إخفاء كلمة المرور للأمان
+        confirmPassword: '*****'
+      });
+      
+      // 1. التحقق من وجود المستخدم في جدول agents قبل التسجيل
+      const checkResponse = await supabase
         .from('agents')
         .select('id')
         .eq('email', registerData.email)
         .maybeSingle();
       
-      if (checkError) {
-        console.error('خطأ في التحقق من وجود المستخدم:', checkError);
+      // تسجيل استجابة التحقق
+      console.log('استجابة التحقق من البريد الإلكتروني:', checkResponse);
+      
+      if (checkResponse.error) {
+        console.error('خطأ في التحقق من وجود المستخدم:', checkResponse.error);
+        throw new Error(`خطأ في التحقق من وجود المستخدم: ${checkResponse.error.message}`);
       }
       
-      if (existingAgent) {
+      if (checkResponse.data) {
         throw new Error('البريد الإلكتروني مستخدم بالفعل');
       }
       
-      // إنشاء UUID جديد للمستخدم
-      const userId = crypto.randomUUID ? crypto.randomUUID() : 
-        'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0, 
-                v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
+      // 2. إنشاء UUID جديد للمستخدم باستخدام طريقة بسيطة
+      const userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, 
+              v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      console.log('تم إنشاء معرف المستخدم:', userId);
       
-      // إضافة المندوب إلى جدول agents مباشرة مع حالة موافقة معلقة
-      const { error: agentError } = await supabase
-        .from('agents')
-        .insert({
-          id: userId,
-          email: registerData.email,
-          name: registerData.name,
-          role: 'agent',
-          phone: registerData.phone || null,
-          address: registerData.address || null,
-          approval_status: 'pending',
-          password: registerData.password // تخزين كلمة المرور مؤقتًا للتحقق منها عند تسجيل الدخول
-        });
+      // 3. تحضير بيانات المندوب
+      const agentData = {
+        id: userId,
+        email: registerData.email,
+        name: registerData.name,
+        role: 'agent',
+        phone: registerData.phone || null,
+        address: registerData.address || null,
+        approval_status: 'pending',
+        password: registerData.password
+        // ملاحظة: تم إزالة is_active لأنه غير موجود في قاعدة البيانات
+      };
       
-      if (agentError) {
-        console.error('فشل إضافة المندوب:', agentError);
-        throw new Error('فشل إضافة المندوب إلى قاعدة البيانات: ' + agentError.message);
-      }
-      
-      // إظهار رسالة نجاح
-      setRegisterSuccess(true);
-      toast.success('تم إنشاء الحساب بنجاح! بانتظار موافقة المدير');
-      
-      // إعادة تعيين نموذج التسجيل
-      setRegisterData({
-        name: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        phone: '',
-        address: ''
+      console.log('بيانات المندوب للإدراج:', {
+        ...agentData,
+        password: '*****' // إخفاء كلمة المرور للأمان
       });
       
+      // 4. إضافة المندوب إلى جدول agents
+      try {
+        const insertResponse = await supabase
+          .from('agents')
+          .insert(agentData)
+          .select();
+        
+        console.log('استجابة إدراج المندوب:', insertResponse);
+        
+        if (insertResponse.error) {
+          // تسجيل تفاصيل الخطأ
+          console.error('خطأ في إدراج المندوب:', {
+            message: insertResponse.error.message,
+            details: insertResponse.error.details,
+            hint: insertResponse.error.hint,
+            code: insertResponse.error.code
+          });
+          
+          throw new Error(`فشل إضافة المندوب: ${insertResponse.error.message || 'خطأ غير معروف'}`);
+        }
+        
+        if (!insertResponse.data || insertResponse.data.length === 0) {
+          console.error('لم يتم إرجاع بيانات بعد الإدراج');
+          throw new Error('فشل إضافة المندوب: لم يتم إرجاع بيانات');
+        }
+        
+        // 5. نجاح العملية
+        console.log('تم إضافة المندوب بنجاح:', insertResponse.data[0].id);
+        
+        // إظهار رسالة نجاح
+        setRegisterSuccess(true);
+        toast.success('تم إنشاء الحساب بنجاح! بانتظار موافقة المدير');
+        
+        // إعادة تعيين نموذج التسجيل
+        setRegisterData({
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          phone: '',
+          address: ''
+        });
+      } catch (insertError: any) {
+        console.error('خطأ في عملية إدراج المندوب:', insertError);
+        throw insertError; // إعادة إلقاء الخطأ ليتم التقاطه في كتلة الـ catch الخارجية
+      }
     } catch (err: any) {
+      // تحسين طريقة عرض الخطأ
       console.error('Error registering agent:', err);
-      setRegisterError(err.message || 'حدث خطأ أثناء تسجيل الحساب');
+      
+      // محاولة تسجيل تفاصيل الخطأ بطريقة آمنة
+      try {
+        const errorProps: Record<string, unknown> = {};
+        // الحصول على جميع خصائص الخطأ
+        Object.getOwnPropertyNames(err).forEach(prop => {
+          errorProps[prop] = err[prop as keyof typeof err];
+        });
+        console.log('تفاصيل الخطأ:', JSON.stringify(errorProps, null, 2));
+      } catch (jsonError) {
+        console.error('فشل تحويل الخطأ إلى JSON:', jsonError);
+      }
+      
+      // التعامل مع أنواع مختلفة من الأخطاء
+      let errorMessage = 'حدث خطأ أثناء تسجيل الحساب';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      // التحقق من أخطاء محددة
+      if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
+        errorMessage = 'البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد إلكتروني آخر.';
+      }
+      
+      // التحقق من أخطاء الاتصال
+      if (err.code === 'PGRST301' || (err.message && err.message.includes('connection'))) {
+        errorMessage = 'فشل الاتصال بقاعدة البيانات. الرجاء التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+      }
+      
+      setRegisterError(errorMessage);
     } finally {
       setRegisterLoading(false);
     }

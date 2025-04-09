@@ -150,7 +150,11 @@ export const AddAgent: React.FC = () => {
         
         if (result.error) {
           console.error('فشل إضافة المندوب:', result.error);
-          throw new Error('فشل إضافة المندوب إلى قاعدة البيانات');
+          // عرض رسالة الخطأ الفعلية من قاعدة البيانات
+          const errorMessage = result.error.message || 'فشل إضافة المندوب إلى قاعدة البيانات';
+          const errorDetails = result.error.details ? ` (${result.error.details})` : '';
+          const errorCode = result.error.code ? ` [${result.error.code}]` : '';
+          throw new Error(`${errorMessage}${errorDetails}${errorCode}`);
         }
         
         toast.success('تم إضافة المندوب بنجاح');
@@ -165,8 +169,28 @@ export const AddAgent: React.FC = () => {
       navigate('/agents');
     } catch (err: any) {
       console.error('Error saving agent:', err);
-      toast.error(err.message || 'حدث خطأ أثناء حفظ بيانات المندوب');
-      setError(err.message || 'حدث خطأ أثناء حفظ بيانات المندوب');
+      // تحسين عرض رسالة الخطأ
+      let errorMessage = 'حدث خطأ أثناء حفظ بيانات المندوب';
+      
+      if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      // التحقق من أخطاء محددة مثل تكرار البريد الإلكتروني
+      if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
+        errorMessage = 'البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد إلكتروني آخر.';
+      }
+      
+      // التحقق من أخطاء الاتصال بقاعدة البيانات
+      if (err.code === 'PGRST301' || (err.message && err.message.includes('connection'))) {
+        errorMessage = 'فشل الاتصال بقاعدة البيانات. الرجاء التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+      }
+      
+      toast.error(errorMessage);
+      setError(errorMessage);
+      
+      // طباعة تفاصيل الخطأ كاملة للتصحيح
+      console.log('تفاصيل الخطأ الكاملة:', JSON.stringify(err, null, 2));
     } finally {
       setLoading(false);
     }
