@@ -71,13 +71,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   signIn: async (email: string, password: string) => {
     try {
-      console.log('Attempting to sign in with email:', email);
+      // تحويل البريد الإلكتروني إلى أحرف صغيرة لتجنب الحساسية للأحرف الكبيرة والصغيرة
+      const normalizedEmail = email.toLowerCase().trim();
+      console.log('Attempting to sign in with email:', normalizedEmail);
       
       // أولاً، نتحقق مما إذا كان البريد الإلكتروني موجودًا في جدول agents
       const { data: agentData, error: agentError } = await supabase
         .from('agents')
         .select('*')
-        .eq('email', email)
+        .ilike('email', normalizedEmail)
         .single();
       
       if (agentError) {

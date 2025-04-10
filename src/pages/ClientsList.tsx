@@ -381,16 +381,21 @@ export const ClientsList: React.FC = () => {
                       )}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm ${client.earliestEndDate && new Date(client.earliestEndDate) < new Date() ? 'text-red-500 font-semibold' : client.subscription_end && new Date(client.subscription_end) < new Date() && client.subscription_type !== 'permanent' ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
-                      {client.subscriptionTypes && client.subscriptionTypes.includes('permanent') ? (
+                      {client.earliestEndDate ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${new Date(client.earliestEndDate) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
+                          {formatDateForDisplay(client.earliestEndDate)}
+                          {client.subscriptionTypes && client.subscriptionTypes.includes('permanent') && (
+                            <span className="mr-1 text-xs opacity-75">+دائم</span>
+                          )}
+                        </span>
+                      ) : client.subscriptionTypes && client.subscriptionTypes.includes('permanent') ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                           {t('client.permanent', 'دائم')}
                         </span>
-                      ) : client.earliestEndDate ? (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${new Date(client.earliestEndDate) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
-                          {formatDateForDisplay(client.earliestEndDate)}
-                        </span>
                       ) : client.subscription_end ? (
-                        formatDateForDisplay(client.subscription_end)
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${new Date(client.subscription_end) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
+                          {formatDateForDisplay(client.subscription_end)}
+                        </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                           لا يوجد تاريخ انتهاء
