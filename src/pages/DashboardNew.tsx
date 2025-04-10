@@ -425,19 +425,50 @@ export const DashboardNew: React.FC = () => {
       
       // حساب العملاء الذين تنتهي اشتراكاتهم هذا الشهر باستخدام جدول الأجهزة
       let expiringCount = 0;
-      const { data: expiringDevicesData, error: expiringDevicesError } = await supabase
-        .from('devices')
-        .select('client_id')
-        .lt('subscription_end', endOfMonth.toISOString())
-        .gt('subscription_end', today.toISOString())
-        .not('subscription_type', 'eq', 'permanent');
+      
+      if (isAgent) {
+        // للمندوبين: جلب الأجهزة التي تنتهي هذا الشهر لعملاء المندوب فقط
+        const { data: agentClients } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('agent_id', currentUser.id);
+          
+        if (agentClients && agentClients.length > 0) {
+          const clientIds = agentClients.map(client => client.id);
+          
+          const { data: expiringDevicesData, error: expiringDevicesError } = await supabase
+            .from('devices')
+            .select('client_id')
+            .in('client_id', clientIds)
+            .lt('subscription_end', endOfMonth.toISOString())
+            .gt('subscription_end', today.toISOString())
+            .not('subscription_type', 'eq', 'permanent');
+            
+          if (expiringDevicesError) {
+            console.error('Error fetching expiring devices:', expiringDevicesError);
+          } else if (expiringDevicesData) {
+            // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي هذا الشهر
+            const uniqueClientIds = new Set(expiringDevicesData.map(device => device.client_id));
+            expiringCount = uniqueClientIds.size;
+          }
+        }
+      } else {
+        // للمدير: جلب جميع الأجهزة التي تنتهي هذا الشهر
+        const { data: expiringDevicesData, error: expiringDevicesError } = await supabase
+          .from('devices')
+          .select('client_id')
+          .lt('subscription_end', endOfMonth.toISOString())
+          .gt('subscription_end', today.toISOString())
+          .not('subscription_type', 'eq', 'permanent');
         
-      if (expiringDevicesError) {
-        console.error('Error fetching expiring devices:', expiringDevicesError);
-      } else if (expiringDevicesData) {
-        // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي هذا الشهر
-        const uniqueClientIds = new Set(expiringDevicesData.map(device => device.client_id));
-        expiringCount = uniqueClientIds.size;
+        // هذا الجزء يتم تنفيذه فقط للمدير، لأننا عالجنا حالة المندوب في الشرط السابق
+        if (expiringDevicesError) {
+          console.error('Error fetching expiring devices:', expiringDevicesError);
+        } else if (expiringDevicesData) {
+          // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي هذا الشهر
+          const uniqueClientIds = new Set(expiringDevicesData.map(device => device.client_id));
+          expiringCount = uniqueClientIds.size;
+        }
       }
       
       // جلب العملاء الذين تنتهي اشتراكاتهم خلال 15 يوم
@@ -445,19 +476,50 @@ export const DashboardNew: React.FC = () => {
       in15Days.setDate(today.getDate() + 15);
       
       let expiringIn15DaysCount = 0;
-      const { data: expiring15DevicesData, error: expiring15DevicesError } = await supabase
-        .from('devices')
-        .select('client_id')
-        .lt('subscription_end', in15Days.toISOString())
-        .gt('subscription_end', today.toISOString())
-        .not('subscription_type', 'eq', 'permanent');
+      
+      if (isAgent) {
+        // للمندوبين: جلب الأجهزة التي تنتهي خلال 15 يوم لعملاء المندوب فقط
+        const { data: agentClients } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('agent_id', currentUser.id);
+          
+        if (agentClients && agentClients.length > 0) {
+          const clientIds = agentClients.map(client => client.id);
+          
+          const { data: expiring15DevicesData, error: expiring15DevicesError } = await supabase
+            .from('devices')
+            .select('client_id')
+            .in('client_id', clientIds)
+            .lt('subscription_end', in15Days.toISOString())
+            .gt('subscription_end', today.toISOString())
+            .not('subscription_type', 'eq', 'permanent');
+            
+          if (expiring15DevicesError) {
+            console.error('Error fetching devices expiring in 15 days:', expiring15DevicesError);
+          } else if (expiring15DevicesData) {
+            // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي خلال 15 يوم
+            const uniqueClientIds = new Set(expiring15DevicesData.map(device => device.client_id));
+            expiringIn15DaysCount = uniqueClientIds.size;
+          }
+        }
+      } else {
+        // للمدير: جلب جميع الأجهزة التي تنتهي خلال 15 يوم
+        const { data: expiring15DevicesData, error: expiring15DevicesError } = await supabase
+          .from('devices')
+          .select('client_id')
+          .lt('subscription_end', in15Days.toISOString())
+          .gt('subscription_end', today.toISOString())
+          .not('subscription_type', 'eq', 'permanent');
         
-      if (expiring15DevicesError) {
-        console.error('Error fetching devices expiring in 15 days:', expiring15DevicesError);
-      } else if (expiring15DevicesData) {
-        // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي خلال 15 يوم
-        const uniqueClientIds = new Set(expiring15DevicesData.map(device => device.client_id));
-        expiringIn15DaysCount = uniqueClientIds.size;
+        // هذا الجزء يتم تنفيذه فقط للمدير، لأننا عالجنا حالة المندوب في الشرط السابق
+        if (expiring15DevicesError) {
+          console.error('Error fetching devices expiring in 15 days:', expiring15DevicesError);
+        } else if (expiring15DevicesData) {
+          // نحسب عدد العملاء الفريدين الذين لديهم أجهزة تنتهي خلال 15 يوم
+          const uniqueClientIds = new Set(expiring15DevicesData.map(device => device.client_id));
+          expiringIn15DaysCount = uniqueClientIds.size;
+        }
       }
       
       // حساب معدل التجديد

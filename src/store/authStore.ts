@@ -94,7 +94,21 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
       }
       
-      // التحقق من كلمة المرور
+      // التحقق من حالة الموافقة للمناديب قبل التحقق من كلمة المرور
+      // هذا يضمن ظهور رسالة مناسبة للمستخدمين الذين لم تتم الموافقة على حساباتهم بعد
+      if (agentData.role === 'agent' && agentData.approval_status) {
+        if (agentData.approval_status !== 'approved') {
+          if (agentData.approval_status === 'pending') {
+            throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
+          } else if (agentData.approval_status === 'rejected') {
+            throw new Error('REJECTED:تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
+          } else {
+            throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
+          }
+        }
+      }
+      
+      // التحقق من كلمة المرور بعد التحقق من حالة الموافقة
       if (agentData.password !== password) {
         console.error('Password mismatch for email:', email);
         throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
@@ -103,19 +117,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       // التحقق من حالة نشاط الحساب
       if (agentData.is_active === false) {
         throw new Error('هذا الحساب غير نشط. يرجى التواصل مع المدير');
-      }
-      
-      // التحقق من حالة الموافقة للمناديب
-      if (agentData.role === 'agent' && agentData.approval_status) {
-        if (agentData.approval_status !== 'approved') {
-          if (agentData.approval_status === 'pending') {
-            throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
-          } else if (agentData.approval_status === 'rejected') {
-            throw new Error('تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
-          } else {
-            throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
-          }
-        }
       }
 
       // إذا كان المستخدم مديرًا أو مندوبًا معتمدًا، قم بتسجيل الدخول
@@ -128,7 +129,22 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user: agentData });
     } catch (error: any) {
       console.error('Login process error:', error);
-      toast.error(error.message || 'حدث خطأ أثناء تسجيل الدخول');
+      
+      // تحسين عرض رسائل الخطأ
+      let errorMessage = error.message || 'حدث خطأ أثناء تسجيل الدخول';
+      
+      // التعامل مع رسائل الرفض بشكل خاص
+      if (errorMessage.startsWith('REJECTED:')) {
+        errorMessage = errorMessage.replace('REJECTED:', '');
+        toast.error(errorMessage, { 
+          icon: '❌',
+          duration: 5000,
+          style: { background: '#FFEBEE', color: '#D32F2F', fontWeight: 'bold' }
+        });
+      } else {
+        toast.error(errorMessage);
+      }
+      
       throw error;
     }
   },

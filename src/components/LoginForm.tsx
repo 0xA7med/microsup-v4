@@ -42,8 +42,14 @@ export const LoginForm: React.FC = () => {
 
     try {
       await signIn(email, password);
-    } catch (err) {
-      setError(t('auth.invalidCredentials'));
+    } catch (err: any) {
+      // استخدام رسالة الخطأ المحددة من authStore إذا كانت متوفرة
+      if (err && err.message) {
+        setError(err.message);
+      } else {
+        setError(t('auth.invalidCredentials'));
+      }
+      console.error('خطأ تسجيل الدخول:', err);
     } finally {
       setLoading(false);
     }
@@ -62,9 +68,35 @@ export const LoginForm: React.FC = () => {
     setRegisterLoading(true);
     
     try {
+      // التحقق من الحقول المطلوبة
+      const requiredFields = [
+        { field: 'name', label: 'الاسم' },
+        { field: 'email', label: 'البريد الإلكتروني' },
+        { field: 'password', label: 'كلمة المرور' },
+        { field: 'confirmPassword', label: 'تأكيد كلمة المرور' },
+        { field: 'phone', label: 'رقم الهاتف' }
+      ];
+      
+      for (const { field, label } of requiredFields) {
+        if (!registerData[field as keyof typeof registerData]) {
+          setRegisterError(`الرجاء إدخال ${label}`);
+          setRegisterLoading(false);
+          return;
+        }
+      }
+      
+      // التحقق من صحة البريد الإلكتروني
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(registerData.email)) {
+        setRegisterError('الرجاء إدخال بريد إلكتروني صحيح');
+        setRegisterLoading(false);
+        return;
+      }
+      
       // التحقق من تطابق كلمات المرور
       if (registerData.password !== registerData.confirmPassword) {
         setRegisterError('كلمات المرور غير متطابقة');
+        setRegisterLoading(false);
         return;
       }
       
@@ -108,7 +140,7 @@ export const LoginForm: React.FC = () => {
         email: registerData.email,
         name: registerData.name,
         role: 'agent',
-        phone: registerData.phone || null,
+        phone: registerData.phone, // إزالة القيمة الاحتمالية null لأن الحقل مطلوب
         address: registerData.address || null,
         approval_status: 'pending',
         password: registerData.password
@@ -194,9 +226,39 @@ export const LoginForm: React.FC = () => {
         errorMessage = 'البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد إلكتروني آخر.';
       }
       
+      // التحقق من أخطاء not-null constraint
+      if (err.code === '23502' || (err.message && err.message.includes('violates not-null constraint'))) {
+        const columnMatch = err.message.match(/column "([^"]+)"/);
+        const columnName = columnMatch ? columnMatch[1] : null;
+        
+        if (columnName === 'phone') {
+          errorMessage = 'يجب إدخال رقم الهاتف';
+        } else if (columnName) {
+          // ترجمة أسماء الأعمدة إلى العربية
+          const columnLabels: {[key: string]: string} = {
+            'name': 'الاسم',
+            'email': 'البريد الإلكتروني',
+            'password': 'كلمة المرور',
+            'address': 'العنوان'
+          };
+          errorMessage = `يجب إدخال ${columnLabels[columnName] || columnName}`;
+        } else {
+          errorMessage = 'يرجى التأكد من إدخال جميع البيانات المطلوبة';
+        }
+      }
+      
       // التحقق من أخطاء الاتصال
       if (err.code === 'PGRST301' || (err.message && err.message.includes('connection'))) {
         errorMessage = 'فشل الاتصال بقاعدة البيانات. الرجاء التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+      }
+      
+      // تحسين رسائل الخطأ العامة
+      if (errorMessage.includes('خطأ في التحقق من وجود المستخدم')) {
+        errorMessage = 'حدث خطأ أثناء التحقق من البريد الإلكتروني. الرجاء المحاولة مرة أخرى.';
+      }
+      
+      if (errorMessage.includes('فشل إضافة المندوب')) {
+        errorMessage = 'حدث خطأ أثناء إنشاء الحساب. الرجاء التأكد من إدخال جميع البيانات المطلوبة والمحاولة مرة أخرى.';
       }
       
       setRegisterError(errorMessage);
