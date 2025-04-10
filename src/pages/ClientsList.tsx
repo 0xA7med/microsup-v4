@@ -7,32 +7,24 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
 
-interface ClientType {
-  id?: string;
-  client_name: string;
-  organization_name: string;
-  activity_type: string;
-  phone: string;
-  activation_code: string;
-  subscription_type: string;
-  address: string;
-  device_count: number;
-  software_version: string;
-  subscription_start: string;
-  subscription_end: string;
-  notes?: string;
-  agent_id?: string;
-  created_by?: string;
+import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types';
+
+interface ClientType extends Omit<ImportedClientType, 'address'> {
+  address: string; // جعل العنوان إلزامي في واجهة العرض
   agent?: {
     name?: string;
   };
+  created_by?: string;
+  deviceCount?: number;
+  devices?: any[];
+  earliestEndDate?: string | null;
+  subscriptionTypes?: string[];
 }
 
-interface Agent {
-  id: string;
-  email: string;
-  name?: string;
+interface Agent extends ImportedAgent {
+  // إضافة أي خصائص إضافية مطلوبة في واجهة العرض
 }
 
 const SUBSCRIPTION_TYPES = [
@@ -52,6 +44,7 @@ export const ClientsList: React.FC = () => {
   const isRTL = i18n.language === 'ar';
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuthStore(); // استخدام معلومات المستخدم المسجل دخوله
 
   const [clients, setClients] = useState<ClientType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -67,6 +60,11 @@ export const ClientsList: React.FC = () => {
       let query = supabase
         .from('clients')
         .select('*, agent:agents(id, name, email)');
+      
+      // إذا كان المستخدم مندوبًا، اعرض فقط العملاء الذين أضافهم
+      if (user && user.role === 'agent') {
+        query = query.eq('agent_id', user.id);
+      }
       
       // Use the override filter if provided, otherwise use the component state
       const filterToApply = filterOverride !== undefined ? filterOverride : activeFilter;
@@ -97,16 +95,64 @@ export const ClientsList: React.FC = () => {
         }
       }
       
-      // Apply ordering
-      query = query.order('client_name', { ascending: true });
+      // Apply ordering - عرض العملاء الأحدث أولاً
+      query = query.order('created_at', { ascending: false });
       
       const { data, error } = await query;
       
       if (error) throw error;
-      const formattedData = data?.map((client: ClientType) => ({
+      
+      // تنسيق بيانات العملاء
+      let formattedData = data?.map((client: ClientType) => ({
         ...client,
         agent: client.agent ? client.agent : undefined
       })) || [];
+      
+      // جلب بيانات الأجهزة لكل عميل
+      if (formattedData.length > 0) {
+        const clientIds = formattedData.map(client => client.id);
+        try {
+          const { data: devicesData, error: devicesError } = await supabase
+            .from('devices')
+            .select('client_id, id, subscription_type, subscription_end')
+            .in('client_id', clientIds);
+            
+          if (devicesError) {
+            console.error('Error fetching devices:', devicesError);
+          } else if (devicesData) {
+            // تجميع الأجهزة حسب العميل
+            formattedData = formattedData.map(client => {
+              const clientDevices = devicesData.filter(d => d.client_id === client.id) || [];
+              const deviceCount = clientDevices.length;
+              
+              // البحث عن أقرب تاريخ انتهاء للاشتراك
+              let earliestEndDate: string | null = null;
+              let subscriptionTypes = new Set<string>();
+              
+              clientDevices.forEach(device => {
+                if (device.subscription_type) {
+                  subscriptionTypes.add(device.subscription_type);
+                }
+                
+                if (device.subscription_end && (!earliestEndDate || new Date(device.subscription_end) < new Date(earliestEndDate))) {
+                  earliestEndDate = device.subscription_end;
+                }
+              });
+              
+              return { 
+                ...client, 
+                deviceCount,
+                devices: clientDevices,
+                earliestEndDate,
+                subscriptionTypes: Array.from(subscriptionTypes) as string[]
+              };
+            });
+          }
+        } catch (devicesError) {
+          console.error('Exception fetching devices:', devicesError);
+        }
+      }
+      
       setClients(formattedData);
       setLoading(false);
     } catch (error) {
@@ -159,19 +205,29 @@ export const ClientsList: React.FC = () => {
     }
   };
 
-  const handleUpdateClient = async (updatedClient: ClientType) => {
+  const handleUpdateClient = async (updatedClient: ImportedClientType | ClientType) => {
     if (!updatedClient.id) return;
-    const { agent, ...clientData } = updatedClient;
+    
+    // تحويل البيانات إلى الشكل المناسب لقاعدة البيانات
+    const { agent, created_by, ...clientData } = updatedClient as ClientType;
+    
+    // التأكد من أن العنوان موجود، وإذا لم يكن موجودًا نضع قيمة فارغة
+    const dataToUpdate = {
+      ...clientData,
+      address: clientData.address || '',
+    };
 
     try {
       const { error } = await supabase
         .from('clients')
-        .update(clientData)
+        .update(dataToUpdate)
         .match({ id: updatedClient.id });
 
       if (error) throw error;
       toast.success(t('messages.clientUpdated', 'تم تحديث بيانات العميل بنجاح'));
       handleCloseModal();
+      // إعادة تحميل البيانات بعد التحديث
+      fetchClients(activeFilter);
     } catch (error) {
       console.error('Error updating client:', error);
       toast.error(t('messages.errorUpdatingClient', 'حدث خطأ أثناء تحديث بيانات العميل'));
@@ -280,7 +336,10 @@ export const ClientsList: React.FC = () => {
                   <Phone className="inline h-4 w-4 mr-1" /> {t('client.phone', 'الهاتف')}
                 </th>
                 <th scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
-                  {t('client.subscriptionType', 'نوع الاشتراك')}
+                  {t('client.agent', 'المندوب')}
+                </th>
+                <th scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
+                  {t('client.devices', 'الأجهزة')}
                 </th>
                 <th scope="col" className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'}`}>
                   <Calendar className="inline h-4 w-4 mr-1" /> {t('client.subscriptionEnd', 'انتهاء الاشتراك')}
@@ -297,9 +356,46 @@ export const ClientsList: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{client.client_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{client.organization_name}</td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 ${isRTL ? 'text-right' : 'text-left'}`} dir="ltr">{client.phone}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{getSubscriptionTypeLabel(client.subscription_type)}</td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${new Date(client.subscription_end) < new Date() && client.subscription_type !== 'permanent' ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
-                      {client.subscription_type === 'permanent' ? t('client.permanent', 'دائم') : formatDateForDisplay(client.subscription_end)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {client.agent && client.agent.name ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          {client.agent.name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500">غير محدد</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {client.deviceCount && client.deviceCount > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <span className="font-bold">{client.deviceCount}</span> جهاز
+                        </span>
+                      ) : client.subscription_type ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                          {getSubscriptionTypeLabel(client.subscription_type)}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          لا يوجد أجهزة
+                        </span>
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm ${client.earliestEndDate && new Date(client.earliestEndDate) < new Date() ? 'text-red-500 font-semibold' : client.subscription_end && new Date(client.subscription_end) < new Date() && client.subscription_type !== 'permanent' ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {client.subscriptionTypes && client.subscriptionTypes.includes('permanent') ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          {t('client.permanent', 'دائم')}
+                        </span>
+                      ) : client.earliestEndDate ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${new Date(client.earliestEndDate) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
+                          {formatDateForDisplay(client.earliestEndDate)}
+                        </span>
+                      ) : client.subscription_end ? (
+                        formatDateForDisplay(client.subscription_end)
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          لا يوجد تاريخ انتهاء
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                       <Button
@@ -315,7 +411,7 @@ export const ClientsList: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                     {t('clientsList.noClientsFound', 'لم يتم العثور على عملاء يطابقون البحث.')}
                   </td>
                 </tr>
@@ -335,6 +431,7 @@ export const ClientsList: React.FC = () => {
           onDelete={handleDeleteClient}
           subscriptionTypes={SUBSCRIPTION_TYPES}
           versionTypes={VERSION_TYPES}
+          currentUser={user}
         />
       )}
     </div>

@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 // Removed unused table imports
 import Button from '../components/ui/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
+import { useAuthStore } from '../store/authStore';
 
 import type { Database } from '../types/database.types';
 
@@ -38,6 +39,8 @@ export const Dashboard: React.FC = () => {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'ar';
   const navigate = useNavigate();
+  // لن نستخدم user من useAuthStore هنا لأننا سنحصل عليه مباشرة من getState في الوظيفة
+  
   const [totalClients, setTotalClients] = useState(0);
   const [totalAgents, setTotalAgents] = useState(0);
   const [activeSubscriptions, setActiveSubscriptions] = useState(0);
@@ -64,6 +67,31 @@ export const Dashboard: React.FC = () => {
     // Refresh data after closing modal
     fetchDashboardData();
   };
+  
+  // استدعاء البيانات عند تحميل الصفحة
+  useEffect(() => {
+    // إعادة تعيين البيانات إلى القيم الافتراضية أولاً
+    setTotalClients(0);
+    setTotalAgents(0);
+    setActiveSubscriptions(0);
+    setRecentClients([]);
+    setExpiredSubscriptions(0);
+    setAgents([]);
+    setPermanentClients(0);
+    setExpiringThisMonth(0);
+    setAverageDevices(0);
+    setRenewalRate(0);
+    setLoading(true);
+    
+    // تأخير طفيف للتأكد من تحديث الواجهة أولاً
+    const timer = setTimeout(() => {
+      fetchDashboardData();
+    }, 100);
+    
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
 
   const handleDeleteClient = async (clientId: string) => {
     try {
@@ -79,7 +107,19 @@ export const Dashboard: React.FC = () => {
 
   const handleUpdateClient = async (updatedClient: Client) => {
     if (!updatedClient.id) return;
-    const { agent, ...clientData } = updatedClient;
+    // إزالة أي خصائص غير موجودة في جدول العملاء
+    const clientData = {
+      client_name: updatedClient.client_name,
+      organization_name: updatedClient.organization_name,
+      activity_type: updatedClient.activity_type,
+      phone: updatedClient.phone,
+      activation_code: updatedClient.activation_code,
+      subscription_type: updatedClient.subscription_type,
+      subscription_start: updatedClient.subscription_start,
+      subscription_end: updatedClient.subscription_end,
+      notes: updatedClient.notes,
+      agent_id: updatedClient.agent_id
+    };
 
     try {
       const { error } = await supabase
@@ -117,65 +157,139 @@ export const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    
     try {
-      // Fetch total clients
-      const { count: totalCount } = await supabase
-        .from('clients')
-        .select('*', { count: 'exact', head: true });
-
-      // Fetch total agents
-      const { count: agentsCount } = await supabase
-        .from('agents')
-        .select('*', { count: 'exact', head: true });
-
-      // Fetch active subscriptions
-      const { count: activeCount } = await supabase
+      // الحصول على بيانات المستخدم الحالي
+      const currentUser = useAuthStore.getState().user;
+      
+      if (!currentUser) {
+        console.log('No user data available');
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Fetching dashboard data for user:', currentUser.id, 'role:', currentUser.role);
+      
+      // تحديد ما إذا كان المستخدم مندوبًا أم مديرًا
+      const isAgent = currentUser.role === 'agent';
+      
+      // إنشاء الفلتر المناسب
+      const filter = isAgent ? { agent_id: currentUser.id } : {};
+      
+      // جلب إجمالي العملاء
+      const { count: totalCount, error: clientsError } = await supabase
         .from('clients')
         .select('*', { count: 'exact', head: true })
-        .gt('subscription_end', new Date().toISOString());
-
-      // Fetch recent clients with agent information
-      const { data: recent } = await supabase
+        .match(filter);
+      
+      if (clientsError) {
+        throw clientsError;
+      }
+      
+      // جلب إجمالي المندوبين (للمدير فقط)
+      let agentsCount = 0;
+      if (!isAgent) {
+        const { count: adminAgentsCount, error: agentsError } = await supabase
+          .from('agents')
+          .select('*', { count: 'exact', head: true });
+          
+        if (agentsError) {
+          throw agentsError;
+        }
+        
+        agentsCount = adminAgentsCount || 0;
+      }
+      
+      // جلب الاشتراكات النشطة
+      const { count: activeCount, error: activeError } = await supabase
         .from('clients')
-        .select('*, agent:agents(id, name, email)')
+        .select('*', { count: 'exact', head: true })
+        .match(filter)
+        .gt('subscription_end', new Date().toISOString());
+        
+      if (activeError) {
+        throw activeError;
+      }
+      
+      // جلب أحدث العملاء
+      const { data: recent, error: recentError } = await supabase
+        .from('clients')
+        .select('*, agents!clients_agent_id_fkey(id, name, email)')
+        .match(filter)
         .order('created_at', { ascending: false })
         .limit(5);
-
-      // Fetch expired count for statistics
-      const { count: expiredCount } = await supabase
+        
+      if (recentError) {
+        throw recentError;
+      }
+      
+      // جلب الاشتراكات المنتهية
+      const { count: expiredCount, error: expiredError } = await supabase
         .from('clients')
         .select('*', { count: 'exact', head: true })
+        .match(filter)
         .lt('subscription_end', new Date().toISOString());
-
-      // Fetch device data
-      const { data: allClients } = await supabase
+        
+      if (expiredError) {
+        throw expiredError;
+      }
+      
+      // جلب بيانات الأجهزة
+      const { data: allClients, error: deviceError } = await supabase
         .from('clients')
-        .select('device_count, subscription_type');
-
-      // Fetch all agents for client details modal
-      const { data: agentsData } = await supabase
+        .select('device_count, subscription_type')
+        .match(filter);
+        
+      if (deviceError) {
+        throw deviceError;
+      }
+      
+      // جلب جميع المندوبين
+      const { data: agentsData, error: agentsDataError } = await supabase
         .from('agents')
         .select('id, name, email');
         
-      // Removed unused queries for monthly and annual clients
-        
-      const { count: permanentCount } = await supabase
+      if (agentsDataError) {
+        throw agentsDataError;
+      }
+      
+      // جلب العملاء بالاشتراك الدائم
+      const { count: permanentCount, error: permanentError } = await supabase
         .from('clients')
         .select('*', { count: 'exact', head: true })
+        .match(filter)
         .eq('subscription_type', 'permanent');
         
-      // Calculate clients expiring this month
+      if (permanentError) {
+        throw permanentError;
+      }
+      
+      // جلب العملاء الذين تنتهي اشتراكاتهم هذا الشهر
       const today = new Date();
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       
-      const { count: expiringCount } = await supabase
+      const { count: expiringCount, error: expiringError } = await supabase
         .from('clients')
         .select('*', { count: 'exact', head: true })
+        .match(filter)
         .lt('subscription_end', endOfMonth.toISOString())
         .gt('subscription_end', today.toISOString());
-
+        
+      if (expiringError) {
+        throw expiringError;
+      }
+      
+      // حساب متوسط الأجهزة ومعدل التجديد
       const totalDevices = allClients?.reduce((acc, client) => acc + (client.device_count || 0), 0) || 0;
-
+      let avgDevices = 0;
+      let renewal = 0;
+      
+      if (totalCount && totalCount > 0) {
+        avgDevices = Math.round(totalDevices / totalCount);
+        renewal = Math.round((activeCount || 0) / totalCount * 100);
+      }
+      
+      // تحديث حالة المكون
       setTotalClients(totalCount || 0);
       setTotalAgents(agentsCount || 0);
       setActiveSubscriptions(activeCount || 0);
@@ -184,12 +298,10 @@ export const Dashboard: React.FC = () => {
       setAgents(agentsData || []);
       setPermanentClients(permanentCount || 0);
       setExpiringThisMonth(expiringCount || 0);
+      setAverageDevices(avgDevices);
+      setRenewalRate(renewal);
       
-      if (totalCount && totalCount > 0) {
-        setAverageDevices(Math.round(totalDevices / totalCount));
-        // Calculate renewal rate (active / total)
-        setRenewalRate(Math.round((activeCount || 0) / totalCount * 100));
-      }
+      console.log('Dashboard data loaded successfully');
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast.error(t('error.fetchingData'));

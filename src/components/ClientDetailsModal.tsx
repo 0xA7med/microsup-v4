@@ -2,14 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import {
-  X, Edit, Save, Trash2, Ban, AlertTriangle, Calendar, Clipboard
+  X, Edit, Save, Trash2, Ban, AlertTriangle, ChevronDown, ChevronUp,
+  Plus, Clipboard, Calendar, Smartphone, Laptop
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 import Button from './ui/Button';
-import { ClientType, Agent, SubscriptionType, VersionType } from '../types';
+import { ClientType, Agent, SubscriptionType, VersionType } from '../types/client.types';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerSelect from './CustomerSelect';
 import CustomerTextArea from './CustomerTextArea';
+import DeviceModal from './DeviceModal';
+import { DeviceType, DEVICE_TYPES } from '../types/device.types';
 
 interface ClientDetailsModalProps {
   client: ClientType | null;
@@ -20,25 +25,34 @@ interface ClientDetailsModalProps {
   onClose: () => void;
   onSave: (updatedClient: ClientType) => Promise<void>;
   onDelete: (clientId: string) => Promise<void>;
+  // إضافة معلومات المستخدم الحالي
+  currentUser?: {
+    id: string;
+    role: string;
+  } | null;
 }
 
 export default function ClientDetailsModal({
   client,
   agents,
-  subscriptionTypes,
   versionTypes,
   isOpen,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  currentUser
 }: ClientDetailsModalProps) {
   const { t, i18n } = useTranslation();
-  const isRTL = i18n.dir() === 'rtl';
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<ClientType | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [devices, setDevices] = useState<DeviceType[]>([]);
+  const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [showDevicesSection, setShowDevicesSection] = useState(true);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
 
   useEffect(() => {
     if (client && isOpen) {
@@ -47,24 +61,197 @@ export default function ClientDetailsModal({
       setShowDeleteConfirm(false);
       setIsSaving(false);
       setIsDeleting(false);
+      fetchDevices(client.id);
     } else if (!isOpen) {
       setTimeout(() => {
         setFormData(null);
         setIsEditing(false);
         setShowDeleteConfirm(false);
+        setDevices([]);
       }, 200); 
     }
   }, [client, isOpen]);
+  
+  // جلب أجهزة العميل
+  const fetchDevices = async (clientId?: string) => {
+    if (!clientId) return;
+    
+    setIsLoadingDevices(true);
+    try {
+      const { data, error } = await supabase
+        .from('devices')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      setDevices(data || []);
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      toast.error(t('messages.errorFetchingDevices', 'حدث خطأ أثناء جلب بيانات الأجهزة'));
+    } finally {
+      setIsLoadingDevices(false);
+    }
+  };
+  
+  const handleAddDevice = () => {
+    setSelectedDevice(null);
+    setShowDeviceModal(true);
+  };
+
+  const handleEditDevice = (device: DeviceType) => {
+    setSelectedDevice(device);
+    setShowDeviceModal(true);
+  };
+
+  const handleDeleteDevice = async (deviceId: string) => {
+    if (!confirm(t('device.confirmDelete', 'هل أنت متأكد من رغبتك في حذف هذا الجهاز؟'))) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .delete()
+        .eq('id', deviceId);
+
+      if (error) throw error;
+
+      toast.success(t('messages.deviceDeleted', 'تم حذف الجهاز بنجاح'));
+      fetchDevices(client?.id);
+    } catch (error) {
+      console.error('Error deleting device:', error);
+      toast.error(t('messages.errorDeletingDevice', 'حدث خطأ أثناء حذف الجهاز'));
+    }
+  };
+
+  const handleSaveDevice = async (deviceData: DeviceType) => {
+    try {
+      if (selectedDevice?.id) {
+        // تحديث جهاز موجود
+        const { error } = await supabase
+          .from('devices')
+          .update(deviceData)
+          .eq('id', selectedDevice.id);
+
+        if (error) throw error;
+        toast.success(t('messages.deviceUpdated', 'تم تحديث بيانات الجهاز بنجاح'));
+      } else {
+        // إضافة جهاز جديد
+        const { error } = await supabase
+          .from('devices')
+          .insert([deviceData]);
+
+        if (error) throw error;
+        toast.success(t('messages.deviceAdded', 'تم إضافة الجهاز بنجاح'));
+      }
+
+      fetchDevices(client?.id);
+      setShowDeviceModal(false);
+    } catch (error) {
+      console.error('Error saving device:', error);
+      toast.error(t('messages.errorSavingDevice', 'حدث خطأ أثناء حفظ بيانات الجهاز'));
+    }
+  };
+  
+  const formatDate = (dateStr: string) => {
+    try {
+      return format(parseISO(dateStr), 'dd/MM/yyyy');
+    } catch (error) {
+      return dateStr;
+    }
+  };
+
+  const copyActivationCode = (code: string) => {
+    try {
+      // إنشاء عنصر نصي مؤقت
+      const textArea = document.createElement('textarea');
+      textArea.value = code;
+      
+      // تعيين خصائص لإخفاء العنصر
+      textArea.style.position = 'fixed';
+      textArea.style.top = '0';
+      textArea.style.left = '0';
+      textArea.style.width = '2em';
+      textArea.style.height = '2em';
+      textArea.style.padding = '0';
+      textArea.style.border = 'none';
+      textArea.style.outline = 'none';
+      textArea.style.boxShadow = 'none';
+      textArea.style.background = 'transparent';
+      
+      // إضافة العنصر للصفحة
+      document.body.appendChild(textArea);
+      
+      // تحديد النص
+      textArea.select();
+      
+      // نسخ النص
+      const successful = document.execCommand('copy');
+      
+      // إزالة العنصر المؤقت
+      document.body.removeChild(textArea);
+      
+      if (successful) {
+        toast.success(t('messages.codeCopied', 'تم نسخ رمز التفعيل'));
+      } else {
+        toast.error(t('messages.copyFailed', 'فشل نسخ الرمز'));
+      }
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast.error(t('messages.copyFailed', 'فشل نسخ الرمز'));
+    }
+  };
+
+  const getDeviceTypeLabel = (value: string) => {
+    const deviceType = DEVICE_TYPES.find(type => type.value === value);
+    return deviceType ? (i18n.language === 'ar' ? deviceType.label : deviceType.labelEn) : value;
+  };
+
+  const getSubscriptionTypeLabel = (value: string | undefined) => {
+    if (!value) return i18n.language === 'ar' ? 'غير محدد' : 'Unspecified';
+    
+    // تحويل القيمة إلى حروف صغيرة للمقارنة
+    const lowerValue = value.toLowerCase();
+    
+    // التعامل مع القيم المختلفة لنفس نوع الاشتراك
+    switch(lowerValue) {
+      case 'monthly': return i18n.language === 'ar' ? 'شهري' : 'Monthly';
+      case 'yearly': 
+      case 'annual': return i18n.language === 'ar' ? 'سنوي' : 'Annual';
+      case 'half_yearly':
+      case 'semi_annual': return i18n.language === 'ar' ? 'نصف سنوي' : 'Semi-Annual';
+      case 'permanent': return i18n.language === 'ar' ? 'دائم' : 'Permanent';
+      default: 
+        console.log('Unknown subscription type:', value);
+        return i18n.language === 'ar' ? 'غير معروف' : value;
+    }
+  };
+
+  const getDeviceIcon = (deviceType: string) => {
+    if (deviceType === 'computer') {
+      return <Laptop className="h-5 w-5 text-blue-500" />;
+    } else {
+      return <Smartphone className="h-5 w-5 text-green-500" />;
+    }
+  };
+
+  const isSubscriptionExpired = (endDate: string) => {
+    try {
+      return new Date(endDate) < new Date();
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // تم حذف هذه الوظيفة لأنها مكررة
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev: ClientType | null) => prev ? { ...prev, [name]: value } : null);
   };
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target; 
-    setFormData((prev: ClientType | null) => prev ? { ...prev, [name]: value } : null);
-  };
+  // handleDateChange удален, так как больше не используется
 
   const handleSaveClick = async () => {
     if (!formData) return;
@@ -104,23 +291,7 @@ export default function ClientDetailsModal({
     }
   };
 
-  const formatInputDate = (dateString?: string | null): string => {
-    if (!dateString) return '';
-    try {
-      return format(parseISO(dateString), 'yyyy-MM-dd');
-    } catch (error) {
-      console.warn("Error formatting input date:", dateString, error);
-      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString;
-      }
-      return '';
-    }
-  };
-
-  const getVersionLabel = (value?: string) => {
-    const type = versionTypes.find(vt => vt.value === value);
-    return type ? (i18n.language === 'ar' ? type.label : type.labelEn) : (value || 'N/A');
-  };
+  // هذه الوظائف غير مستخدمة حالياً ويمكن إعادة تفعيلها عند الحاجة
 
   if (!isOpen && !formData) return null; 
   if (!client && !formData) return null; 
@@ -139,7 +310,7 @@ export default function ClientDetailsModal({
       >
         <div
           className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -195,6 +366,19 @@ export default function ClientDetailsModal({
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
+                
+                {/* العنوان */}
+                <CustomerField label={t('client.address', 'العنوان')} children={
+                  <CustomerInput
+                    type="text"
+                    name="address"
+                    value={formData?.address || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
 
                 {/* رقم الهاتف */}
                 <CustomerField label={t('client.phone', 'رقم الهاتف')} children={
@@ -209,156 +393,21 @@ export default function ClientDetailsModal({
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
-
-                {/* العنوان */}
-                <CustomerField label={t('client.address', 'العنوان')} children={
+                
+                {/* رقم الهاتف 2 */}
+                <CustomerField label={t('client.phone2', 'رقم الهاتف 2')} children={
                   <CustomerInput
-                    type="text"
-                    name="address"
-                    value={formData?.address || ''}
+                    type="tel"
+                    name="phone2"
+                    value={formData?.phone2 || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
-                    required
+                    dir="ltr"
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
 
-                {/* عدد الأجهزة */}
-                <CustomerField label={t('client.deviceCount', 'عدد الأجهزة')} children={
-                  <CustomerInput
-                    type="number"
-                    name="device_count"
-                    value={String(formData?.device_count || 1)}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    required
-                    min="1"
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-
-                {/* كود التفعيل */}
-                <CustomerField label={t('client.activationCode', 'كود التفعيل')} className="md:col-span-2" children={
-                  <div className="flex gap-2 items-center">
-                    <CustomerInput
-                      type="text"
-                      name="activation_code"
-                      value={formData?.activation_code || ''}
-                      onChange={handleInputChange}
-                      isEditing={isEditing}
-                      required
-                      className="h-12 text-lg flex-grow border-gray-300 dark:border-gray-600"
-                      style={{ minWidth: 'calc(100% - 110px)' }}
-                    />
-                    {isEditing && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => {
-                          // يمكن إضافة وظيفة لصق هنا إذا لزم الأمر
-                          navigator.clipboard.readText().then(text => {
-                            setFormData((prev: any) => ({
-                              ...prev,
-                              activation_code: text
-                            }));
-                          });
-                        }}
-                        className="flex-shrink-0 h-12 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
-                        style={{ marginTop: '0' }}
-                      >
-                        <span className="flex items-center">
-                          <Clipboard className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                          {t('common.paste', 'لصق')}
-                        </span>
-                      </Button>
-                    )}
-                  </div>
-                } />
-
-                {/* نوع الاشتراك */}
-                <CustomerField label={t('client.subscriptionType', 'نوع الاشتراك')} children={
-                  <CustomerSelect
-                    name="subscription_type"
-                    value={formData?.subscription_type || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    options={subscriptionTypes.map(type => ({
-                      value: type.value,
-                      label: i18n.language === 'ar' ? type.label : type.labelEn
-                    }))}
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-
-                {/* نوع النسخة */}
-                <CustomerField label={t('client.softwareVersion', 'نوع النسخة')} children={
-                  isEditing ? (
-                    <div className="flex flex-wrap gap-3">
-                      {versionTypes.map((type) => (
-                        <button
-                          key={type.value}
-                          type="button"
-                          onClick={() => setFormData((prev: ClientType | null) => prev ? { ...prev, software_version: type.value } : null)}
-                          className={`flex items-center gap-2 px-4 py-3 rounded-lg border ${formData?.software_version === type.value
-                            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                            : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
-                            } transition-colors`}
-                        >
-                          <span className="flex items-center gap-2">
-                            {type.icon}
-                            <span className="font-medium">
-                              {i18n.language === 'ar' ? type.label : type.labelEn}
-                            </span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center h-12 text-lg">
-                      {getVersionLabel(displayClient.software_version)}
-                    </div>
-                  )
-                } />
-
-                {/* تاريخ بداية الاشتراك */}
-                <CustomerField label={t('client.subscriptionStart', 'تاريخ بداية الاشتراك')} children={
-                  <div className="relative">
-                    <CustomerInput
-                      type="date"
-                      name="subscription_start"
-                      value={formatInputDate(formData?.subscription_start)}
-                      onChange={handleDateChange}
-                      isEditing={isEditing}
-                      required
-                      className={`h-12 text-lg border-gray-300 dark:border-gray-600 ${isEditing ? 'pr-3' : ''}`}
-                    />
-                    {!isEditing && (
-                      <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-3' : 'left-0 pl-3'} flex items-center pointer-events-none`}>
-                        <Calendar className="h-5 w-5 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                } />
-
-                {/* تاريخ نهاية الاشتراك */}
-                <CustomerField label={t('client.subscriptionEnd', 'تاريخ نهاية الاشتراك')} children={
-                  <div className="relative">
-                    <CustomerInput
-                      type="date"
-                      name="subscription_end"
-                      value={formatInputDate(formData?.subscription_end)}
-                      onChange={handleDateChange}
-                      isEditing={isEditing}
-                      required
-                      className={`h-12 text-lg border-gray-300 dark:border-gray-600 ${isEditing ? 'pr-3' : ''}`}
-                    />
-                    {!isEditing && (
-                      <div className={`absolute inset-y-0 ${isRTL ? 'right-0 pr-3' : 'left-0 pl-3'} flex items-center pointer-events-none`}>
-                        <Calendar className="h-5 w-5 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                } />
+                {/* تمت إزالة العناصر القديمة (كود التفعيل، نوع الاشتراك، نوع النسخة، تواريخ الاشتراك) لأنها أصبحت موجودة في قسم الأجهزة */}
 
                 {/* ملاحظات */}
                 <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2" children={
@@ -378,26 +427,162 @@ export default function ClientDetailsModal({
               </div>
             )}
           </div>
+          
+          {/* قسم الأجهزة */}
+          <div className="border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={() => setShowDevicesSection(!showDevicesSection)}
+              className="flex items-center justify-between w-full p-5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                {t('device.devicesSection', 'الأجهزة والاشتراكات')}
+                <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                  ({devices.length})
+                </span>
+              </h3>
+              {showDevicesSection ? (
+                <ChevronUp className="h-5 w-5 text-gray-500" />
+              ) : (
+                <ChevronDown className="h-5 w-5 text-gray-500" />
+              )}
+            </button>
+            
+            {showDevicesSection && (
+              <div className="p-5">
+                {isLoadingDevices ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
+                  </div>
+                ) : devices.length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.deviceType', 'نوع الجهاز')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.activationCode', 'رمز التفعيل')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.subscriptionType', 'نوع الاشتراك')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.subscriptionEnd', 'نهاية الاشتراك')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('common.actions', 'الإجراءات')}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                        {devices.map((device) => (
+                          <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                {getDeviceIcon(device.device_type)}
+                                <span className="mr-2">{getDeviceTypeLabel(device.device_type)}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap" style={{ maxWidth: '200px' }}>
+                              <div className="flex items-center">
+                                <span className="font-mono text-sm truncate" style={{ maxWidth: '160px' }} title={device.activation_code}>
+                                  {device.activation_code}
+                                </span>
+                                <button
+                                  onClick={() => copyActivationCode(device.activation_code)}
+                                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mr-0 ml-2"
+                                  title={t('common.copy', 'نسخ')}
+                                >
+                                  <Clipboard className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                {getSubscriptionTypeLabel(device.subscription_type)}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <Calendar className="h-4 w-4 ml-2" />
+                                {device.subscription_type === 'permanent' ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                    {t('client.permanent', 'دائم')}
+                                  </span>
+                                ) : (
+                                  <span className={isSubscriptionExpired(device.subscription_end) ? 'text-red-500 font-semibold' : ''}>
+                                    {formatDate(device.subscription_end)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
+                              <div className="flex justify-center space-x-2 rtl:space-x-reverse">
+                                {currentUser?.role === 'admin' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleEditDevice(device)}
+                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                                    >
+                                      <Edit className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteDevice(device.id!)}
+                                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                    >
+                                      <Trash2 className="h-5 w-5" />
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    {t('device.noDevices', 'لا توجد أجهزة مسجلة لهذا العميل')}
+                  </div>
+                )}
+
+                <div className="mt-6 flex justify-end">
+                  <Button
+                    variant="primary"
+                    onClick={handleAddDevice}
+                    className="flex items-center gap-2 px-5 py-2.5"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>{t('device.addDevice', 'إضافة جهاز جديد')}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-between p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
-            {/* المندوب */}
+            {/* المندوب - يظهر فقط للمديرين */}
             <div className="flex-1 max-w-xs">
-              <CustomerField label={t('client.agent', 'المندوب')} children={
-                <CustomerSelect
-                  name="agent_id"
-                  value={formData?.agent_id || ''}
-                  onChange={handleInputChange}
-                  isEditing={isEditing}
-                  options={[
-                    { value: '', label: t('client.noAgent', 'بدون مندوب') },
-                    ...agents.map(agent => ({
-                      value: agent.id,
-                      label: agent.name || agent.email
-                    }))
-                  ]}
-                  className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                />
-              } />
+              {currentUser?.role === 'admin' ? (
+                <CustomerField label={t('client.agent', 'المندوب')} children={
+                  <CustomerSelect
+                    name="agent_id"
+                    value={formData?.agent_id || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    options={[
+                      { value: '', label: t('client.noAgent', 'بدون مندوب') },
+                      ...agents.map(agent => ({
+                        value: agent.id,
+                        label: agent.name || agent.email
+                      }))
+                    ]}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+              ) : null}
             </div>
             
             <div className="flex gap-3">
@@ -424,24 +609,29 @@ export default function ClientDetailsModal({
                 </>
               ) : (
                 <>
-                  <Button
-                    variant="danger" 
-                    onClick={handleDeleteClick}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                    disabled={isDeleting}
-                  >
-                    <Trash2 className="w-5 h-5" />
-                    <span>{t('actions.delete', 'حذف')}</span>
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                    disabled={isDeleting}
-                  >
-                    <Edit className="w-5 h-5" />
-                    <span>{t('actions.edit', 'تعديل')}</span>
-                  </Button>
+                  {/* عرض أزرار التعديل والحذف للمديرين فقط */}
+                  {currentUser?.role === 'admin' && (
+                    <>
+                      <Button
+                        variant="danger" 
+                        onClick={handleDeleteClick}
+                        className="flex items-center gap-2 px-5 py-2.5"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        <span>{t('actions.delete', 'حذف')}</span>
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-2 px-5 py-2.5"
+                        disabled={isDeleting}
+                      >
+                        <Edit className="w-5 h-5" />
+                        <span>{t('actions.edit', 'تعديل')}</span>
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -485,6 +675,18 @@ export default function ClientDetailsModal({
             </div>
           </div>
         </>
+      )}
+      
+      {/* نافذة إضافة/تعديل الجهاز */}
+      {showDeviceModal && (
+        <DeviceModal
+          isOpen={showDeviceModal}
+          onClose={() => setShowDeviceModal(false)}
+          onSave={handleSaveDevice}
+          device={selectedDevice}
+          clientId={client?.id || ''}
+          versionTypes={versionTypes}
+        />
       )}
     </>
   );

@@ -5,7 +5,7 @@ import { AddClient } from './pages/AddClient';
 import { AgentsList } from './pages/AgentsList';
 import { AddAgent } from './pages/AddAgent';
 import PendingAgents from './pages/PendingAgents';
-import { Dashboard } from './pages/Dashboard';
+import DashboardNew from './pages/DashboardNew';
 import { useAuthStore } from './store/authStore';
 
 export const AppRoutes: React.FC = () => {
@@ -14,8 +14,8 @@ export const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/" element={<DashboardNew />} />
+      <Route path="/dashboard" element={<DashboardNew />} />
       <Route path="/clients" element={<ClientsList />} />
       <Route path="/clients/add" element={<AddClient />} />
       

@@ -55,6 +55,8 @@ export interface Database {
           subscription_end: string
           notes: string | null
           agent_id: string
+          address?: string
+          active_devices_count?: number
         }
         Insert: {
           id?: string
@@ -69,6 +71,8 @@ export interface Database {
           subscription_end: string
           notes?: string | null
           agent_id: string
+          address?: string
+          active_devices_count?: number
         }
         Update: {
           id?: string
@@ -83,6 +87,46 @@ export interface Database {
           subscription_end?: string
           notes?: string | null
           agent_id?: string
+          address?: string
+          active_devices_count?: number
+        }
+      }
+      devices: {
+        Row: {
+          id: string
+          client_id: string
+          activation_code: string
+          device_type: string
+          software_version: string
+          subscription_start: string
+          subscription_end: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          activation_code: string
+          device_type: string
+          software_version: string
+          subscription_start: string
+          subscription_end: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          activation_code?: string
+          device_type?: string
+          software_version?: string
+          subscription_start?: string
+          subscription_end?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
     }
