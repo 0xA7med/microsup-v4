@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 // Removed unused table imports
-import Button from '../components/Button';
+import Button from '../../components/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { useAuthStore } from '../store/authStore';
 

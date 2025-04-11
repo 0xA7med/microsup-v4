@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import Button from '../components/Button';
+import Button from '../../components/Button'; // تصحيح مسار استيراد Button
 import { APPROVAL_STATUS } from '../types/device.types';
 import { useAuthStore } from '../store/authStore';
 

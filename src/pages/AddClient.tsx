@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import CustomerField from '../components/CustomerField';
 import CustomerInput from '../components/CustomerInput';
 import CustomerTextArea from '../components/CustomerTextArea';
-import Button from '../components/Button';
+import { Button } from '../components/buttons/Button'; // تصحيح مسار استيراد Button
 import toast from 'react-hot-toast';
 import ClientDevicesForm from '../components/ClientDevicesForm';
 import { DeviceType } from '../types/device.types';
