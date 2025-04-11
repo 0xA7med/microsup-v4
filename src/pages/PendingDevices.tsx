@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import Button from '../components/ui/Button';
+import Button from '../components/ui/button';
 import { APPROVAL_STATUS } from '../types/device.types';
 import { useAuthStore } from '../store/authStore';
 
@@ -287,7 +287,7 @@ export const PendingDevices: React.FC = () => {
             className="w-full p-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             placeholder={t('actions.search', 'بحث...') as string}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
           />
           <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
         </div>

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import Button from '../components/ui/Button';
+import Button from '../components/ui/button';
 import { APPROVAL_STATUS } from '../types/device.types';
 import { useAuthStore } from '../store/authStore';
 

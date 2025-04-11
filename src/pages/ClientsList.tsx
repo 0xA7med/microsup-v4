@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import { Search, Phone, Calendar, Eye, ChevronRight } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Button from '../components/ui/Button';
+import Button from '../components/ui/button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';

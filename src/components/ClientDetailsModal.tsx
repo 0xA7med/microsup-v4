@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import Button from './ui/Button';
+import Button from './ui/button';
 import { ClientType, Agent, SubscriptionType, VersionType } from '../types/client.types';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';

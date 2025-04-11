@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { format, addMonths, addYears, isAfter, startOfToday } from 'date-fns';
 import { Plus, Calendar, Clipboard, Trash2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Button from './ui/Button';
+import Button from './ui/button';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerSelect from './CustomerSelect';
 import CustomerTextArea from './CustomerTextArea';
-import { DeviceType, DEVICE_TYPES, APPROVAL_STATUS } from '../types/device.types';
+import { DeviceType, DEVICE_TYPES } from '../types/device.types';
 
 interface ClientDevicesFormProps {
   clientId?: string;
