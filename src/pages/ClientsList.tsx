@@ -145,7 +145,7 @@ export const ClientsList: React.FC = () => {
       
       // تطبيق فلتر حسب الوكيل إذا كان المستخدم وكيل
       if (user?.role === 'agent') {
-        query = query.eq('created_by', user.id);
+        query = query.eq('agent_id', user.id);
       }
       
       const { data, error } = await query;

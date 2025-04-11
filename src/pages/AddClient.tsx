@@ -112,23 +112,35 @@ export const AddClient: React.FC = () => {
         const clientId = clientData_[0].id;
         
         // إضافة الأجهزة للعميل
-        const devicesWithClientId = devices.map(device => ({
-          ...device,
-          client_id: clientId
-        }));
+        const devicesWithClientId = devices.map(device => {
+          // نحتفظ فقط بالحقول الأساسية ونتجنب استخدام حقل approval_status
+          const deviceData = {
+            client_id: clientId,
+            activation_code: device.activation_code,
+            subscription_start: device.subscription_start,
+            subscription_end: device.subscription_end,
+            subscription_type: device.subscription_type,
+            software_version: device.software_version,
+            device_type: device.device_type,
+            notes: device.notes || ''
+            // تم إزالة حقل approval_status حتى يتم إضافته إلى قاعدة البيانات
+          };
+          
+          return deviceData;
+        });
         
         const { error: devicesError } = await supabase
           .from('devices')
           .insert(devicesWithClientId);
-          
+        
         if (devicesError) throw devicesError;
+        
+        toast.success(t('messages.clientAdded', 'تمت إضافة العميل بنجاح'));
+        navigate('/clients');
       }
-
-      toast.success(t('messages.clientAdded', 'تمت إضافة العميل بنجاح'));
-      navigate('/clients');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding client:', error);
-      toast.error(t('messages.errorAddingClient', 'حدث خطأ أثناء إضافة العميل'));
+      toast.error(t('messages.clientAddError', 'حدث خطأ أثناء إضافة العميل'));
     } finally {
       setLoading(false);
     }

@@ -13,6 +13,7 @@ import { AddClient } from './pages/AddClient';
 import { AgentsList } from './pages/AgentsList';
 import { AddAgent } from './pages/AddAgent';
 import { PendingAgents } from './pages/PendingAgents';
+import { PendingDevices } from './pages/PendingDevices';
 
 function App() {
   const { i18n } = useTranslation();
@@ -67,7 +68,7 @@ function App() {
         />
         <Route 
           path="/pending-devices" 
-          element={isManager ? <Layout children={<div>صفحة الأجهزة المعلقة</div>} /> : <Navigate to="/" replace />} 
+          element={isManager ? <Layout children={<PendingDevices />} /> : <Navigate to="/" replace />} 
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
