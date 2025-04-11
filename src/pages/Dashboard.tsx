@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 // Removed unused table imports
-import Button from '../components/button';
+import Button from '../components/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { useAuthStore } from '../store/authStore';
 
@@ -639,7 +639,7 @@ return (
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{client.organization_name}</td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 ${isRTL ? 'text-right' : 'text-left'}`} dir="ltr">{client.phone}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{getSubscriptionTypeLabel(client.subscription_type)}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${new Date(client.subscription_end || '') < new Date() && client.subscription_type !== 'permanent' ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${new Date(client.subscription_end || '').getTime() < new Date().getTime() && client.subscription_type !== 'permanent' ? 'text-red-500 font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
                     {client.subscription_type === 'permanent' ? t('client.permanent', 'دائم') : formatDateForDisplay(client.subscription_end)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
