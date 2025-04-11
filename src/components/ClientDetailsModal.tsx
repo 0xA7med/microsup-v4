@@ -354,6 +354,24 @@ export default function ClientDetailsModal({
                   />
                 } />
 
+                {/* المندوب */}
+                <CustomerField label={t('client.agent', 'المندوب')} children={
+                  <CustomerSelect
+                    name="agent_id"
+                    value={formData?.agent_id || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing && currentUser?.role === 'admin'}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  >
+                    <option value="">{t('client.noAgent', 'بدون مندوب')}</option>
+                    {agents.map(agent => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </CustomerSelect>
+                } />
+
                 {/* نوع النشاط */}
                 <CustomerField label={t('client.activityType', 'نوع النشاط')} children={
                   <CustomerInput

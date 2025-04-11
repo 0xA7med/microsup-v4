@@ -643,7 +643,9 @@ export const DashboardNew: React.FC = () => {
   };
   
   const navigateToClientsList = (filter?: string) => {
-    navigate('/clients', { state: { filter } });
+    console.log('Navigating to clients list with filter:', filter); // للتشخيص
+    // استخدام replace: true لضمان استبدال المسار الحالي بدلاً من إضافة مسار جديد إلى السجل
+    navigate('/clients', { state: { filter }, replace: true });
   };
   
   // إزالة الدالة غير المستخدمة
@@ -658,8 +660,7 @@ export const DashboardNew: React.FC = () => {
     agents,
     permanentClients,
     expiringIn15Days,
-    totalDevices,
-    renewalRate
+    totalDevices
   } = dashboardData;
   
   // عرض شاشة التحميل
@@ -688,7 +689,11 @@ export const DashboardNew: React.FC = () => {
 
       {/* إحصائيات العملاء والاشتراكات */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList()}
+          title={t('dashboard.clickToViewAllClients', 'انقر لعرض جميع العملاء')}
+        >
           <div className="p-3 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300">
             <Users className="h-6 w-6" />
           </div>
@@ -699,7 +704,11 @@ export const DashboardNew: React.FC = () => {
         </div>
         
         {user?.role !== 'agent' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+          <div 
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+            onClick={() => navigate('/agents')}
+            title={t('dashboard.clickToViewAgents', 'انقر لعرض المندوبين')}
+          >
             <div className="p-3 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300">
               <UserPlus className="h-6 w-6" />
             </div>
@@ -710,7 +719,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         )}
         
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('active')}
+          title={t('dashboard.clickToViewActiveClients', 'انقر لعرض العملاء النشطين')}
+        >
           <div className="p-3 rounded-full bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300">
             <ClipboardList className="h-6 w-6" />
           </div>
@@ -720,7 +733,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('permanent')}
+          title={t('dashboard.clickToViewPermanentClients', 'انقر لعرض الاشتراكات الدائمة')}
+        >
           <div className="p-3 rounded-full bg-pink-100 dark:bg-pink-900 text-pink-600 dark:text-pink-300">
             <Package className="h-6 w-6" />
           </div>
@@ -730,7 +747,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('expired')}
+          title={t('dashboard.clickToViewExpiredClients', 'انقر لعرض الاشتراكات المنتهية')}
+        >
           <div className="p-3 rounded-full bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300">
             <AlertCircle className="h-6 w-6" />
           </div>
@@ -740,7 +761,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('expiring')}
+          title={t('dashboard.clickToViewExpiringClients', 'انقر لعرض الاشتراكات التي ستنتهي قريباً')}
+        >
           <div className="p-3 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-300">
             <Clock className="h-6 w-6" />
           </div>
@@ -753,7 +778,11 @@ export const DashboardNew: React.FC = () => {
 
       {/* إحصائيات الأجهزة */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('devices')}
+          title={t('dashboard.clickToViewAllDevices', 'انقر لعرض جميع الأجهزة')}
+        >
           <div className="p-3 rounded-full bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300">
             <Zap className="h-6 w-6" />
           </div>
@@ -763,7 +792,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('mobile')}
+          title={t('dashboard.clickToViewMobileDevices', 'انقر لعرض أجهزة الموبايل')}
+        >
           <div className="p-3 rounded-full bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300">
             <Phone className="h-6 w-6" />
           </div>
@@ -773,7 +806,11 @@ export const DashboardNew: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 flex items-center space-x-4 rtl:space-x-reverse cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" 
+          onClick={() => navigateToClientsList('computer')}
+          title={t('dashboard.clickToViewComputerDevices', 'انقر لعرض أجهزة الكمبيوتر')}
+        >
           <div className="p-3 rounded-full bg-cyan-100 dark:bg-cyan-900 text-cyan-600 dark:text-cyan-300">
             <Monitor className="h-6 w-6" />
           </div>
@@ -906,6 +943,7 @@ export const DashboardNew: React.FC = () => {
           onDelete={handleDeleteClient}
           subscriptionTypes={SUBSCRIPTION_TYPES}
           versionTypes={VERSION_TYPES}
+          currentUser={user}
         />
       )}
     </div>
