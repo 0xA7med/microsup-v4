@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { format, addMonths, addYears, isAfter, startOfToday } from 'date-fns';
 import { Plus, Calendar, Clipboard, Trash2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Button from './ui/button';
+import Button from '../components/Button';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerSelect from './CustomerSelect';
