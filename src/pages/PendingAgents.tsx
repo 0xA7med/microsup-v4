@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { AlertCircle, UserCheck, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
-import Button from '../../components/Button'; // تصحيح مسار استيراد Button
+import Button from '../components/Button'; // تصحيح مسار استيراد Button
 
 interface PendingAgent {
   id: string;
