@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import CustomerField from '../components/CustomerField';
 import CustomerInput from '../components/CustomerInput';
 import CustomerTextArea from '../components/CustomerTextArea';
-import Button from '../components/ui/button';
+import Button from '../components/Button';
 import toast from 'react-hot-toast';
 import ClientDevicesForm from '../components/ClientDevicesForm';
 import { DeviceType } from '../types/device.types';

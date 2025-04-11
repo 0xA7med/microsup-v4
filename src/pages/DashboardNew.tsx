@@ -8,7 +8,7 @@ import {
   Clock, AlertCircle, Zap, Monitor, Package
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Button from '../components/ui/button';
+import Button from '../components/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 import { useAuthStore } from '../store/authStore';
 // لا نحتاج لاستيراد مكون التحميل لأننا نستخدم Loader2 من lucide-react
