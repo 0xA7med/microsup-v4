@@ -4,7 +4,7 @@ import { format, addMonths, addYears, isAfter, startOfToday, parseISO } from 'da
 import { X, Save, Ban, Calendar, Clipboard, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DeviceType, DEVICE_TYPES } from '../types/device.types';
-import Button from './ui/Button';
+import Button from './ui/button';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerSelect from './CustomerSelect';

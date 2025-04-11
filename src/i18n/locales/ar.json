@@ -10,7 +10,9 @@
     "addClient": "إضافة عميل",
     "agents": "قائمة المندوبين",
     "addAgent": "إضافة مندوب",
-    "dashboard": "لوحة التحكم"
+    "dashboard": "لوحة التحكم",
+    "pendingDevices": "الأجهزة قيد المراجعة",
+    "pendingAgents": "المندوبين قيد المراجعة"
   },
   "dashboard": {
     "totalClients": "إجمالي العملاء",
@@ -29,6 +31,8 @@
     "softwareVersion": "نوع النسخة",
     "subscriptionStart": "تاريخ بداية الاشتراك",
     "subscriptionEnd": "تاريخ نهاية الاشتراك",
+    "agent": "المندوب",
+    "noAgent": "بدون مندوب",
     "notes": "ملاحظات"
   },
   "agent": {

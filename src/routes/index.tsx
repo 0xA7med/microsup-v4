@@ -1,80 +1,112 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { Dashboard } from '../pages/Dashboard';
 import { ClientsList } from '../pages/ClientsList';
-import { AddClient } from '../pages/AddClient';
 import { AgentsList } from '../pages/AgentsList';
-import { AddAgent } from '../pages/AddAgent';
+import { PendingAgents } from '../pages/PendingAgents';
+import DashboardNew from '../pages/DashboardNew';
+import AddClientRedirect from '../pages/AddClientRedirect';
+import AddAgentRedirect from '../pages/AddAgentRedirect';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const user = useAuthStore((state) => state.user);
+// مكون لحماية المسارات
+const ProtectedRoute: React.FC<{
+  children?: React.ReactNode;
+  requiredRole?: string | null;
+}> = ({ children, requiredRole = null }) => {
+  const { user } = useAuthStore();
   
   if (!user) {
     return <Navigate to="/login" replace />;
   }
   
-  return <>{children}</>;
-};
-
-const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const user = useAuthStore((state) => state.user);
-  
-  if (!user || user.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
+  if (requiredRole === 'admin' && user.role !== 'admin') {
+    return <Navigate to="/" replace />;
   }
   
-  return <>{children}</>;
+  if (requiredRole === 'manager' && user.role !== 'admin' && user.role !== 'manager') {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children || <Outlet />}</>;
 };
 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
-      <Route
-        path="/"
+      
+      {/* الصفحة الرئيسية / لوحة التحكم */}
+      <Route 
+        path="/" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <DashboardNew />
           </ProtectedRoute>
-        }
+        } 
       />
-      <Route
-        path="/clients"
+      
+      {/* صفحة قائمة العملاء */}
+      <Route 
+        path="/clients" 
         element={
           <ProtectedRoute>
             <ClientsList />
           </ProtectedRoute>
-        }
+        } 
       />
-      <Route
-        path="/clients/add"
+      
+      {/* صفحة إضافة عميل جديد */}
+      <Route 
+        path="/add-client" 
         element={
           <ProtectedRoute>
-            <AddClient />
+            <AddClientRedirect />
           </ProtectedRoute>
-        }
+        } 
       />
-      <Route
-        path="/agents"
+      
+      {/* صفحة قائمة المندوبين */}
+      <Route 
+        path="/agents" 
         element={
-          <ProtectedRoute>
-            <AdminRoute>
-              <AgentsList />
-            </AdminRoute>
+          <ProtectedRoute requiredRole="manager">
+            <AgentsList />
           </ProtectedRoute>
-        }
+        } 
       />
-      <Route
-        path="/agents/add"
+      
+      {/* صفحة إضافة مندوب جديد */}
+      <Route 
+        path="/add-agent" 
         element={
-          <ProtectedRoute>
-            <AdminRoute>
-              <AddAgent />
-            </AdminRoute>
+          <ProtectedRoute requiredRole="admin">
+            <AddAgentRedirect />
           </ProtectedRoute>
-        }
+        } 
       />
+      
+      {/* صفحة طلبات المندوبين المعلقة */}
+      <Route 
+        path="/pending-agents" 
+        element={
+          <ProtectedRoute requiredRole="admin">
+            <PendingAgents />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* صفحة الأجهزة المعلقة */}
+      <Route 
+        path="/pending-devices" 
+        element={
+          <ProtectedRoute requiredRole="manager">
+            <div>صفحة الأجهزة المعلقة</div>
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* توجيه أي مسار غير معرف إلى الصفحة الرئيسية */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

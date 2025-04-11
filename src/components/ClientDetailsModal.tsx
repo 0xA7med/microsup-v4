@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import {
   X, Edit, Save, Trash2, Ban, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Clipboard, Calendar, Smartphone, Laptop
+  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -11,10 +11,9 @@ import Button from './ui/Button';
 import { ClientType, Agent, SubscriptionType, VersionType } from '../types/client.types';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
-import CustomerSelect from './CustomerSelect';
 import CustomerTextArea from './CustomerTextArea';
 import DeviceModal from './DeviceModal';
-import { DeviceType, DEVICE_TYPES } from '../types/device.types';
+import { DeviceType, DEVICE_TYPES, APPROVAL_STATUS } from '../types/device.types';
 
 interface ClientDetailsModalProps {
   client: ClientType | null;
@@ -53,25 +52,96 @@ export default function ClientDetailsModal({
   const [showDevicesSection, setShowDevicesSection] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [agentName, setAgentName] = useState<string | null>(null);
+  const [localAgents, setLocalAgents] = useState<Agent[]>([]);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
   useEffect(() => {
     if (client && isOpen) {
+      console.log("Client data received:", client); // إضافة سجل للتحقق من بيانات العميل
       setFormData({ ...client }); 
       setIsEditing(false); 
       setShowDeleteConfirm(false);
       setIsSaving(false);
       setIsDeleting(false);
       fetchDevices(client.id);
+      
+      // جلب اسم المندوب مباشرة من قاعدة البيانات
+      if (client.agent_id) {
+        fetchAgentName(client.agent_id);
+      } else {
+        setAgentName(null);
+      }
+      
+      // جلب قائمة المندوبين
+      fetchAgents();
+      
+      // طباعة معلومات المندوبين للتشخيص
+      console.log("Agents from props:", agents);
     } else if (!isOpen) {
       setTimeout(() => {
         setFormData(null);
         setIsEditing(false);
         setShowDeleteConfirm(false);
         setDevices([]);
+        setAgentName(null);
       }, 200); 
     }
   }, [client, isOpen]);
-  
+
+  // دالة جديدة لجلب قائمة المندوبين
+  const fetchAgents = async () => {
+    setIsLoadingAgents(true);
+    try {
+      // تعديل الاستعلام لتجنب الخطأ - إزالة عمود is_active غير الموجود
+      const { data, error } = await supabase
+        .from('agents')
+        .select('id, name, email, role')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching agents:', error);
+        return;
+      }
+
+      if (data) {
+        console.log('Agents fetched directly:', data);
+        setLocalAgents(data as Agent[]);
+      }
+    } catch (error) {
+      console.error('Exception fetching agents:', error);
+    } finally {
+      setIsLoadingAgents(false);
+    }
+  };
+
+  // دالة جديدة لجلب اسم المندوب من قاعدة البيانات
+  const fetchAgentName = async (agentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('agents')
+        .select('name, email')
+        .eq('id', agentId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching agent:', error);
+        setAgentName(null);
+        return;
+      }
+
+      if (data) {
+        console.log('Agent data fetched:', data);
+        setAgentName(data.name || data.email || null);
+      } else {
+        setAgentName(null);
+      }
+    } catch (error) {
+      console.error('Exception fetching agent:', error);
+      setAgentName(null);
+    }
+  };
+
   // جلب أجهزة العميل
   const fetchDevices = async (clientId?: string) => {
     if (!clientId) return;
@@ -85,7 +155,14 @@ export default function ClientDetailsModal({
         .order('created_at', { ascending: false });
         
       if (error) throw error;
-      setDevices(data || []);
+      
+      // إضافة حالة الموافقة الافتراضية للأجهزة القديمة
+      const devicesWithStatus = (data || []).map(device => ({
+        ...device,
+        approval_status: device.approval_status || 'approved' // الأجهزة القديمة تكون معتمدة افتراضيًا
+      }));
+      
+      setDevices(devicesWithStatus);
     } catch (error) {
       console.error('Error fetching devices:', error);
       toast.error(t('messages.errorFetchingDevices', 'حدث خطأ أثناء جلب بيانات الأجهزة'));
@@ -236,6 +313,38 @@ export default function ClientDetailsModal({
     }
   };
 
+  // دالة للحصول على أيقونة حالة الموافقة
+  const getApprovalStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
+      case 'rejected':
+        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
+      case 'pending':
+      default:
+        return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
+    }
+  };
+
+  // دالة للحصول على نص حالة الموافقة
+  const getApprovalStatusLabel = (status: string) => {
+    const statusItem = APPROVAL_STATUS.find(item => item.value === status);
+    return statusItem ? (i18n.dir() === 'rtl' ? statusItem.label : statusItem.labelEn) : (i18n.dir() === 'rtl' ? 'قيد المراجعة' : 'Pending');
+  };
+
+  // دالة للحصول على لون خلفية حالة الموافقة
+  const getApprovalStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'rejected':
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'pending':
+      default:
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+    }
+  };
+
   const isSubscriptionExpired = (endDate: string) => {
     try {
       return new Date(endDate) < new Date();
@@ -253,14 +362,27 @@ export default function ClientDetailsModal({
 
   // handleDateChange удален, так как больше не используется
 
+  // دالة لحفظ التغييرات
   const handleSaveClick = async () => {
-    if (!formData) return;
+    if (!formData || !client) return;
+    
     setIsSaving(true);
     try {
+      // تحويل البيانات إلى الشكل المناسب لقاعدة البيانات
       await onSave(formData);
-      setIsEditing(false); 
+      
+      // تحديث اسم المندوب المعروض بعد الحفظ
+      if (formData.agent_id) {
+        fetchAgentName(formData.agent_id);
+      } else {
+        setAgentName(null);
+      }
+      
+      setIsEditing(false);
+      toast.success(t('messages.clientUpdated', 'تم تحديث بيانات العميل بنجاح'));
     } catch (error) {
-      console.error("Error saving client:", error);
+      console.error('Error saving client:', error);
+      toast.error(t('messages.errorSavingClient', 'حدث خطأ أثناء حفظ بيانات العميل'));
     } finally {
       setIsSaving(false);
     }
@@ -352,24 +474,6 @@ export default function ClientDetailsModal({
                     required
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
-                } />
-
-                {/* المندوب */}
-                <CustomerField label={t('client.agent', 'المندوب')} children={
-                  <CustomerSelect
-                    name="agent_id"
-                    value={formData?.agent_id || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing && currentUser?.role === 'admin'}
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  >
-                    <option value="">{t('client.noAgent', 'بدون مندوب')}</option>
-                    {agents.map(agent => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </CustomerSelect>
                 } />
 
                 {/* نوع النشاط */}
@@ -488,6 +592,9 @@ export default function ClientDetailsModal({
                           <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             {t('device.subscriptionEnd', 'نهاية الاشتراك')}
                           </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.approvalStatus', 'حالة الموافقة')}
+                          </th>
                           <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             {t('common.actions', 'الإجراءات')}
                           </th>
@@ -533,6 +640,14 @@ export default function ClientDetailsModal({
                                     {formatDate(device.subscription_end)}
                                   </span>
                                 )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                {getApprovalStatusIcon(device.approval_status || 'pending')}
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-2 ${getApprovalStatusColor(device.approval_status || 'pending')}`}>
+                                  {getApprovalStatusLabel(device.approval_status || 'pending')}
+                                </span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -581,26 +696,53 @@ export default function ClientDetailsModal({
           </div>
 
           <div className="flex justify-between p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
-            {/* المندوب - يظهر فقط للمديرين */}
+            
+            {/* حقل المندوب */}
             <div className="flex-1 max-w-xs">
-              {currentUser?.role === 'admin' ? (
-                <CustomerField label={t('client.agent', 'المندوب')} children={
-                  <CustomerSelect
-                    name="agent_id"
-                    value={formData?.agent_id || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    options={[
-                      { value: '', label: t('client.noAgent', 'بدون مندوب') },
-                      ...agents.map(agent => ({
-                        value: agent.id,
-                        label: agent.name || agent.email
-                      }))
-                    ]}
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-              ) : null}
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {t('client.agent', 'المندوب')}
+              </label>
+              
+              {isEditing && currentUser?.role === 'admin' ? (
+                /* حالة التعديل - يظهر قائمة منسدلة للمندوبين */
+                <>
+                  {isLoadingAgents ? (
+                    <div className="mt-1 block w-full rounded-md shadow-sm bg-gray-100 border-2 border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 px-3 py-2 h-12 text-lg flex items-center">
+                      جاري تحميل المندوبين...
+                    </div>
+                  ) : (
+                    <select
+                      name="agent_id"
+                      value={formData?.agent_id || ''}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        handleInputChange(e);
+                        // عرض قيمة المندوب المختار للتشخيص
+                        console.log("Selected agent ID:", e.target.value);
+                      }}
+                      className="mt-1 block w-full rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white border-2 border-blue-200 dark:bg-gray-700 dark:border-blue-700 dark:text-white h-12 text-lg"
+                    >
+                      <option value="">{t('client.noAgent', 'بدون مندوب')}</option>
+                      {localAgents && localAgents.length > 0 ? (
+                        localAgents.map(agent => (
+                          <option 
+                            key={agent.id} 
+                            value={agent.id}
+                          >
+                            {agent.name || agent.email || agent.id}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="" disabled>لا يوجد مندوبين متاحين</option>
+                      )}
+                    </select>
+                  )}
+                </>
+              ) : (
+                /* حالة العرض - يظهر اسم المندوب الحالي */
+                <div className="mt-1 block w-full rounded-md shadow-sm bg-gray-100 border-2 border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 px-3 py-2 h-12 text-lg flex items-center">
+                  {agentName || t('client.noAgent', 'بدون مندوب')}
+                </div>
+              )}
             </div>
             
             <div className="flex gap-3">
@@ -654,58 +796,59 @@ export default function ClientDetailsModal({
               )}
             </div>
           </div>
+
+          {showDeleteConfirm && (
+            <>
+              <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-[70] transition-opacity duration-150" onClick={() => setShowDeleteConfirm(false)} />
+              <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-md w-full rounded-xl p-6 space-y-5 shadow-2xl bg-white dark:bg-gray-800 z-[80]">
+                <div className="flex items-center gap-4">
+                  <div className="bg-red-100 dark:bg-red-900/50 p-3 rounded-full">
+                    <AlertTriangle className="w-7 h-7 text-red-600 dark:text-red-400" />
+                  </div>
+                  <h4 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {t('deleteConfirmation.title', 'تأكيد الحذف')}
+                  </h4>
+                </div>
+                <p className="text-base text-gray-600 dark:text-gray-300">
+                  هل أنت متأكد من رغبتك في حذف العميل "{client?.client_name}"؟ لا يمكن التراجع عن هذا الإجراء.
+                </p>
+                <div className="flex justify-end gap-3 pt-5 border-t border-gray-200 dark:border-gray-700">
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => setShowDeleteConfirm(false)} 
+                    disabled={isDeleting}
+                    className="px-5 py-2.5"
+                  >
+                    <span>{t('actions.cancel', 'إلغاء')}</span>
+                  </Button>
+                  <Button 
+                    variant="danger" 
+                    onClick={handleConfirmDelete} 
+                    disabled={isDeleting}
+                    className="flex items-center gap-2 px-5 py-2.5"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span>{isDeleting ? t('actions.deleting', 'جار الحذف...') : t('actions.confirmDelete', 'تأكيد الحذف')}</span>
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+          
+          {/* نافذة إضافة/تعديل الجهاز */}
+          {showDeviceModal && (
+            <DeviceModal
+              isOpen={showDeviceModal}
+              onClose={() => setShowDeviceModal(false)}
+              onSave={handleSaveDevice}
+              device={selectedDevice}
+              clientId={client?.id || ''}
+              versionTypes={versionTypes}
+            />
+          )}
         </div>
       </div>
 
-      {showDeleteConfirm && (
-        <>
-          <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-[70] transition-opacity duration-150" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-md w-full rounded-xl p-6 space-y-5 shadow-2xl bg-white dark:bg-gray-800 z-[80]">
-            <div className="flex items-center gap-4">
-              <div className="bg-red-100 dark:bg-red-900/50 p-3 rounded-full">
-                <AlertTriangle className="w-7 h-7 text-red-600 dark:text-red-400" />
-              </div>
-              <h4 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {t('deleteConfirmation.title', 'تأكيد الحذف')}
-              </h4>
-            </div>
-            <p className="text-base text-gray-600 dark:text-gray-300">
-              هل أنت متأكد من رغبتك في حذف العميل "{client?.client_name}"؟ لا يمكن التراجع عن هذا الإجراء.
-            </p>
-            <div className="flex justify-end gap-3 pt-5 border-t border-gray-200 dark:border-gray-700">
-              <Button 
-                variant="secondary" 
-                onClick={() => setShowDeleteConfirm(false)} 
-                disabled={isDeleting}
-                className="px-5 py-2.5"
-              >
-                <span>{t('actions.cancel', 'إلغاء')}</span>
-              </Button>
-              <Button 
-                variant="danger" 
-                onClick={handleConfirmDelete} 
-                disabled={isDeleting}
-                className="flex items-center gap-2 px-5 py-2.5"
-              >
-                <Trash2 className="w-5 h-5" />
-                <span>{isDeleting ? t('actions.deleting', 'جار الحذف...') : t('actions.confirmDelete', 'تأكيد الحذف')}</span>
-              </Button>
-            </div>
-          </div>
-        </>
-      )}
-      
-      {/* نافذة إضافة/تعديل الجهاز */}
-      {showDeviceModal && (
-        <DeviceModal
-          isOpen={showDeviceModal}
-          onClose={() => setShowDeviceModal(false)}
-          onSave={handleSaveDevice}
-          device={selectedDevice}
-          clientId={client?.id || ''}
-          versionTypes={versionTypes}
-        />
-      )}
     </>
   );
 }

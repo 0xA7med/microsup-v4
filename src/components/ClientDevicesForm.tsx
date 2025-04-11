@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format, addMonths, addYears, isAfter, startOfToday } from 'date-fns';
-import { Plus, Calendar, Clipboard, Trash2 } from 'lucide-react';
+import { Plus, Calendar, Clipboard, Trash2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from './ui/Button';
 import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerSelect from './CustomerSelect';
 import CustomerTextArea from './CustomerTextArea';
-import { DeviceType, DEVICE_TYPES } from '../types/device.types';
+import { DeviceType, DEVICE_TYPES, APPROVAL_STATUS } from '../types/device.types';
 
 interface ClientDevicesFormProps {
   clientId?: string;
@@ -37,6 +37,7 @@ export default function ClientDevicesForm({
         subscription_type: 'monthly',
         software_version: 'computer',
         device_type: 'computer',
+        approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
         notes: ''
       }]);
     }
@@ -126,8 +127,12 @@ export default function ClientDevicesForm({
       subscription_type: 'monthly',
       software_version: 'computer',
       device_type: 'computer',
+      approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
       notes: ''
     }]);
+    
+    // إظهار رسالة توضح أن الجهاز سيكون قيد المراجعة
+    toast.success(t('device.pendingApproval', 'تمت إضافة الجهاز وسيكون قيد المراجعة من قبل المدير'));
   };
 
   const handleRemoveDevice = (index: number) => {
@@ -143,19 +148,31 @@ export default function ClientDevicesForm({
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-          {t('client.devices', 'الأجهزة')}
-        </h3>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={handleAddDevice}
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          <span>{t('device.addDevice', 'إضافة جهاز')}</span>
-        </Button>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {t('client.devices', 'الأجهزة')}
+          </h3>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleAddDevice}
+            className="flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t('device.addDevice', 'إضافة جهاز')}</span>
+          </Button>
+        </div>
+        
+        {/* رسالة توضيحية حول نظام الموافقة */}
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-yellow-500 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+              {t('device.approvalNotice', 'الأجهزة الجديدة ستكون قيد المراجعة من قبل المدير قبل إضافتها بشكل رسمي للنظام.')}
+            </p>
+          </div>
+        </div>
       </div>
 
       {devices.map((device, index) => (

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import { Edit, Trash2, Plus, Clipboard, Calendar, Smartphone, Laptop } from 'lucide-react';
 import toast from 'react-hot-toast';
-import Button from './ui/Button';
+import Button from './ui/button';
 import { DeviceType, DEVICE_TYPES } from '../types/device.types';
 import DeviceModal from './DeviceModal';
 import { supabase } from '../lib/supabase';

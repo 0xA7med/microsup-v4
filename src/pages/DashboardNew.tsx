@@ -145,6 +145,25 @@ export const DashboardNew: React.FC = () => {
         agentsCount = adminAgentsCount || 0;
       }
       
+      // جلب قائمة المندوبين
+      let agents: ImportedAgent[] = [];
+      try {
+        // تعديل الاستعلام لتجنب الخطأ - إزالة عمود is_active غير الموجود
+        const { data: agentsData, error: agentsError } = await supabase
+          .from('agents')
+          .select('id, name, email, role')
+          .order('name', { ascending: true });
+          
+        if (agentsError) {
+          console.error('Error fetching agents list:', agentsError);
+        } else if (agentsData) {
+          // استخدام البيانات كما هي بدون تصفية
+          agents = agentsData as ImportedAgent[];
+        }
+      } catch (agentsError) {
+        console.error('Exception fetching agents list:', agentsError);
+      }
+      
       // جلب الاشتراكات النشطة باستخدام جدول الأجهزة
       let activeCount = 0;
       
@@ -374,11 +393,6 @@ export const DashboardNew: React.FC = () => {
         }
       }
       
-      // جلب جميع المندوبين
-      const { data: agentsData } = await supabase
-        .from('agents')
-        .select('id, name, email, role, is_active');
-      
       // جلب العملاء بالاشتراك الدائم باستخدام جدول الأجهزة
       let permanentCount = 0;
       
@@ -536,7 +550,7 @@ export const DashboardNew: React.FC = () => {
         activeSubscriptions: activeCount || 0,
         recentClients: recent || [],
         expiredSubscriptions: expiredCount || 0,
-        agents: agentsData || [],
+        agents: agents || [],
         permanentClients: permanentCount || 0,
         expiringThisMonth: expiringCount || 0,
         expiringIn15Days: expiringIn15DaysCount || 0,
@@ -699,7 +713,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.totalClients', 'إجمالي العملاء')}</div>
-            <div className="text-2xl font-semibold">{totalClients}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{totalClients}</div>
           </div>
         </div>
         
@@ -714,7 +728,7 @@ export const DashboardNew: React.FC = () => {
             </div>
             <div>
               <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.totalAgents', 'إجمالي المندوبين')}</div>
-              <div className="text-2xl font-semibold">{totalAgents}</div>
+              <div className="text-2xl font-semibold text-gray-800 dark:text-white">{totalAgents}</div>
             </div>
           </div>
         )}
@@ -729,7 +743,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">العملاء النشطة</div>
-            <div className="text-2xl font-semibold">{activeSubscriptions}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{activeSubscriptions}</div>
           </div>
         </div>
         
@@ -743,7 +757,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.permanentClients', 'اشتراكات دائمة')}</div>
-            <div className="text-2xl font-semibold">{permanentClients}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{permanentClients}</div>
           </div>
         </div>
 
@@ -757,7 +771,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</div>
-            <div className="text-2xl font-semibold">{expiredSubscriptions}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{expiredSubscriptions}</div>
           </div>
         </div>
 
@@ -771,7 +785,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.expiringIn15Days', 'تنتهي خلال 15 يوم')}</div>
-            <div className="text-2xl font-semibold">{expiringIn15Days}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{expiringIn15Days}</div>
           </div>
         </div>
       </div>
@@ -788,7 +802,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</div>
-            <div className="text-2xl font-semibold">{totalDevices}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{totalDevices}</div>
           </div>
         </div>
         
@@ -802,7 +816,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.mobileDevices', 'أجهزة الموبايل')}</div>
-            <div className="text-2xl font-semibold">{dashboardData.mobileDevices || 0}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{dashboardData.mobileDevices || 0}</div>
           </div>
         </div>
         
@@ -816,7 +830,7 @@ export const DashboardNew: React.FC = () => {
           </div>
           <div>
             <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{t('dashboard.computerDevices', 'أجهزة الكمبيوتر')}</div>
-            <div className="text-2xl font-semibold">{dashboardData.computerDevices || 0}</div>
+            <div className="text-2xl font-semibold text-gray-800 dark:text-white">{dashboardData.computerDevices || 0}</div>
           </div>
         </div>
       </div>
