@@ -125,13 +125,17 @@ const BackupManager: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!config.fileTypes.includes(file.type)) {
-      toast.error('نوع الملف غير مدعوم');
+    // تحقق من امتداد الملف بدلاً من نوع الملف
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    if (fileExtension !== 'json') {
+      toast.error('نوع الملف غير مدعوم. يجب أن يكون ملف JSON');
+      event.target.value = '';
       return;
     }
 
     if (file.size > config.maxFileSize) {
       toast.error('حجم الملف كبير جداً');
+      event.target.value = '';
       return;
     }
 
@@ -141,7 +145,11 @@ const BackupManager: React.FC = () => {
       
       reader.onload = async (e) => {
         try {
-          const backupData = JSON.parse(e.target?.result as string);
+          if (!e.target?.result) {
+            throw new Error('فشل قراءة الملف');
+          }
+          
+          const backupData = JSON.parse(e.target.result as string);
           
           // التحقق من صحة ملف النسخ الاحتياطي
           if (!backupData || !backupData.timestamp || !backupData.clients) {
@@ -150,35 +158,106 @@ const BackupManager: React.FC = () => {
 
           // التحقق من توافق الإصدار
           if (backupData.config && backupData.config.version !== config.version) {
-            throw new Error('النسخة غير متوافقة مع إصدار البرنامج الحالي');
+            console.warn('تحذير: النسخة قد لا تكون متوافقة مع إصدار البرنامج الحالي');
+            // نستمر في الاستعادة رغم اختلاف الإصدار، لكن نعرض تحذيرًا
+            toast.error('تحذير: النسخة قد لا تكون متوافقة مع إصدار البرنامج الحالي، سيتم المحاولة على أي حال');
           }
 
           // حذف البيانات الحالية (اختياري - يمكن تعديله حسب الحاجة)
           if (window.confirm('هل تريد حذف جميع البيانات الحالية قبل استعادة النسخ الاحتياطي؟')) {
-            await supabase.from('devices').delete().neq('id', 0);
-            await supabase.from('clients').delete().neq('id', 0);
+            // حذف الأجهزة أولاً بسبب قيود المفتاح الأجنبي
+            const { error: devicesDeleteError } = await supabase
+              .from('devices')
+              .delete()
+              .neq('id', '00000000-0000-0000-0000-000000000000');
+            
+            if (devicesDeleteError) {
+              console.error('خطأ في حذف الأجهزة:', devicesDeleteError);
+              throw devicesDeleteError;
+            }
+            
+            // ثم حذف العملاء
+            const { error: clientsDeleteError } = await supabase
+              .from('clients')
+              .delete()
+              .neq('id', '00000000-0000-0000-0000-000000000000');
+            
+            if (clientsDeleteError) {
+              console.error('خطأ في حذف العملاء:', clientsDeleteError);
+              throw clientsDeleteError;
+            }
+            
+            toast.success('تم حذف البيانات الحالية بنجاح');
           }
 
-          // تنفيذ عملية الاستعادة
-          const { error } = await supabase
-            .from('clients')
-            .upsert(backupData.clients);
+          // إعداد مصفوفة لتخزين الأجهزة
+          let allDevices: any[] = [];
+          let clientsCount = 0;
+          let devicesCount = 0;
 
-          if (error) throw error;
+          // معالجة بيانات العملاء والأجهزة
+          for (const client of backupData.clients) {
+            // استخراج الأجهزة من العميل
+            const clientDevices = client.devices || [];
+            
+            // حفظ نسخة من الأجهزة قبل حذفها من كائن العميل
+            allDevices = [...allDevices, ...clientDevices];
+            
+            // حذف الأجهزة من كائن العميل لتجنب الخطأ عند الإدراج
+            const clientData = { ...client };
+            delete clientData.devices;
+            
+            // إدراج العميل
+            const { error: clientError } = await supabase
+              .from('clients')
+              .upsert(clientData);
+            
+            if (clientError) {
+              console.error('خطأ في استعادة العميل:', clientData.id, clientError);
+              throw clientError;
+            }
+            
+            clientsCount++;
+          }
 
-          toast.success('تم استعادة النسخة الاحتياطية بنجاح');
+          console.log('تم استعادة العملاء:', clientsCount);
+          
+          // استعادة الأجهزة بعد الانتهاء من استعادة جميع العملاء
+          if (allDevices.length > 0) {
+            const { error: devicesError } = await supabase
+              .from('devices')
+              .upsert(allDevices);
+            
+            if (devicesError) {
+              console.error('خطأ في استعادة الأجهزة:', devicesError);
+              throw devicesError;
+            }
+            
+            devicesCount = allDevices.length;
+          }
+
+          console.log(`تم استعادة ${clientsCount} عميل و ${devicesCount} جهاز`);
+          toast.success(`تم استعادة النسخة الاحتياطية بنجاح: ${clientsCount} عميل و ${devicesCount} جهاز`);
           fetchLastBackupInfo();
         } catch (error) {
           console.error('خطأ في استعادة النسخة الاحتياطية:', error);
           toast.error('حدث خطأ أثناء استعادة النسخة الاحتياطية');
+        } finally {
+          setIsRestoring(false);
         }
+      };
+
+      reader.onerror = () => {
+        console.error('خطأ في قراءة الملف');
+        toast.error('حدث خطأ أثناء قراءة الملف');
+        setIsRestoring(false);
+        event.target.value = '';
       };
 
       reader.readAsText(file);
     } catch (error) {
       console.error('خطأ في قراءة الملف:', error);
       toast.error('حدث خطأ أثناء قراءة الملف');
-    } finally {
       setIsRestoring(false);
       event.target.value = '';
     }
