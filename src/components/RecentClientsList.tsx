@@ -68,7 +68,31 @@ const RecentClientsList: React.FC<RecentClientsListProps> = ({
       
       // تطبيق فلتر حسب الوكيل إذا كان المستخدم وكيل
       if (user?.role === 'agent') {
-        query = query.eq('clients.agent_id', user.id);
+        // استخدام طريقة مختلفة للتصفية
+        // أولاً، نجلب قائمة العملاء التابعين للمندوب
+        const { data: agentClients, error: agentClientsError } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('agent_id', user.id);
+          
+        if (agentClientsError) {
+          console.error('Error fetching agent clients:', agentClientsError);
+          throw agentClientsError;
+        }
+        
+        // ثم نستخدم قائمة معرفات العملاء للتصفية
+        const clientIds = agentClients.map(client => client.id);
+        console.log(`Filtering devices for agent ${user.id} with ${clientIds.length} clients`);
+        
+        // تطبيق الفلتر على الاستعلام
+        if (clientIds.length > 0) {
+          query = query.in('client_id', clientIds);
+        } else {
+          // إذا لم يكن لدى المندوب أي عملاء، نعيد قائمة فارغة
+          setRecentDevices([]);
+          setLoading(false);
+          return;
+        }
       }
       
       const { data, error } = await query;

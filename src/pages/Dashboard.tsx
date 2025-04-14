@@ -159,7 +159,7 @@ export const Dashboard: React.FC = () => {
       // جلب بيانات العملاء
       const { data: clientsData, error: clientsError } = await supabase
         .from('clients')
-        .select('id, client_name, subscription_end, subscription_type');
+        .select('id, client_name, subscription_end, subscription_type, agent_id');
       
       if (clientsError) throw clientsError;
       
@@ -170,6 +170,16 @@ export const Dashboard: React.FC = () => {
       
       if (agentsError) throw agentsError;
       
+      // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
+      let filteredClientsData = clientsData || [];
+      
+      // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
+      if (user?.role === 'agent') {
+        const agentId = user.id;
+        filteredClientsData = filteredClientsData.filter(client => client.agent_id === agentId);
+        console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
+      }
+      
       // جلب بيانات الأجهزة
       const { data: allDevicesData = [], error: devicesError } = await supabase
         .from('devices')
@@ -177,8 +187,18 @@ export const Dashboard: React.FC = () => {
       
       if (devicesError) throw devicesError;
       
+      // تصفية الأجهزة حسب العملاء المصفاة
+      let filteredDevicesData = allDevicesData || [];
+      
+      // إذا كان المستخدم مندوب، نصفي الأجهزة لعرض أجهزة عملائه فقط
+      if (user?.role === 'agent') {
+        const filteredClientIds = filteredClientsData.map(client => client.id);
+        filteredDevicesData = filteredDevicesData.filter(device => filteredClientIds.includes(device.client_id));
+        console.log('Filtered devices for agent:', filteredDevicesData.length);
+      }
+      
       // تخزين بيانات الأجهزة في حالة المكون
-      setDevicesData(allDevicesData || []);
+      setDevicesData(filteredDevicesData || []);
       
       // حساب القيم
       let totalValue = 0;
@@ -191,9 +211,64 @@ export const Dashboard: React.FC = () => {
       let pendingDevices = 0;
       let rejectedDevices = 0;
       
+      // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
+      let activeSubscriptionsCount = 0;
+      let expiredSubscriptionsCount = 0;
+      let expiringThisMonthCount = 0;
+      let mobileDevicesCount = 0;
+      let computerDevicesCount = 0;
+      
+      // الحصول على التاريخ الحالي
+      const currentDate = new Date();
+      // تاريخ بعد 15 يوم من الآن
+      const futureDate = new Date();
+      futureDate.setDate(currentDate.getDate() + 15);
+      
       // حساب القيم المالية والأعداد من الأجهزة
-      if (allDevicesData) {
-        allDevicesData.forEach((device: any) => {
+      if (filteredDevicesData) {
+        // ابدأ بطباعة العدد الإجمالي للأجهزة للتشخيص
+        console.log('Total devices fetched:', filteredDevicesData.length);
+        
+        // تحليل البيانات للعثور على الأجهزة المنتهية والنشطة
+        const approvedDevicesArr = filteredDevicesData.filter(device => device.approval_status === 'approved');
+        console.log('Approved devices:', approvedDevicesArr.length);
+        
+        // الأجهزة المنتهية هي الأجهزة المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
+        const expiredDevicesArr = approvedDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return false;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          const isExpired = endDate < currentDate;
+          return isExpired;
+        });
+        
+        // الأجهزة النشطة هي الأجهزة المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
+        const activeDevicesArr = approvedDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return true;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          return endDate >= currentDate;
+        });
+        
+        // تحديث المتغيرات
+        expiredSubscriptionsCount = expiredDevicesArr.length;
+        activeSubscriptionsCount = activeDevicesArr.length;
+        
+        console.log('Expired devices count:', expiredSubscriptionsCount);
+        console.log('Active devices count:', activeSubscriptionsCount);
+        
+        // الأجهزة التي ستنتهي خلال 15 يوم
+        const expiringDevicesArr = activeDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return false;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          return endDate <= futureDate;
+        });
+        
+        expiringThisMonthCount = expiringDevicesArr.length;
+        console.log('Expiring soon devices count:', expiringThisMonthCount);
+        
+        filteredDevicesData.forEach((device: any) => {
           // حساب القيم المالية فقط للأجهزة المقبولة
           if (device.approval_status === 'approved') {
             const price = parseFloat(device.price) || 0;
@@ -201,8 +276,10 @@ export const Dashboard: React.FC = () => {
             
             if (device.device_type === 'computer') {
               computerValue += price;
+              computerDevicesCount++;
             } else {
               mobileValue += price;
+              mobileDevicesCount++;
             }
           }
           
@@ -221,16 +298,16 @@ export const Dashboard: React.FC = () => {
       
       // إنشاء كائن البيانات
       const newDashboardData: DashboardData = {
-        totalClients: clientsData?.length || 0,
+        totalClients: filteredClientsData?.length || 0,
         totalAgents: agentsData?.length || 0,
-        activeSubscriptions: 0,
+        activeSubscriptions: activeSubscriptionsCount,
         recentClients: [],
-        expiredSubscriptions: 0,
+        expiredSubscriptions: expiredSubscriptionsCount,
         averageDevices: 0,
         renewalRate: 0,
         agents: [],
         permanentClients: 0,
-        expiringThisMonth: 0,
+        expiringThisMonth: expiringThisMonthCount,
         lastUpdated: new Date().toISOString(),
         // القيم المالية
         totalValue,
@@ -244,8 +321,8 @@ export const Dashboard: React.FC = () => {
         totalDevices,
         // إضافة الحقول المفقودة
         activeDevices: approvedDevices || 0,
-        mobileDevices: 0,
-        computerDevices: 0
+        mobileDevices: mobileDevicesCount,
+        computerDevices: computerDevicesCount
       };
       
       // تحديث حالة المكون
@@ -371,20 +448,25 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  // Navigate to clients list with filter
-  const navigateToClientsList = (filter?: string) => {
-    // Use URL query parameters instead of sessionStorage
-    if (filter) {
-      navigate(`/clients?filter=${filter}`);
-    } else {
-      navigate('/clients');
-    }
-  };
-
   // Navigate to agents list
   const navigateToAgentsList = () => {
     navigate('/agents');
   };
+
+  // Navigate to clients list with filter
+  const navigateToClientsList = useCallback((filter?: string) => {
+    // تخزين الفلتر الحالي في الحالة أولا
+    const filterToUse = filter || 'all';
+    
+    // ثم ننتقل إلى صفحة قائمة العملاء مع تمرير الفلتر كمعلمة
+    console.log(`Navigating to clients list with filter: ${filterToUse}`);
+    navigate('/clients', { 
+      state: { 
+        filter: filterToUse, 
+        applyFilterImmediately: true 
+      } 
+    });
+  }, [navigate]);
 
   // عرض مؤشر التحميل أثناء التحميل الأولي
   if (loading) {
@@ -403,6 +485,7 @@ export const Dashboard: React.FC = () => {
         </h1>
         
         <div className="flex space-x-2 rtl:space-x-reverse">
+         
           <Button
             onClick={() => {
               fetchDashboardData(true);
@@ -438,7 +521,7 @@ export const Dashboard: React.FC = () => {
         </div>
         
         <div className={`flex justify-between items-center mb-4 mt-4 ${collapsedSections.deviceStatusStats ? 'hidden md:flex' : 'flex'}`}>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الأجهزة')}</h2>
+          {/* <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الأجهزة')}</h2> */}
         </div>
         
         <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
@@ -543,7 +626,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
           {/* إجمالي العملاء */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
@@ -560,39 +643,36 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* إجمالي المندوبين */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToAgentsList()}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('nav.agents', 'إجمالي المندوبين')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalAgents}</span>
-              </div>
-              <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
-                <UserPlus className="h-6 w-6 text-purple-600 dark:text-purple-300" />
+          {/* المندوبين - عرض فقط للمسؤولين */}
+          {user?.role !== 'agent' && (
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+              onClick={navigateToAgentsList}
+            >
+              <div className="p-5 flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.agents', 'المندوبين')}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalAgents}</span>
+                </div>
+                <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
+                  <UserPlus className="h-6 w-6 text-purple-600 dark:text-purple-300" />
+                </div>
               </div>
             </div>
-          </div>
+          )}
           
-          {/* الأجهزة النشطة */}
+          {/* إجمالي الأجهزة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('active')}
+            onClick={() => navigateToClientsList('devices')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الأجهزة النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {(() => {
-                    // حساب عدد الأجهزة النشطة (المقبولة)
-                    return approvedDevices || 0;
-                  })()}
-                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Zap className="h-6 w-6 text-green-600 dark:text-green-300" />
+                <Package className="h-6 w-6 text-green-600 dark:text-green-300" />
               </div>
             </div>
           </div>
@@ -617,11 +697,14 @@ export const Dashboard: React.FC = () => {
           
           <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.valueStats ? 'hidden md:grid' : ''}`}>
             {/* إجمالي القيم */}
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all hover:shadow-xl hover:scale-105">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+              onClick={() => navigateToClientsList('all')}
+            >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalValue', 'إجمالي القيم')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalValue.toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(totalValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
                   <Zap className="h-6 w-6 text-blue-600 dark:text-blue-300" />
@@ -630,11 +713,14 @@ export const Dashboard: React.FC = () => {
             </div>
             
             {/* قيم أجهزة الهاتف */}
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all hover:shadow-xl hover:scale-105">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+              onClick={() => navigateToClientsList('mobile')}
+            >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'قيم أجهزة الهاتف')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{mobileValue.toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(mobileValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
                   <Phone className="h-6 w-6 text-orange-600 dark:text-orange-300" />
@@ -643,11 +729,14 @@ export const Dashboard: React.FC = () => {
             </div>
             
             {/* قيم أجهزة الكمبيوتر */}
-            <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg transition-all hover:shadow-xl hover:scale-105">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+              onClick={() => navigateToClientsList('computer')}
+            >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'قيم أجهزة الكمبيوتر')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{computerValue.toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(computerValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
                   <Package className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
@@ -682,7 +771,7 @@ export const Dashboard: React.FC = () => {
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeSubscriptions', 'الاشتراكات النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeSubscriptions}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeSubscriptions || 0}</span>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
                 <Zap className="h-6 w-6 text-green-600 dark:text-green-300" />
@@ -698,7 +787,7 @@ export const Dashboard: React.FC = () => {
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredSubscriptions}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredSubscriptions || 0}</span>
               </div>
               <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
                 <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
@@ -714,7 +803,7 @@ export const Dashboard: React.FC = () => {
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiringThisMonth}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiringThisMonth || 0}</span>
               </div>
               <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
                 <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import type { Database } from '../types/database.types';
 import toast from 'react-hot-toast';
 
@@ -9,15 +9,19 @@ type User = Database['public']['Tables']['agents']['Row'];
 interface AuthState {
   user: User | null;
   loading: boolean;
+  sessionError: boolean;
   initializeAuth: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   setUser: (user: User | null) => void;
+  refreshSession: () => Promise<void>;
+  resetSessionError: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
+  sessionError: false,
   initializeAuth: async () => {
     try {
       // التحقق من وجود بيانات المستخدم في التخزين المحلي
@@ -163,4 +167,50 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
   setUser: (user) => set({ user }),
+  refreshSession: async () => {
+    try {
+      // التحقق من وجود بيانات المستخدم في التخزين المحلي
+      const storedUser = localStorage.getItem('currentUser');
+      
+      if (!storedUser) {
+        console.log('لا توجد بيانات مستخدم مخزنة، لا داعي لتحديث الجلسة');
+        return;
+      }
+      
+      try {
+        const userData = JSON.parse(storedUser);
+        
+        // التحقق من صحة البيانات المخزنة
+        if (userData && userData.id && userData.email) {
+          // التحقق من وجود المستخدم في قاعدة البيانات
+          const { data: agentData, error: agentError } = await supabase
+            .from('agents')
+            .select('*')
+            .eq('id', userData.id)
+            .single();
+          
+          if (agentError) {
+            console.error('Error fetching user data:', agentError);
+            set({ sessionError: true });
+            return;
+          }
+          
+          if (agentData) {
+            set({ user: agentData, sessionError: false });
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing stored user data:', e);
+      }
+      
+      // إذا وصلنا إلى هنا، فهناك مشكلة في البيانات المخزنة
+      localStorage.removeItem('currentUser');
+      set({ user: null, sessionError: true });
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      set({ sessionError: true });
+    }
+  },
+  resetSessionError: () => set({ sessionError: false }),
 }));

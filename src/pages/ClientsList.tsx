@@ -18,24 +18,72 @@ import { useAuthStore } from '../store/authStore';
 import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types';
 import { DeviceType, APPROVAL_STATUS } from '../types/device.types';
 
-interface ClientType extends Omit<ImportedClientType, 'address'> {
-  address: string; // جعل العنوان إلزامي في واجهة العرض
-  agent?: {
-    id?: any;
-    name?: string;
-  };
-  created_by?: string;
+interface ClientType {
+  id: string;
+  client_name?: string;
+  organization_name?: string;
+  activity_type?: string;
+  address?: string;
+  phone?: string;
+  phone2?: string;
+  notes?: string;
+  subscription_type?: string;
+  subscription_start?: string | null;
+  subscription_end?: string | null;
+  agent_id?: string;
   deviceCount?: number;
   devices?: any[];
   mobileDevices?: any[];
   computerDevices?: any[];
   earliestEndDate?: string | null;
   subscriptionTypes?: string[];
-  totalPrice?: number; // إجمالي القيمة المدفوعة
-  mobilePrice?: number; // إجمالي قيمة أجهزة الموبايل
-  computerPrice?: number; // إجمالي قيمة أجهزة الكمبيوتر
-  showDevices?: boolean; // إظهار الأجهزة لهذا العميل
-  agents?: Agent[]; // إضافة خاصية agents
+  totalPrice?: number; 
+  mobilePrice?: number;
+  computerPrice?: number;
+  showDevices?: boolean;
+  agent?: { 
+    id?: string;
+    name?: string;
+  } | null | any[];  
+  agents?: Agent[];
+  created_by?: string;
+  created_at?: string;
+  activation_code?: string;
+  device_type?: string;
+}
+
+interface DisplayClientType {
+  id: string;
+  client_name?: string;
+  organization_name?: string;
+  activity_type?: string;
+  address?: string;
+  phone?: string;
+  phone2?: string;
+  notes?: string;
+  subscription_type?: string;
+  subscription_start?: string | null;
+  subscription_end?: string | null;
+  agent_id?: string;
+  deviceCount?: number;
+  devices?: any[];
+  mobileDevices?: any[];
+  computerDevices?: any[];
+  earliestEndDate?: string | null;
+  subscriptionTypes?: string[];
+  totalPrice?: number; 
+  mobilePrice?: number;
+  computerPrice?: number;
+  showDevices?: boolean;
+  agent?: { 
+    id?: string;
+    name?: string;
+  } | null | any[];  
+  agents?: Agent[];
+  created_by?: string;
+  created_at?: string;
+  activation_code?: string;
+  device_type?: string;
 }
 
 interface Agent extends ImportedAgent {
@@ -86,13 +134,14 @@ export const ClientsList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore(); // استخدام معلومات المستخدم المسجل دخوله
 
-  const [clients, setClients] = useState<ClientType[]>([]);
+  const [clients, setClients] = useState<DisplayClientType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedClient, setSelectedClient] = useState<ClientType | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ImportedClientType | null>(null);
   const [agents] = useState<Agent[]>([]);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
 
   // تعريف حالة الترتيب
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
@@ -183,7 +232,28 @@ export const ClientsList: React.FC = () => {
   const fetchClients = async (filterOverride?: string | null) => {
     setLoading(true);
     const filter = filterOverride !== undefined ? filterOverride : activeFilter;
-    setActiveFilter(filter);
+    
+    // تحديث الفلتر النشط فقط إذا كان مختلفاً عن القيمة الحالية
+    if (filter !== activeFilter) {
+      setActiveFilter(filter);
+      
+      // عرض رسالة تأكيد عند تطبيق الفلتر
+      if (filter) {
+        const filterMessages: {[key: string]: string} = {
+          'active': 'تم تطبيق فلتر الاشتراكات النشطة',
+          'expired': 'تم تطبيق فلتر الاشتراكات المنتهية',
+          'expiring': 'تم تطبيق فلتر الاشتراكات التي تنتهي قريباً',
+          'mobile': 'تم تطبيق فلتر أجهزة الهاتف',
+          'computer': 'تم تطبيق فلتر أجهزة الكمبيوتر',
+          'approved': 'تم تطبيق فلتر الأجهزة المقبولة',
+          'pending': 'تم تطبيق فلتر الأجهزة المعلقة',
+          'rejected': 'تم تطبيق فلتر الأجهزة المرفوضة',
+          'devices': 'تم عرض جميع الأجهزة'
+        };
+        
+        toast.success(filterMessages[filter] || `تم تطبيق الفلتر: ${filter}`);
+      }
+    }
     
     try {
       // إعداد الاستعلام الأساسي
@@ -384,10 +454,9 @@ export const ClientsList: React.FC = () => {
             break;
           case 'computer':
             // فقط العملاء الذين لديهم أجهزة كمبيوتر (مع استثناء الأجهزة المرفوضة والمعلقة)
-            formattedData = formattedData.filter(client => {
-              // استخدام الأجهزة المصنفة مسبقًا مع استثناء المرفوضة والمعلقة
-              return client.computerDevices?.some((device: any) => device.approval_status === 'approved');
-            });
+            formattedData = formattedData.filter(client => 
+              client.devices?.some((device: any) => device.device_type === 'computer')
+            );
             // إظهار الأجهزة تحت كل عميل
             formattedData = formattedData.map(client => ({
               ...client,
@@ -435,7 +504,7 @@ export const ClientsList: React.FC = () => {
               computerDevices: client.computerDevices?.filter((device: any) => device.approval_status === 'rejected') || []
             }));
             break;
-          case 'expiring_soon':
+          case 'expiring':
             // العملاء الذين لديهم اشتراكات تنتهي خلال 15 يوم
             const twoWeeksFromNow = new Date();
             twoWeeksFromNow.setDate(today.getDate() + 15);
@@ -495,7 +564,7 @@ export const ClientsList: React.FC = () => {
         }
       }
       
-      setClients(formattedData);
+      setClients(formattedData as unknown as DisplayClientType[]);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -509,44 +578,27 @@ export const ClientsList: React.FC = () => {
     fetchClients(activeFilter);
   }, [activeFilter]);
 
-  // استقبال الفلتر من الرابط أو من حالة التنقل
+  // استخدام useEffect لتحميل البيانات الأولية عند تحميل المكوّن
   useEffect(() => {
-    // Get filter from URL query parameters
-    const queryParams = new URLSearchParams(location.search);
-    const filterParam = queryParams.get('filter');
+    // التحقق مما إذا كان هناك فلتر في حالة الموقع
+    const locationState = location.state as { filter?: string; applyFilterImmediately?: boolean } | null;
     
-    // Check for filter in location state (from dashboard navigation)
-    const stateFilter = location.state?.filter;
-    
-    console.log('State filter:', stateFilter); // للتشخيص
-    
-    // تحديث حالة الفلتر بناءً على مصدر التنقل
-    if (stateFilter) {
-      console.log('Setting filter from state:', stateFilter);
-      // أولاً: جلب البيانات مع الفلتر لتجنب أي تأخير
-      fetchClients(stateFilter);
-      // ثم تحديث الحالة
-      setActiveFilter(stateFilter);
-      // مسح الحالة لمنع إعادة تطبيق الفلتر عند التنقل
-      window.history.replaceState({}, document.title);
-    } else if (filterParam) {
-      console.log('Setting filter from URL param:', filterParam);
-      // أولاً: جلب البيانات مع الفلتر لتجنب أي تأخير
-      fetchClients(filterParam);
-      // ثم تحديث الحالة
-      setActiveFilter(filterParam);
-    } else {
-      console.log('No filter found, fetching all clients');
-      // جلب جميع البيانات بدون فلتر
+    if (locationState?.filter && locationState?.applyFilterImmediately) {
+      console.log('تطبيق الفلتر من حالة الموقع:', locationState.filter);
+      setActiveFilter(locationState.filter);
+      fetchClients(locationState.filter);
+      
+      // مسح حالة الموقع بعد استخدامها لتجنب إعادة تطبيق الفلتر عند تحديث الصفحة
+      navigate(location.pathname, { replace: true });
+    } else if (!initialLoadComplete) {
+      // إذا لم يكن هناك فلتر في حالة الموقع، قم بتحميل البيانات بشكل عادي
       fetchClients(null);
-      // ثم تحديث الحالة
-      setActiveFilter(null);
+      setInitialLoadComplete(true);
     }
-    
-  }, [location.search]);
+  }, [location, navigate, initialLoadComplete]);
 
-  const handleShowDetails = (client: ClientType) => {
-    setSelectedClient(client);
+  const handleShowDetails = (client: DisplayClientType) => {
+    setSelectedClient(client as unknown as ImportedClientType);
     setShowDetailsModal(true);
   };
 
@@ -568,11 +620,11 @@ export const ClientsList: React.FC = () => {
     }
   };
 
-  const handleUpdateClient = async (updatedClient: ImportedClientType | ClientType) => {
+  const handleUpdateClient = async (updatedClient: ImportedClientType | DisplayClientType) => {
     if (!updatedClient.id) return;
     
     // تحويل البيانات إلى الشكل المناسب لقاعدة البيانات
-    const { agents, created_by, ...clientData } = updatedClient as ClientType;
+    const { agents, created_by, ...clientData } = updatedClient as any;
     
     // التأكد من أن العنوان موجود، وإذا لم يكن موجودًا نضع قيمة فارغة
     const dataToUpdate = {
@@ -655,7 +707,7 @@ export const ClientsList: React.FC = () => {
             </span>
             <button 
               onClick={() => {
-                // أولاً: تحميل جميع العملاء بدون فلتر
+                // أولاً: جلب البيانات مع الفلتر لتجنب أي تأخير
                 fetchClients(null);
                 // ثم تحديث الحالة
                 setActiveFilter(null);
@@ -704,12 +756,12 @@ export const ClientsList: React.FC = () => {
         
         {/* تنتهي خلال 15 يوم */}
         <Button
-          onClick={() => fetchClients('expiring_soon')}
-          variant={activeFilter === 'expiring_soon' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'expiring_soon' ? 'bg-primary-600 text-white' : ''}`}
+          onClick={() => fetchClients('expiring')}
+          variant={activeFilter === 'expiring' ? 'primary' : 'secondary'}
+          className={`flex items-center gap-2 ${activeFilter === 'expiring' ? 'bg-primary-600 text-white' : ''}`}
         >
           <Clock className="w-4 h-4" />
-          {t('clientsList.expiringSoonFilter', 'تنتهي خلال 15 يوم')}
+          {t('clientsList.expiringFilter', 'تنتهي خلال 15 يوم')}
         </Button>
         
         {/* أجهزة الموبايل */}
@@ -1001,13 +1053,24 @@ export const ClientsList: React.FC = () => {
 
                     <td className={`px-4 py-4 whitespace-nowrap text-sm ${isRTL ? 'text-right' : 'text-left'} dir="ltr"`}>{client.phone}</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[15%]">
-                      {client.agent && client.agent.length > 0 ? (
-                        <span className="inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          {client.agent[0].name}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">غير محدد</span>
-                      )}
+                      {(() => {
+                        // التعامل مع خاصية agent بشكل آمن
+                        const agent = client.agent;
+                        
+                        if (!agent) return t('common.notAvailable', 'غير متاح');
+                        
+                        // إذا كان مصفوفة
+                        if (Array.isArray(agent) && agent.length > 0) {
+                          return agent[0].name || t('common.notAvailable', 'غير متاح');
+                        }
+                        
+                        // إذا كان كائن
+                        if (typeof agent === 'object' && agent !== null) {
+                          return agent.name || t('common.notAvailable', 'غير متاح');
+                        }
+                        
+                        return t('common.notAvailable', 'غير متاح');
+                      })()}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {client.deviceCount && client.deviceCount > 0 ? (
@@ -1143,7 +1206,7 @@ export const ClientsList: React.FC = () => {
 
       {selectedClient && (
         <ClientDetailsModal
-          client={selectedClient}
+          client={selectedClient as ImportedClientType}
           agents={agents}
           isOpen={showDetailsModal}
           onClose={handleCloseModal}

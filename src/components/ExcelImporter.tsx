@@ -1,260 +1,423 @@
 // src/components/ExcelImporter.tsx
-import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../lib/supabaseClient';
 import { FileSpreadsheet, Upload } from 'lucide-react';
-import Spinner from './Spinner';
+import * as XLSX from 'xlsx';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuthStore } from '@/store/authStore';
+import { Loader2 } from 'lucide-react';
+
+// مكون Spinner البسيط
+const Spinner = ({ className = "h-5 w-5", size = "md" }) => (
+  <div className="flex items-center justify-center">
+    <Loader2 className={`${size === "sm" ? "h-4 w-4" : className} animate-spin text-gray-500 dark:text-gray-400`} />
+  </div>
+);
 
 interface ExcelImporterProps {
-  onImportComplete?: () => void;
+  onImportSuccess?: () => void;
+  type: 'clients' | 'devices' | 'clients_and_devices';
 }
 
 // تعريف أنواع البيانات
-interface ExcelClient {
-  'اسم العميل': string;
-  'اسم المؤسسة': string;
-  'نوع النشاط': string;
-  'الهاتف': string;
-  'الهاتف 2'?: string;
-  'العنوان': string;
-  'ملاحظات'?: string;
+// استخدام ExcelClient في التحويل لتجنب تحذير "declared but never used"
+export interface ExcelClient {
+  client_name: string;
+  organization_name?: string;
+  activity_type?: string;
+  phone?: string;
+  phone2?: string;
+  address?: string;
+  notes?: string;
+  subscription_type?: string;
+  subscription_start?: string;
+  subscription_end?: string;
+  [key: string]: any; // للسماح بحقول إضافية
 }
 
-interface ExcelDevice {
-  'اسم العميل': string;
-  'رمز التفعيل': string;
-  'تاريخ بداية الاشتراك': string;
-  'تاريخ نهاية الاشتراك': string;
-  'نوع الاشتراك': string;
-  'نوع الجهاز': string;
-  'ملاحظات'?: string;
-  'حالة الموافقة'?: string;
+export interface ExcelDevice {
+  client_name: string;
+  activation_code?: string;
+  device_type?: string;
+  subscription_type?: string;
+  subscription_value?: number | string;
+  subscription_start?: string;
+  subscription_end?: string;
+  notes?: string;
+  approval_status?: string;
+  price?: number | string;
+  [key: string]: any; // للسماح بحقول إضافية
 }
 
-const ExcelImporter: React.FC<ExcelImporterProps> = ({ onImportComplete }) => {
+export const ExcelImporter: React.FC<ExcelImporterProps> = ({ onImportSuccess, type }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [stats, setStats] = useState<{ clients: number; devices: number; total: number }>({ clients: 0, devices: 0, total: 0 });
   const [showStats, setShowStats] = useState(false);
+  const { user, sessionError, refreshSession, resetSessionError } = useAuthStore();
 
-  const processExcelFile = async (file: File) => {
-    try {
-      setIsImporting(true);
-      
-      // قراءة الملف
-      const reader = new FileReader();
-      
-      // إضافة تصحيح للمستخدم
-      toast.success('جاري قراءة الملف...');
-      console.log('جاري قراءة الملف:', file.name);
-      
-      const data = await new Promise<string | ArrayBuffer>((resolve, reject) => {
-        reader.onload = (e: ProgressEvent<FileReader>) => {
-          const binaryStr = e.target?.result;
-          if (binaryStr) {
-            resolve(binaryStr);
-          } else {
-            reject(new Error('فشل قراءة الملف'));
-          }
-        };
-        reader.onerror = () => reject(new Error('حدث خطأ أثناء قراءة الملف'));
-        reader.readAsBinaryString(file);
-      });
-
-      // إضافة تصحيح للمستخدم
-      toast.success('جاري معالجة البيانات...');
-      console.log('تم قراءة الملف بنجاح');
-      
-      const workbook = XLSX.read(data, { type: 'binary' });
-      
-      // التحقق من وجود الأوراق المطلوبة
-      console.log('أوراق العمل الموجودة:', workbook.SheetNames);
-      
-      const clientsSheetName = workbook.SheetNames.find(name => 
-        name === 'العملاء' || name === 'clients' || name.toLowerCase().includes('client'));
-      
-      const devicesSheetName = workbook.SheetNames.find(name => 
-        name === 'الأجهزة' || name === 'devices' || name.toLowerCase().includes('device'));
-      
-      if (!clientsSheetName || !devicesSheetName) {
-        toast.error('الملف لا يحتوي على الأوراق المطلوبة (العملاء والأجهزة)');
-        console.error('الأوراق الموجودة:', workbook.SheetNames);
-        setIsImporting(false);
-        return;
-      }
-
-      // قراءة البيانات من الأوراق
-      const clientsSheet = XLSX.utils.sheet_to_json(workbook.Sheets[clientsSheetName]);
-      const devicesSheet = XLSX.utils.sheet_to_json(workbook.Sheets[devicesSheetName]);
-
-      // التحقق من وجود البيانات
-      if (!Array.isArray(clientsSheet) || !Array.isArray(devicesSheet)) {
-        toast.error('خطأ في قراءة الملف: تنسيق الملف غير صحيح');
-        console.error('بيانات العملاء:', clientsSheet);
-        console.error('بيانات الأجهزة:', devicesSheet);
-        setIsImporting(false);
-        return;
-      }
-
-      // إضافة تصحيح للمستخدم
-      toast.success('جاري التحقق من صحة البيانات...');
-      console.log('عدد العملاء:', clientsSheet.length);
-      console.log('عدد الأجهزة:', devicesSheet.length);
-
-      // التحقق من صحة البيانات
-      const validateClient = (client: any) => {
-        if (!client['اسم العميل'] && !client['client_name'] && !client['name']) {
-          toast.error('أحد العملاء يفتقد إلى اسم العميل');
-          return false;
-        }
-        return true;
-      };
-
-      const validateDevice = (device: any) => {
-        const clientName = device['اسم العميل'] || device['client_name'] || device['name'];
-        if (!clientName) {
-          toast.error('أحد الأجهزة يفتقد إلى اسم العميل');
-          return false;
-        }
-        return true;
-      };
-
-      // التحقق من صحة جميع العملاء والأجهزة
-      const invalidClients = clientsSheet.filter((client: any) => !validateClient(client));
-      const invalidDevices = devicesSheet.filter((device: any) => !validateDevice(device));
-
-      if (invalidClients.length > 0 || invalidDevices.length > 0) {
-        toast.error('هناك بيانات غير صالحة في الملف');
-        setIsImporting(false);
-        return;
-      }
-
-      // تحويل البيانات إلى التنسيق المطلوب
-      const processedClients = clientsSheet.map((client: any) => ({
-        client_name: client['اسم العميل'] || client['client_name'] || client['name'],
-        phone: client['رقم الهاتف'] || client['phone'] || '',
-        phone2: client['رقم الهاتف 2'] || client['phone2'] || '',
-        address: client['العنوان'] || client['address'] || '',
-        subscription_type: client['نوع الاشتراك'] || client['subscription_type'] || 'basic',
-        subscription_start: formatDate(client['تاريخ بداية الاشتراك'] || client['subscription_start'] || new Date().toISOString()),
-        subscription_end: formatDate(client['تاريخ نهاية الاشتراك'] || client['subscription_end'] || ''),
-        software_version: client['نسخة البرنامج'] || client['software_version'] || 'latest'
-      }));
-
-      const processedDevices = devicesSheet.map((device: any) => ({
-        client_name: device['اسم العميل'] || device['client_name'] || device['name'],
-        device_name: device['اسم الجهاز'] || device['device_name'] || '',
-        activation_code: device['رمز التفعيل'] || device['activation_code'] || '',
-        status: device['الحالة'] || device['status'] || 'pending'
-      }));
-
-      // التحقق من وجود المستخدم الحالي
-      const { data: userData } = await supabase.auth.getUser();
-      const agentId = userData.user?.id;
-
-      if (!agentId) {
-        toast.error('لم يتم العثور على معلومات المستخدم الحالي');
-        setIsImporting(false);
-        return;
-      }
-
-      // إضافة agent_id إلى بيانات العملاء
-      const clientsWithAgent = processedClients.map(client => ({
-        ...client,
-        agent_id: agentId
-      }));
-
-      // إضافة تصحيح قبل الإدخال
-      toast.success('جاري إدخال البيانات في قاعدة البيانات...');
-      console.log('بيانات العملاء للإدخال:', clientsWithAgent);
-
-      // حفظ البيانات في قاعدة البيانات
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .upsert(clientsWithAgent, {
-          onConflict: 'client_name',
-          ignoreDuplicates: true
-        })
-        .select();
-
-      console.log('نتيجة إدخال العملاء:', { data: clientsData, error: clientsError });
-
-      if (clientsError) {
-        console.error('خطأ في إدراج العملاء:', clientsError);
-        throw clientsError;
-      }
-
-      // إضافة agent_id إلى بيانات الأجهزة
-      const devicesWithAgent = processedDevices.map(device => ({
-        ...device,
-        agent_id: agentId
-      }));
-
-      // إضافة تصحيح قبل الإدخال
-      console.log('بيانات الأجهزة للإدخال:', devicesWithAgent);
-
-      const { data: devicesData, error: devicesError } = await supabase
-        .from('devices')
-        .upsert(devicesWithAgent, {
-          onConflict: 'activation_code',
-          ignoreDuplicates: true
-        })
-        .select();
-
-      console.log('نتيجة إدخال الأجهزة:', { data: devicesData, error: devicesError });
-
-      if (devicesError) {
-        console.error('خطأ في إدراج الأجهزة:', devicesError);
-        throw devicesError;
-      }
-
-      // تحديث الإحصائيات
-      setStats({
-        clients: processedClients.length,
-        devices: processedDevices.length,
-        total: processedClients.length + processedDevices.length
-      });
-      
-      setShowStats(true);
-      
-      toast.success(`تم استيراد ${processedClients.length} عميل و ${processedDevices.length} جهاز بنجاح`);
-      setIsImporting(false);
-      onImportComplete?.();
-    } catch (error) {
-      console.error('خطأ في استيراد الملف:', error);
-      toast.error('حدث خطأ أثناء استيراد الملف');
-      setIsImporting(false);
+  // معالجة أخطاء الجلسة
+  useEffect(() => {
+    if (sessionError) {
+      toast.error('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى');
+      // إعادة توجيه المستخدم إلى صفحة تسجيل الدخول
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+      resetSessionError();
     }
-  };
+  }, [sessionError, resetSessionError]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // تحديث الجلسة عند تحميل المكون
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       console.log('تم اختيار الملف:', file.name);
+      
+      // تأكد من أن الملف هو ملف Excel
+      if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        toast.error('يرجى اختيار ملف Excel صالح (.xlsx أو .xls)');
+        return;
+      }
+      
+      // بدء معالجة الملف
       processExcelFile(file);
     }
   };
 
-  // تنسيق التاريخ من صيغة الإكسل إلى صيغة ISO
-  const formatDate = (excelDate: any): string => {
-    if (!excelDate) return new Date().toISOString().split('T')[0];
+  // دالة لمعالجة الملف
+  const processExcelFile = async (file: File) => {
+    console.log('جاري قراءة الملف:', file.name);
+    setIsImporting(true);
+    setStats({ clients: 0, devices: 0, total: 0 });
+    setShowStats(false);
     
-    // إذا كان التاريخ بصيغة نصية، نحاول تحويله
-    if (typeof excelDate === 'string') {
-      const date = new Date(excelDate);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      
+      // التحقق من وجود الأوراق المطلوبة
+      const sheetNames = workbook.SheetNames;
+      
+      // تحديد الأوراق المطلوبة بناءً على نوع الاستيراد
+      let requiredSheets: string[] = [];
+      if (type === 'clients') {
+        requiredSheets = ['العملاء', 'clients'];
+      } else if (type === 'devices') {
+        requiredSheets = ['الأجهزة', 'devices'];
+      } else if (type === 'clients_and_devices') {
+        requiredSheets = ['العملاء', 'clients', 'الأجهزة', 'devices'];
+      } else {
+        requiredSheets = ['العملاء', 'clients', 'الأجهزة', 'devices'];
       }
+      
+      // التحقق من وجود أي من الأوراق المطلوبة
+      const hasRequiredSheet = requiredSheets.some(sheet => sheetNames.includes(sheet));
+      
+      if (!hasRequiredSheet) {
+        toast.error(`الملف لا يحتوي على الأوراق المطلوبة: ${requiredSheets.join(' أو ')}`);
+        setIsImporting(false);
+        return;
+      }
+      
+      console.log('تم قراءة الملف بنجاح');
+      
+      // استخراج بيانات العملاء والأجهزة
+      let clientsData: any[] = [];
+      let devicesData: any[] = [];
+      
+      // استخراج بيانات العملاء إذا كان نوع الاستيراد هو 'clients' أو كلاهما
+      if (type === 'clients' || type === 'clients_and_devices') {
+        const clientsSheetName = sheetNames.find(name => 
+          name === 'العملاء' || name.toLowerCase() === 'clients'
+        );
+        
+        if (clientsSheetName) {
+          const clientsSheet = XLSX.utils.sheet_to_json(workbook.Sheets[clientsSheetName]);
+          console.log('بيانات العملاء:', clientsSheet);
+          clientsData = clientsSheet;
+        } else if (type === 'clients') {
+          toast.error('لم يتم العثور على ورقة العملاء في الملف');
+          setIsImporting(false);
+          return;
+        }
+      }
+      
+      // استخراج بيانات الأجهزة إذا كان نوع الاستيراد هو 'devices' أو كلاهما
+      if (type === 'devices' || type === 'clients_and_devices') {
+        const devicesSheetName = sheetNames.find(name => 
+          name === 'الأجهزة' || name.toLowerCase() === 'devices'
+        );
+        
+        if (devicesSheetName) {
+          const devicesSheet = XLSX.utils.sheet_to_json(workbook.Sheets[devicesSheetName]);
+          console.log('بيانات الأجهزة:', devicesSheet);
+          devicesData = devicesSheet;
+        } else if (type === 'devices') {
+          toast.error('لم يتم العثور على ورقة الأجهزة في الملف');
+          setIsImporting(false);
+          return;
+        }
+      }
+      
+      // تنسيق التاريخ
+      const formatDate = (date: any): string => {
+        if (!date) return new Date().toISOString().split('T')[0];
+        
+        // إذا كان التاريخ بصيغة نصية، نحاول تحويله
+        if (typeof date === 'string') {
+          try {
+            const parsedDate = new Date(date);
+            if (!isNaN(parsedDate.getTime())) {
+              return parsedDate.toISOString().split('T')[0];
+            }
+          } catch (e) {
+            console.error('خطأ في تحويل التاريخ:', e);
+          }
+        }
+        
+        // إرجاع تاريخ اليوم كقيمة افتراضية
+        return new Date().toISOString().split('T')[0];
+      };
+      
+      // تحويل البيانات إلى التنسيق المطلوب
+      const processedClients = clientsData.map((client: any) => ({
+        client_name: client['اسم العميل'] || client['client_name'] || client['name'],
+        organization_name: client['اسم المؤسسة'] || client['organization_name'] || '',
+        activity_type: client['نوع النشاط'] || client['activity_type'] || '',
+        phone: client['الهاتف'] || client['phone'] || '',
+        phone2: client['الهاتف 2'] || client['phone2'] || '',
+        address: client['العنوان'] || client['address'] || '',
+        notes: client['ملاحظات'] || client['notes'] || '',
+        subscription_type: client['نوع الاشتراك'] || client['subscription_type'] || 'monthly',
+        subscription_start: formatDate(client['تاريخ بداية الاشتراك'] || client['subscription_start']),
+        subscription_end: formatDate(client['تاريخ نهاية الاشتراك'] || client['subscription_end'])
+      }));
+      
+      // معالجة بيانات الأجهزة
+      const processedDevices = devicesData.map((device: any) => ({
+        client_name: device['اسم العميل'] || device['client_name'] || device['name'] || '',
+        activation_code: device['رمز التفعيل'] || device['activation_code'] || generateActivationCode(20),
+        device_type: device['نوع الجهاز'] || device['device_type'] || 'computer',
+        price: device['السعر'] || device['price'] || 0,
+        subscription_start: formatDate(device['تاريخ بداية الاشتراك'] || device['subscription_start']),
+        subscription_end: formatDate(device['تاريخ نهاية الاشتراك'] || device['subscription_end']),
+        notes: device['ملاحظات'] || device['notes'] || '',
+        approval_status: device['حالة الموافقة'] || device['approval_status'] || 'approved'
+      }));
+      
+      // التحقق من وجود المستخدم الحالي
+      const agent_id = user?.id;
+      
+      if (!agent_id) {
+        console.error('لم يتم العثور على معلومات المستخدم الحالي');
+        toast.error('لم يتم العثور على معلومات المستخدم الحالي');
+        setIsImporting(false);
+        return;
+      }
+      
+      // إدخال العملاء في قاعدة البيانات
+      let insertedClients = 0;
+      let insertedDevices = 0;
+      let clientsErrors = 0;
+      let devicesErrors = 0;
+      
+      // إدخال العملاء
+      for (const client of processedClients) {
+        try {
+          // التحقق من وجود العميل أولاً
+          const { data: existingClients, error: checkError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('client_name', client.client_name)
+            .maybeSingle();
+          
+          if (checkError) {
+            console.error('خطأ في التحقق من وجود العميل:', checkError);
+            continue;
+          }
+          
+          // إنشاء كائن بيانات العميل الأساسية
+          const clientData: any = {
+            client_name: client.client_name,
+            organization_name: client.organization_name,
+            activity_type: client.activity_type,
+            phone: client.phone,
+            phone2: client.phone2,
+            address: client.address,
+            notes: client.notes,
+            subscription_start: client.subscription_start,
+            subscription_end: client.subscription_end,
+            agent_id
+          };
+          
+          // إضافة حقل subscription_type إذا كان متاحًا
+          if (client.subscription_type) {
+            clientData.subscription_type = client.subscription_type;
+          }
+          
+          // تحديث العميل الموجود أو إنشاء عميل جديد
+          try {
+            if (existingClients) {
+              // تحديث العميل الموجود
+              const { error: updateError } = await supabase
+                .from('clients')
+                .update(clientData)
+                .eq('id', existingClients.id);
+              
+              if (updateError) {
+                console.error('خطأ في تحديث العميل:', updateError);
+                continue;
+              }
+            } else {
+              // إنشاء عميل جديد
+              const { error: insertError } = await supabase
+                .from('clients')
+                .insert(clientData);
+              
+              if (insertError) {
+                console.error('خطأ في إدخال العميل:', insertError);
+                continue;
+              }
+            }
+            
+            insertedClients++;
+          } catch (error) {
+            console.error('خطأ غير متوقع في معالجة العميل:', error);
+            continue;
+          }
+        } catch (error) {
+          console.error('خطأ في معالجة العميل:', error);
+          continue;
+        }
+      }
+      
+      // إدخال الأجهزة
+      for (const device of processedDevices) {
+        try {
+          if (!device.client_name) {
+            console.warn('تم تخطي جهاز بدون اسم عميل');
+            continue;
+          }
+          
+          // البحث عن العميل بالاسم
+          const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('client_name', device.client_name)
+            .maybeSingle();
+          
+          if (clientError) {
+            console.error('خطأ في البحث عن العميل للجهاز:', clientError);
+            continue;
+          }
+          
+          if (!clientData) {
+            console.warn(`لم يتم العثور على العميل: ${device.client_name} للجهاز`);
+            continue;
+          }
+          
+          const clientId = clientData.id;
+          
+          // التحقق من وجود الجهاز مسبقًا
+          const { data: existingDevices, error: checkDeviceError } = await supabase
+            .from('devices')
+            .select('id')
+            .eq('client_id', clientId)
+            .eq('activation_code', device.activation_code);
+          
+          if (checkDeviceError) {
+            console.error('خطأ في التحقق من وجود الجهاز:', checkDeviceError);
+            continue;
+          }
+          
+          if (existingDevices && existingDevices.length > 0) {
+            // تحديث الجهاز الموجود
+            const { error: updateDeviceError } = await supabase
+              .from('devices')
+              .update({
+                device_type: device.device_type,
+                price: device.price,
+                subscription_start: device.subscription_start,
+                subscription_end: device.subscription_end,
+                notes: device.notes
+              })
+              .eq('id', existingDevices[0].id);
+            
+            if (updateDeviceError) {
+              console.error('خطأ في تحديث الجهاز:', updateDeviceError);
+              continue;
+            }
+          } else {
+            // إدخال جهاز جديد
+            const { error: insertDeviceError } = await supabase
+              .from('devices')
+              .insert({
+                client_id: clientId,
+                activation_code: device.activation_code,
+                device_type: device.device_type,
+                price: device.price,
+                subscription_start: device.subscription_start,
+                subscription_end: device.subscription_end,
+                notes: device.notes
+              });
+            
+            if (insertDeviceError) {
+              console.error('خطأ في إدخال الجهاز:', insertDeviceError);
+              continue;
+            }
+          }
+          
+          insertedDevices++;
+        } catch (error) {
+          console.error('خطأ في معالجة الجهاز:', error);
+          continue;
+        }
+      }
+      
+      // تحديث الإحصائيات
+      setStats({
+        clients: insertedClients,
+        devices: insertedDevices,
+        total: insertedClients + insertedDevices
+      });
+      
+      setShowStats(true);
+      
+      if (insertedClients > 0 || insertedDevices > 0) {
+        toast.success(`تم استيراد ${insertedClients} عميل و ${insertedDevices} جهاز بنجاح`);
+        
+        if (clientsErrors > 0 || devicesErrors > 0) {
+          toast.error(`تم تخطي ${clientsErrors} عميل و ${devicesErrors} جهاز بسبب أخطاء`);
+        }
+      } else {
+        if (clientsErrors > 0 || devicesErrors > 0) {
+          toast.error(`فشل استيراد ${clientsErrors} عميل و ${devicesErrors} جهاز`);
+        } else {
+          toast.error('لم يتم استيراد أي بيانات');
+        }
+      }
+      
+      onImportSuccess?.();
+    } catch (error) {
+      console.error('خطأ في استيراد الملف:', error);
+      toast.error(`حدث خطأ أثناء استيراد الملف: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+    } finally {
+      setIsImporting(false);
     }
-    
-    // إذا كان التاريخ بصيغة رقمية (عدد الأيام منذ 1/1/1900)
-    if (typeof excelDate === 'number') {
-      const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-      return date.toISOString().split('T')[0];
+  };
+
+  // دالة لإنشاء رمز تفعيل عشوائي
+  const generateActivationCode = (length: number) => {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let code = '';
+    for (let i = 0; i < length; i++) {
+      code += characters.charAt(Math.floor(Math.random() * characters.length));
     }
-    
-    // إرجاع تاريخ اليوم كقيمة افتراضية
-    return new Date().toISOString().split('T')[0];
+    return code;
   };
 
   return (
@@ -263,11 +426,11 @@ const ExcelImporter: React.FC<ExcelImporterProps> = ({ onImportComplete }) => {
         <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400 ml-2" />
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">استيراد من ملف Excel</h2>
       </div>
-      
+
       <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm">
         قم بتحميل ملف Excel يحتوي على ورقتين: "العملاء" و "الأجهزة" لاستيراد البيانات.
       </p>
-      
+
       <button
         onClick={() => document.getElementById('excelFileInput')?.click()}
         disabled={isImporting}
@@ -287,7 +450,7 @@ const ExcelImporter: React.FC<ExcelImporterProps> = ({ onImportComplete }) => {
         onChange={handleFileChange}
         className="hidden"
       />
-      
+
       {showStats && (
         <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/30 rounded-xl">
           <h3 className="font-medium text-green-800 dark:text-green-200 mb-2">تم الاستيراد بنجاح:</h3>
@@ -301,17 +464,15 @@ const ExcelImporter: React.FC<ExcelImporterProps> = ({ onImportComplete }) => {
           </div>
         </div>
       )}
-      
-      <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-xl">
+
+      <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-6">
         <h3 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">تنسيق الملف:</h3>
         <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1 list-disc list-inside">
-          <li>ورقة "العملاء": اسم العميل، اسم المؤسسة، نوع النشاط، الهاتف، الهاتف 2، العنوان، ملاحظات</li>
-          <li>ورقة "الأجهزة": اسم العميل، رمز التفعيل، تاريخ بداية الاشتراك، تاريخ نهاية الاشتراك، نوع الاشتراك، نوع الجهاز، ملاحظات، حالة الموافقة</li>
+          <li>ورقة "العملاء": اسم العميل، اسم المؤسسة، نوع النشاط، الهاتف، الهاتف 2، العنوان، ملاحظات، نوع الاشتراك، تاريخ بداية الاشتراك، تاريخ نهاية الاشتراك</li>
+          <li>ورقة "الأجهزة": اسم العميل، رمز التفعيل مكون من ارقام ، نوع الجهاز (computer أو android)، السعر، تاريخ بداية الاشتراك، تاريخ نهاية الاشتراك، ملاحظات</li>
           <li>يتم الربط بين العملاء والأجهزة باستخدام حقل "اسم العميل"</li>
         </ul>
       </div>
     </div>
   );
 };
-
-export default ExcelImporter;

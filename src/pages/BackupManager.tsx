@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
-import { FileText, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabaseClient';
+import { FileText, RefreshCw, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-hot-toast';
-import Spinner from '../components/Spinner';
-import ExcelImporter from '../components/ExcelImporter';
+import { ExcelImporter } from '../components/ExcelImporter';
 import { getBackupHistory } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
+import { useAuthStore } from '@/store/authStore';
+
+// مكون Spinner البسيط
+const Spinner = ({ className = "h-8 w-8" }) => (
+  <div className="flex items-center justify-center">
+    <Loader2 className={`${className} animate-spin text-gray-500 dark:text-gray-400`} />
+  </div>
+);
 
 const BackupManager: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -18,6 +25,7 @@ const BackupManager: React.FC = () => {
     devices: 0,
     agents: 0
   });
+  const { sessionError, refreshSession } = useAuthStore();
 
   // تهيئة التكوين
   const config = {
@@ -27,6 +35,22 @@ const BackupManager: React.FC = () => {
     maxFileSize: 100 * 1024 * 1024, // 100MB
     version: '1.0.0'
   };
+
+  // تحديث الجلسة عند تحميل المكون
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  // التحقق من أخطاء الجلسة
+  useEffect(() => {
+    if (sessionError) {
+      toast.error('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى');
+      // إعادة توجيه المستخدم إلى صفحة تسجيل الدخول
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 2000);
+    }
+  }, [sessionError]);
 
   useEffect(() => {
     fetchLastBackupInfo();
@@ -69,17 +93,17 @@ const BackupManager: React.FC = () => {
   const handleDownloadTemplate = () => {
     // إنشاء ورقة العملاء
     const clientsData = [
-      ['اسم العميل', 'اسم المؤسسة', 'نوع النشاط', 'الهاتف', 'الهاتف 2', 'العنوان', 'ملاحظات'],
-      ['أحمد محمد', 'شركة التقنية', 'تجارة إلكترونية', '0123456789', '0123456788', 'شارع المدينة', 'عميل منتظم'],
-      ['محمد علي', 'مؤسسة الأمل', 'خدمات طبية', '0198765432', '', 'شارع السلام', 'عميل جديد'],
+      ['اسم العميل', 'اسم المؤسسة', 'نوع النشاط', 'الهاتف', 'الهاتف 2', 'العنوان', 'ملاحظات', 'نوع الاشتراك', 'قيمة الاشتراك', 'تاريخ بداية الاشتراك', 'تاريخ نهاية الاشتراك'],
+      ['أحمد محمد', 'شركة التقنية', 'تجارة إلكترونية', '0123456789', '0123456788', 'شارع المدينة', 'عميل منتظم', 'سنوي', '1200', '2024-01-01', '2025-01-01'],
+      ['محمد علي', 'مؤسسة الأمل', 'خدمات طبية', '0198765432', '', 'شارع السلام', 'عميل جديد', 'شهري', '150', '2024-03-01', '2024-04-01'],
     ];
 
     // إنشاء ورقة الأجهزة
     const devicesData = [
-      ['اسم العميل', 'رمز التفعيل', 'تاريخ بداية الاشتراك', 'تاريخ نهاية الاشتراك', 'نوع الاشتراك', 'نوع الجهاز', 'ملاحظات', 'حالة الموافقة'],
-      ['أحمد محمد', 'ABC123', '2024-01-01', '2025-01-01', 'سنوي', 'Windows', 'جهاز رئيسي', 'approved'],
-      ['أحمد محمد', 'DEF456', '2024-01-01', '2024-12-31', 'سنوي', 'Android', 'جهاز ثانوي', 'approved'],
-      ['محمد علي', 'GHI789', '2024-03-01', '2025-03-01', 'سنوي', 'Windows', '', 'pending'],
+      ['اسم العميل', 'رمز التفعيل', 'نوع الجهاز', 'السعر', 'تاريخ بداية الاشتراك', 'تاريخ نهاية الاشتراك', 'ملاحظات'],
+      ['أحمد محمد', '12345678901234567890', 'computer', '1200', '2024-01-01', '2025-01-01', 'جهاز رئيسي'],
+      ['أحمد محمد', '09876543210987654321', 'android', '1200', '2024-01-01', '2024-12-31', 'جهاز ثانوي'],
+      ['محمد علي', '56789012345678901234', 'computer', '150', '2024-03-01', '2024-04-01', ''],
     ];
 
     // إنشاء ملف إكسل متعدد الأوراق
@@ -175,60 +199,90 @@ const BackupManager: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white flex items-center gap-2">
+          <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           إدارة النسخ الاحتياطي
         </h1>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-            إنشاء نسخة احتياطية
-          </h2>
-          <div className="space-y-4">
-            <button
-              onClick={handleCreateBackup}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Spinner className="w-5 h-5" />
-              ) : (
-                <RefreshCw className="w-5 h-5" />
-              )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* إنشاء نسخة احتياطية */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-green-600 dark:text-green-400" />
               إنشاء نسخة احتياطية
-            </button>
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              قم بإنشاء نسخة احتياطية كاملة من بيانات العملاء والأجهزة للحفاظ على بياناتك آمنة.
+            </p>
+            <div className="space-y-4">
+              <button
+                onClick={handleCreateBackup}
+                disabled={isLoading}
+                className="flex items-center justify-center w-full gap-2 px-4 py-3 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-xl hover:from-green-700 hover:to-green-600 disabled:opacity-50 transition-all duration-300 shadow-md hover:shadow-lg"
+              >
+                {isLoading ? (
+                  <Spinner className="w-5 h-5" />
+                ) : (
+                  <RefreshCw className="w-5 h-5" />
+                )}
+                إنشاء نسخة احتياطية
+              </button>
+            </div>
+          </div>
+
+          {/* استعادة النسخة الاحتياطية */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              استعادة النسخة الاحتياطية
+            </h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              استعد بياناتك من ملف نسخة احتياطية سابق. سيتم استبدال البيانات الحالية.
+            </p>
+            <div className="space-y-4">
+              <label className="block w-full">
+                <div className="flex items-center justify-center w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-xl hover:from-blue-700 hover:to-blue-600 disabled:opacity-50 transition-all duration-300 shadow-md hover:shadow-lg cursor-pointer">
+                  <FileText className="w-5 h-5 mr-2" />
+                  <span>اختر ملف النسخة الاحتياطية</span>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={restoreBackup}
+                    className="hidden"
+                    disabled={isRestoring}
+                  />
+                </div>
+              </label>
+              {isRestoring && (
+                <div className="flex justify-center mt-4">
+                  <Spinner />
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
-            استعادة النسخة الاحتياطية
-          </h2>
-          <div className="space-y-4">
-            <input
-              type="file"
-              accept=".json"
-              onChange={restoreBackup}
-              className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              disabled={isRestoring}
-            />
-            {isRestoring && (
-              <div className="flex justify-center mt-4">
-                <Spinner />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
+        {/* استيراد العملاء */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
             استيراد العملاء
           </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            استورد بيانات العملاء والأجهزة من ملف إكسل. استخدم القالب المتوفر للحصول على أفضل النتائج.
+          </p>
           <div className="space-y-4">
-            <ExcelImporter />
+            <ExcelImporter 
+              type="clients_and_devices" 
+              onImportSuccess={() => {
+                toast.success('تم استيراد البيانات بنجاح');
+                fetchLastBackupInfo();
+              }} 
+            />
             <button
               onClick={handleDownloadTemplate}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              className="flex items-center justify-center w-full gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-purple-500 text-white rounded-xl hover:from-purple-700 hover:to-purple-600 transition-all duration-300 shadow-md hover:shadow-lg"
             >
               <FileText className="w-5 h-5" />
               تحميل قالب الاستيراد
@@ -236,24 +290,38 @@ const BackupManager: React.FC = () => {
           </div>
         </div>
 
+        {/* معلومات آخر نسخة احتياطية */}
         {lastBackupDate && (
-          <div className="mt-8 bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
-            <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-2xl p-6 shadow-md border border-gray-100 dark:border-gray-700 animate-fadeIn">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               آخر نسخة احتياطية
             </h3>
-            <div className="space-y-2">
-              <p className="text-gray-600 dark:text-gray-300">
-                تاريخ النسخة: {format(new Date(lastBackupDate), 'yyyy-MM-dd HH:mm')}
-              </p>
-              <p className="text-gray-600 dark:text-gray-300">
-                عدد العملاء: {backupStats.clients}
-              </p>
-              <p className="text-gray-600 dark:text-gray-300">
-                عدد الأجهزة: {backupStats.devices}
-              </p>
-              <p className="text-gray-600 dark:text-gray-300">
-                عدد الوكلاء: {backupStats.agents}
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
+                <p className="text-gray-600 dark:text-gray-300 font-medium">
+                  تاريخ النسخة
+                </p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {format(new Date(lastBackupDate), 'yyyy-MM-dd HH:mm')}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-center">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">العملاء</p>
+                    <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{backupStats.clients}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">الأجهزة</p>
+                    <p className="text-xl font-bold text-green-600 dark:text-green-400">{backupStats.devices}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">الوكلاء</p>
+                    <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{backupStats.agents}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
