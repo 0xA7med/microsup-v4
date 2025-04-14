@@ -1,10 +1,16 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+import { setupMockAPI } from './mocks/api.ts'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+// تهيئة واجهة API الوهمية في بيئة التطوير
+if (import.meta.env.DEV) {
+  setupMockAPI();
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
     <App />
-  </StrictMode>
-);
+  </React.StrictMode>,
+)

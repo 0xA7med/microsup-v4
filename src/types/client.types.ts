@@ -17,7 +17,7 @@ export interface ClientType {
   address?: string;
   active_devices_count?: number;
   device_count?: number; // عدد الأجهزة
-  software_version?: string; // إصدار البرنامج
+  device_type: string;
 }
 
 export interface Agent {

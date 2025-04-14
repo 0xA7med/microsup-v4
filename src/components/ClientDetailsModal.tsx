@@ -78,6 +78,7 @@ export default function ClientDetailsModal({
       
       // طباعة معلومات المندوبين للتشخيص
       console.log("Agents from props:", agents);
+      console.log("Current user:", currentUser); // إضافة سجل للتحقق من معلومات المستخدم الحالي
     } else if (!isOpen) {
       setTimeout(() => {
         setFormData(null);
@@ -425,13 +426,15 @@ export default function ClientDetailsModal({
       <div
         className={`fixed inset-0 bg-black/50 dark:bg-black/70 z-50 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose} 
+        style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, height: '100vh', width: '100vw', margin: 0, padding: 0 }}
       />
 
       <div
         className={`fixed inset-0 flex items-center justify-center p-4 z-[60] transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, height: '100vh', width: '100vw', margin: 0, padding: 0 }}
       >
         <div
-          className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden"
+          className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden m-4"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
         >
           <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
@@ -455,7 +458,7 @@ export default function ClientDetailsModal({
                   <CustomerInput
                     type="text"
                     name="client_name"
-                    value={formData?.client_name || ''}
+                    value={isEditing ? formData?.client_name || '' : displayClient?.client_name || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
@@ -468,7 +471,7 @@ export default function ClientDetailsModal({
                   <CustomerInput
                     type="text"
                     name="organization_name"
-                    value={formData?.organization_name || ''}
+                    value={isEditing ? formData?.organization_name || '' : displayClient?.organization_name || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
@@ -481,7 +484,7 @@ export default function ClientDetailsModal({
                   <CustomerInput
                     type="text"
                     name="activity_type"
-                    value={formData?.activity_type || ''}
+                    value={isEditing ? formData?.activity_type || '' : displayClient?.activity_type || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
@@ -494,20 +497,20 @@ export default function ClientDetailsModal({
                   <CustomerInput
                     type="text"
                     name="address"
-                    value={formData?.address || ''}
+                    value={isEditing ? formData?.address || '' : displayClient?.address || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
-
+                
                 {/* رقم الهاتف */}
                 <CustomerField label={t('client.phone', 'رقم الهاتف')} children={
                   <CustomerInput
                     type="tel"
                     name="phone"
-                    value={formData?.phone || ''}
+                    value={isEditing ? formData?.phone || '' : displayClient?.phone || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
@@ -515,27 +518,25 @@ export default function ClientDetailsModal({
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
-                
+
                 {/* رقم الهاتف 2 */}
                 <CustomerField label={t('client.phone2', 'رقم الهاتف 2')} children={
                   <CustomerInput
                     type="tel"
                     name="phone2"
-                    value={formData?.phone2 || ''}
+                    value={isEditing ? formData?.phone2 || '' : displayClient?.phone2 || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     dir="ltr"
                     className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
-
-                {/* تمت إزالة العناصر القديمة (كود التفعيل، نوع الاشتراك، نوع النسخة، تواريخ الاشتراك) لأنها أصبحت موجودة في قسم الأجهزة */}
-
+                
                 {/* ملاحظات */}
                 <CustomerField label={t('client.notes', 'ملاحظات')} className="md:col-span-2" children={
                   <CustomerTextArea
                     name="notes"
-                    value={formData?.notes || ''}
+                    value={isEditing ? formData?.notes || '' : displayClient?.notes || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     rows={4}
@@ -593,6 +594,9 @@ export default function ClientDetailsModal({
                             {t('device.subscriptionEnd', 'نهاية الاشتراك')}
                           </th>
                           <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            {t('device.price', 'القيمة')}
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             {t('device.approvalStatus', 'حالة الموافقة')}
                           </th>
                           <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -641,6 +645,11 @@ export default function ClientDetailsModal({
                                   </span>
                                 )}
                               </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                {device.price ? device.price.toLocaleString() : '0'} جنيه
+                              </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
@@ -740,7 +749,7 @@ export default function ClientDetailsModal({
               ) : (
                 /* حالة العرض - يظهر اسم المندوب الحالي */
                 <div className="mt-1 block w-full rounded-md shadow-sm bg-gray-100 border-2 border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 px-3 py-2 h-12 text-lg flex items-center">
-                  {agentName || t('client.noAgent', 'بدون مندوب')}
+                  {agentName || ((displayClient as any)?.agent_name) || t('client.noAgent', 'بدون مندوب')}
                 </div>
               )}
             </div>
@@ -770,7 +779,7 @@ export default function ClientDetailsModal({
               ) : (
                 <>
                   {/* عرض أزرار التعديل والحذف للمديرين فقط */}
-                  {currentUser?.role === 'admin' && (
+                  {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
                     <>
                       <Button
                         variant="danger" 
@@ -792,6 +801,14 @@ export default function ClientDetailsModal({
                       </Button>
                     </>
                   )}
+                  <Button
+                    variant="secondary"
+                    onClick={onClose}
+                    className="flex items-center gap-2 px-5 py-2.5"
+                  >
+                    <X className="w-5 h-5" />
+                    <span>{t('actions.close', 'إغلاق')}</span>
+                  </Button>
                 </>
               )}
             </div>

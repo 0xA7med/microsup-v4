@@ -97,7 +97,6 @@ export interface Database {
           client_id: string
           activation_code: string
           device_type: string
-          software_version: string
           subscription_start: string
           subscription_end: string
           notes: string | null
@@ -109,7 +108,6 @@ export interface Database {
           client_id: string
           activation_code: string
           device_type: string
-          software_version: string
           subscription_start: string
           subscription_end: string
           notes?: string | null
@@ -121,7 +119,6 @@ export interface Database {
           client_id?: string
           activation_code?: string
           device_type?: string
-          software_version?: string
           subscription_start?: string
           subscription_end?: string
           notes?: string | null

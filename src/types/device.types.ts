@@ -6,7 +6,6 @@ export interface DeviceType {
   subscription_start: string;
   subscription_end: string;
   subscription_type?: string;
-  software_version: string;
   device_type: string;
   notes?: string;
   created_at?: string;
@@ -15,6 +14,7 @@ export interface DeviceType {
   approval_date?: string;
   approved_by?: string;
   rejection_reason?: string;
+  price: number; // قيمة الجهاز (إجباري)
 }
 
 // أنواع الأجهزة

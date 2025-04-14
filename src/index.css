@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* إخفاء أسهم الزيادة والنقصان في حقول الإدخال الرقمية */
+/* لمتصفح Chrome و Safari و Opera و Edge */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* لمتصفح Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* تأكيد إضافي لإخفاء الأسهم في جميع المتصفحات */
+.no-number-arrows {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

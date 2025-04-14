@@ -26,7 +26,6 @@ interface PendingDevice {
   agent_name?: string;
   activation_code: string;
   device_type: string;
-  software_version: string;
   subscription_type: string;
   subscription_start: string;
   subscription_end: string;

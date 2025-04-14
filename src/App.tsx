@@ -7,13 +7,14 @@ import { useAuthStore } from './store/authStore';
 import './i18n/config';
 
 // استيراد الصفحات
-import DashboardNew from './pages/DashboardNew';
+import { Dashboard } from './pages/Dashboard';
 import { ClientsList } from './pages/ClientsList';
 import { AddClient } from './pages/AddClient';
 import { AgentsList } from './pages/AgentsList';
 import { AddAgent } from './pages/AddAgent';
 import { PendingAgents } from './pages/PendingAgents';
 import { PendingDevices } from './pages/PendingDevices';
+import BackupManager from './pages/BackupManager';
 
 function App() {
   const { i18n } = useTranslation();
@@ -29,8 +30,9 @@ function App() {
   }, [initializeAuth]);
 
   useEffect(() => {
-    document.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
-  }, [i18n.language]);
+    i18n.changeLanguage('ar');
+    document.dir = 'rtl';
+  }, [i18n]);
 
   if (loading || !isInitialized) {
     return (
@@ -51,7 +53,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout children={<DashboardNew />} />} />
+        <Route path="/" element={<Layout children={<Dashboard />} />} />
         <Route path="/clients" element={<Layout children={<ClientsList />} />} />
         <Route path="/add-client" element={<Layout children={<AddClient />} />} />
         <Route 
@@ -69,6 +71,10 @@ function App() {
         <Route 
           path="/pending-devices" 
           element={isManager ? <Layout children={<PendingDevices />} /> : <Navigate to="/" replace />} 
+        />
+        <Route 
+          path="/backup-manager" 
+          element={isAdmin ? <Layout children={<BackupManager />} /> : <Navigate to="/" replace />} 
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

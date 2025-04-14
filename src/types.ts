@@ -12,7 +12,7 @@ export interface ClientType {
   agent_id?: string;
   device_count?: number;
   subscription_type?: string;
-  software_version?: string;
+  device_type: string;
   subscription_start?: string;
   subscription_end?: string;
   notes?: string;

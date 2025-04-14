@@ -298,7 +298,7 @@ export const LoginForm: React.FC = () => {
           <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg mb-6">
             <h3 className="font-bold text-green-700 dark:text-green-300 mb-2">تم إنشاء الحساب بنجاح!</h3>
             <p className="text-green-600 dark:text-green-400 mb-4">
-              تم إرسال طلب تسجيلك إلى المدير للموافقة عليه. سيتم إعلامك عند الموافقة على حسابك.
+              {t('auth.registerSuccess')}
             </p>
             <button
               onClick={toggleForm}
@@ -312,7 +312,7 @@ export const LoginForm: React.FC = () => {
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                الاسم الكامل
+                {t('auth.fullName')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -331,7 +331,7 @@ export const LoginForm: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                البريد الإلكتروني
+                {t('auth.email')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -350,7 +350,7 @@ export const LoginForm: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                رقم الهاتف
+                {t('auth.phone')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -368,7 +368,7 @@ export const LoginForm: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                العنوان
+                {t('auth.address')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -386,7 +386,7 @@ export const LoginForm: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                كلمة المرور
+                {t('auth.password')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -405,7 +405,7 @@ export const LoginForm: React.FC = () => {
             
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                تأكيد كلمة المرور
+                {t('auth.confirmPassword')}
               </label>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -437,7 +437,7 @@ export const LoginForm: React.FC = () => {
               {registerLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               ) : (
-                'تسجيل حساب جديد'
+                t('auth.register')
               )}
             </button>
             
@@ -448,7 +448,7 @@ export const LoginForm: React.FC = () => {
                 className="text-sm text-purple-600 hover:text-purple-500 dark:text-purple-400 dark:hover:text-purple-300 flex items-center justify-center w-full"
               >
                 <ArrowRight className="ml-1 w-4 h-4" />
-                العودة إلى تسجيل الدخول
+                {t('auth.backToLogin')}
               </button>
             </div>
           </form>
@@ -515,14 +515,14 @@ export const LoginForm: React.FC = () => {
             
             <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
               <p className="text-sm text-center text-gray-600 dark:text-gray-400 mb-3">
-                ليس لديك حساب؟
+                {t('auth.noAccount')}
               </p>
               <button
                 onClick={toggleForm}
                 className="w-full flex justify-center items-center py-2 px-4 border border-purple-300 dark:border-purple-700 rounded-md shadow-sm text-sm font-medium text-purple-600 dark:text-purple-400 bg-white dark:bg-gray-800 hover:bg-purple-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
               >
                 <UserPlus className="ml-2 w-4 h-4" />
-                تسجيل حساب جديد
+                {t('auth.register')}
               </button>
             </div>
           </>

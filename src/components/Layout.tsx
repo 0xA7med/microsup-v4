@@ -5,7 +5,7 @@ import { cn } from '../lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, AlertCircle, UserCog } from 'lucide-react';
+import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, AlertCircle, UserCog, Database } from 'lucide-react';
 
 // تعريف واضح لخصائص المكون
 interface LayoutProps {
@@ -84,6 +84,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: t('nav.pendingDevices'),
       icon: <AlertCircle className="w-5 h-5" />,
       roles: ['manager', 'admin']
+    },
+    {
+      path: '/backup-manager',
+      label: t('nav.backupManager', 'إدارة النسخ الاحتياطي'),
+      icon: <Database className="w-5 h-5" />,
+      roles: ['admin']
     }
   ];
 
@@ -102,7 +108,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       <header className="bg-white dark:bg-gray-800 shadow-md">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-xl font-bold text-gray-800 dark:text-white">MicroSup</h1>
+            <h1 className="text-xl font-bold text-gray-800 dark:text-white">MicroSub</h1>
             
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-4 rtl:space-x-reverse">

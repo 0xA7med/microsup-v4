@@ -1,0 +1,116 @@
+{
+  "app": {
+    "title": "MicroSub",
+    "name": "MicroSub",
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "addClient": "Add Client",
+    "agents": "Agents",
+    "addAgent": "Add Agent",
+    "pendingAgents": "Pending Agents",
+    "pendingDevices": "Pending Devices",
+    "backupManager": "Backup Manager"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register New Account",
+    "noAccount": "Don't have an account?",
+    "backToLogin": "Back to Login",
+    "fullName": "Full Name",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "phone": "Phone Number",
+    "address": "Address",
+    "invalidCredentials": "Invalid email or password",
+    "registerSuccess": "Your registration request has been sent to the administrator for approval. You will be notified when your account is approved."
+  },
+  "agent": {
+    "username": "Email",
+    "password": "Password",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "role": "Role",
+    "admin": "Admin",
+    "agent": "Agent",
+    "status": "Status",
+    "actions": "Actions",
+    "approve": "Approve",
+    "reject": "Reject",
+    "delete": "Delete",
+    "edit": "Edit",
+    "addNew": "Add New Agent",
+    "fullName": "Search agents...",
+    "clientsCount": "Clients Count",
+    "searchAgents": "Search Agents",
+    "confirmDelete": "Confirm Delete",
+    "confirmDeleteMessage": "Are you sure you want to delete this agent?",
+    "transferClients": "Transfer clients to another agent",
+    "deleteClients": "Delete clients with agent",
+    "selectAgent": "Select an agent",
+    "editAgent": "Edit Agent Details"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "actions": "Actions",
+    "backToDashboard": "Back to Dashboard",
+    "search": "Search",
+    "noResults": "No results found",
+    "error": "Error",
+    "success": "Operation completed successfully"
+  },
+  
+  "messages": {
+    "errorFetchingAgents": "Error loading agents data",
+    "agentUpdated": "Agent updated successfully",
+    "errorUpdatingAgent": "Error updating agent",
+    "agentDeleted": "Agent deleted successfully",
+    "errorDeletingAgent": "Error deleting agent",
+    "clientsTransferred": "Clients transferred successfully",
+    "errorTransferringClients": "Error transferring clients",
+    "errorOccurred": "An error occurred"
+  },
+  
+  "backup": {
+    "title": "Backup and Import Manager",
+    "createBackup": {
+      "title": "Backup",
+      "description": "Create a complete backup of system data, including clients and devices.",
+      "button": "Create Backup",
+      "loading": "Creating backup...",
+      "success": "Backup created successfully",
+      "error": "Error creating backup"
+    },
+    "restoreBackup": {
+      "noFile": "No file chosen",
+      "title": "Restore Backup",
+      "description": "Restore system data from a previous backup.",
+      "fileLabel": "Choose backup file",
+      "button": "Restore Backup",
+      "loading": "Restoring...",
+      "success": "Backup restored successfully",
+      "error": "Error restoring backup"
+    },
+    "importClients": {
+      "noFile": "No file chosen",
+      "title": "Import Clients",
+      "description": "Import client list from CSV or Excel file. The file must contain the required columns.",
+      "fileLabel": "Choose clients file",
+      "downloadTemplate": "Download Import Template",
+      "button": "Import Clients",
+      "loading": "Importing...",
+      "success": "Successfully imported {count} clients",
+      "error": "Error importing clients"
+    }
+  }
+}

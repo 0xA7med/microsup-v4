@@ -35,10 +35,10 @@ export default function ClientDevicesForm({
         subscription_start: format(new Date(), 'yyyy-MM-dd'),
         subscription_end: format(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), 'yyyy-MM-dd'),
         subscription_type: 'monthly',
-        software_version: 'computer',
         device_type: 'computer',
         approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
-        notes: ''
+        notes: '',
+        price: 0 // إضافة حقل القيمة الافتراضية
       }]);
     }
   }, [isNewClient, clientId]);
@@ -107,6 +107,35 @@ export default function ClientDevicesForm({
         subscription_end: endDate
       };
     }
+    // إذا كان الحقل هو القيمة، نتأكد من تحويله إلى رقم
+    else if (field === 'price') {
+      const priceValue = parseFloat(value) || 0;
+      
+      updatedDevices[index] = {
+        ...updatedDevices[index],
+        price: priceValue
+      };
+    }
+    // إذا كان الحقل هو نوع الجهاز
+    else if (field === 'device_type') {
+      // إذا كان نوع الجهاز هو موبايل، نجعل نوع الاشتراك دائم افتراضيًا
+      if (value === 'android') {
+        const startDate = updatedDevices[index].subscription_start;
+        const endDate = calculateEndDate(startDate, 'permanent');
+        
+        updatedDevices[index] = {
+          ...updatedDevices[index],
+          device_type: value,
+          subscription_type: 'permanent',
+          subscription_end: endDate
+        };
+      } else {
+        updatedDevices[index] = {
+          ...updatedDevices[index],
+          device_type: value
+        };
+      }
+    }
     // غير ذلك، نقوم بتحديث الحقل المطلوب فقط
     else {
       updatedDevices[index] = {
@@ -119,16 +148,19 @@ export default function ClientDevicesForm({
   };
 
   const handleAddDevice = () => {
+    // إنشاء رمز تفعيل عشوائي
+    const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    
     setDevices([...devices, {
       client_id: clientId || '',
-      activation_code: '', // ترك حقل رمز التفعيل فارغاً
+      activation_code: randomCode, // إضافة رمز تفعيل عشوائي
       subscription_start: format(new Date(), 'yyyy-MM-dd'),
       subscription_end: format(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), 'yyyy-MM-dd'),
       subscription_type: 'monthly',
-      software_version: 'computer',
       device_type: 'computer',
       approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
-      notes: ''
+      notes: '',
+      price: 0 // إضافة حقل القيمة الافتراضية
     }]);
     
     // إظهار رسالة توضح أن الجهاز سيكون قيد المراجعة
@@ -292,6 +324,24 @@ export default function ClientDevicesForm({
                   className="h-12 text-lg border-gray-300 dark:border-gray-600 pr-10 bg-gray-50 dark:bg-gray-600"
                 />
                 <Calendar className="absolute top-3 right-3 h-6 w-6 text-gray-400 pointer-events-none" />
+              </div>
+            } />
+
+            {/* القيمة */}
+            <CustomerField label={t('device.price', 'القيمة')} children={
+              <div className="relative">
+                <CustomerInput
+                  type="number"
+                  name={`price_${index}`}
+                  value={device.price?.toString() || '0'}
+                  onChange={(e) => handleDeviceChange(index, 'price', e.target.value)}
+                  isEditing={true}
+                  min="0"
+                  step="0.01"
+                  required
+                  className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-16"
+                />
+                <span className="absolute top-3 left-3 text-gray-500 dark:text-gray-400 text-sm">جنيه</span>
               </div>
             } />
 

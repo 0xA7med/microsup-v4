@@ -35,9 +35,9 @@ export default function DeviceModal({
     subscription_start: format(new Date(), 'yyyy-MM-dd'),
     subscription_end: format(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), 'yyyy-MM-dd'),
     subscription_type: 'monthly',
-    software_version: '',
-    device_type: 'computer',
-    notes: ''
+    device_type: '',
+    notes: '',
+    price: 0 // إضافة حقل السعر
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -81,16 +81,23 @@ export default function DeviceModal({
         subscription_start: format(new Date(), 'yyyy-MM-dd'),
         subscription_end: calculateEndDate(format(new Date(), 'yyyy-MM-dd'), 'monthly'),
         subscription_type: 'monthly',
-        software_version: '',
-        device_type: 'computer',
-        notes: ''
+        device_type: '',
+        notes: '',
+        price: 0 // إضافة حقل السعر
       });
     }
   }, [device, isOpen, clientId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // معالجة خاصة لحقل السعر لضمان تحويله إلى رقم
+    if (name === 'price') {
+      const priceValue = parseFloat(value) || 0;
+      setFormData((prev) => ({ ...prev, [name]: priceValue }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -312,6 +319,24 @@ export default function DeviceModal({
                 </div>
               } />
 
+              {/* السعر */}
+              <CustomerField label={t('device.price', 'القيمة')} children={
+                <div className="relative">
+                  <CustomerInput
+                    type="number"
+                    name="price"
+                    value={formData.price?.toString() || '0'}
+                    onChange={handleInputChange}
+                    isEditing={true}
+                    min="0"
+                    step="0.01"
+                    required
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-16"
+                  />
+                  <span className="absolute top-3 left-3 text-gray-500 dark:text-gray-400 text-sm">جنيه</span>
+                </div>
+              } />
+              
               {/* ملاحظات */}
               <CustomerField label={t('device.notes', 'ملاحظات')} className="md:col-span-2" children={
                 <CustomerTextArea
