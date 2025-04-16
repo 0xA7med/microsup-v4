@@ -5,6 +5,7 @@ import { FileText, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { ExcelImporter } from '../components/ExcelImporter';
+import { WhatsAppImporter } from '../components/WhatsAppImporter';
 import { getBackupHistory } from '@/lib/supabaseClient';
 import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/store/authStore';
@@ -367,6 +368,15 @@ const BackupManager: React.FC = () => {
               تحميل قالب الاستيراد
             </button>
           </div>
+        </div>
+
+        {/* استيراد من محادثات واتساب */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-700">
+          <WhatsAppImporter 
+            onImportSuccess={() => {
+              fetchLastBackupInfo();
+            }} 
+          />
         </div>
 
         {/* معلومات آخر نسخة احتياطية */}
