@@ -6,7 +6,7 @@ import {
   Search, 
   Smartphone, 
   Laptop, 
-  Calendar, Eye, ChevronRight, ChevronUp, ChevronDown, 
+  Calendar, Eye, ChevronRight, ChevronUp, ChevronDown, ChevronLeft,
   Copy, Check, Zap, AlertCircle, Clock, Package, X 
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -142,6 +142,25 @@ export const ClientsList: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [initialLoadComplete, setInitialLoadComplete] = useState<boolean>(false);
+  
+  // نظام الفلترة المتقدم الجديد
+  const [filters, setFilters] = useState<{
+    deviceType: string | null;      // موبايل، كمبيوتر، الكل
+    subscriptionStatus: string | null; // نشط، منتهي، ينتهي قريباً، الكل
+    approvalStatus: string | null;  // مقبول، معلق، مرفوض، الكل
+    showDevices: boolean;           // عرض الاشتراكات أم لا
+  }>({
+    deviceType: null,
+    subscriptionStatus: null,
+    approvalStatus: null,
+    showDevices: false
+  });
+  
+  // متغيرات نظام الصفحات
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalClients, setTotalClients] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const pageSize = 100; // عدد العملاء في كل صفحة
 
   // تعريف حالة الترتيب
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
@@ -153,9 +172,12 @@ export const ClientsList: React.FC = () => {
       direction = 'descending';
     }
     setSortConfig({ key, direction });
+    
+    // إعادة تحميل البيانات مع الترتيب الجديد
+    fetchClients(activeFilter, currentPage);
   };
 
-  // دالة لتبديل حالة إظهار الأجهزة لعميل معين
+  // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
   const toggleShowDevices = (clientId: string) => {
     setClients(prevClients => 
       prevClients.map(client => 
@@ -164,100 +186,78 @@ export const ClientsList: React.FC = () => {
     );
   };
 
-  // دالة لترتيب العملاء
-  const sortedClients = React.useMemo(() => {
-    let sortableClients = [...clients];
-    if (sortConfig !== null) {
-      sortableClients.sort((a: any, b: any) => {
-        // التعامل مع الحالات الخاصة
-        if (sortConfig.key === 'agent') {
-          const aValue = a.agent?.length > 0 && a.agent[0]?.name || '';
-          const bValue = b.agent?.length > 0 && b.agent[0]?.name || '';
-          if (aValue < bValue) {
-            return sortConfig.direction === 'ascending' ? -1 : 1;
-          }
-          if (aValue > bValue) {
-            return sortConfig.direction === 'ascending' ? 1 : -1;
-          }
-          return 0;
-        } else if (sortConfig.key === 'deviceCount') {
-          const aValue = a.deviceCount || 0;
-          const bValue = b.deviceCount || 0;
-          return sortConfig.direction === 'ascending' ? aValue - bValue : bValue - aValue;
-        } else if (sortConfig.key === 'subscription_end') {
-          // استخدام تاريخ انتهاء الجهاز الأقرب إذا كان متاحاً
-          const aValue = a.earliestEndDate || a.subscription_end || '';
-          const bValue = b.earliestEndDate || b.subscription_end || '';
-          if (!aValue && !bValue) return 0;
-          if (!aValue) return sortConfig.direction === 'ascending' ? 1 : -1;
-          if (!bValue) return sortConfig.direction === 'ascending' ? -1 : 1;
-          return sortConfig.direction === 'ascending' 
-            ? new Date(aValue).getTime() - new Date(bValue).getTime() 
-            : new Date(bValue).getTime() - new Date(aValue).getTime();
-        } else {
-          // الترتيب العام للحقول النصية
-          const aValue = a[sortConfig.key] || '';
-          const bValue = b[sortConfig.key] || '';
-          if (aValue < bValue) {
-            return sortConfig.direction === 'ascending' ? -1 : 1;
-          }
-          if (aValue > bValue) {
-            return sortConfig.direction === 'ascending' ? 1 : -1;
-          }
-          return 0;
-        }
-      });
-    }
-    return sortableClients;
-  }, [clients, sortConfig]);
-
-  // تعريف دالة البحث المحسنة
-  const filterClients = useCallback(() => {
-    if (!clients) return [];
-    
-    return clients.filter((client) => {
-      const searchTermLower = searchTerm.toLowerCase();
-      
-      // البحث في الاسم والمؤسسة والهاتف والملاحظات
-      return (
-        (client.client_name && client.client_name.toLowerCase().includes(searchTermLower)) ||
-        (client.organization_name && client.organization_name.toLowerCase().includes(searchTermLower)) ||
-        (client.phone && client.phone.toLowerCase().includes(searchTermLower)) ||
-        (client.notes && client.notes.toLowerCase().includes(searchTermLower))
-      );
-    });
-  }, [clients, searchTerm]);
-
   // دالة جلب العملاء مع تطبيق الفلتر
-  const fetchClients = async (filterOverride?: string | null) => {
+  const fetchClients = async (filterOverride?: string | null, pageOverride?: number | null) => {
+    // تفعيل حالة التحميل
     setLoading(true);
-    const filter = filterOverride !== undefined ? filterOverride : activeFilter;
     
-    // تحديث الفلتر النشط فقط إذا كان مختلفاً عن القيمة الحالية
-    if (filter !== activeFilter) {
-      setActiveFilter(filter);
-      
-      // عرض رسالة تأكيد عند تطبيق الفلتر
-      if (filter) {
-        const filterMessages: {[key: string]: string} = {
-          'active': 'تم تطبيق فلتر الاشتراكات النشطة',
-          'expired': 'تم تطبيق فلتر الاشتراكات المنتهية',
-          'expiring': 'تم تطبيق فلتر الاشتراكات التي تنتهي قريباً',
-          'mobile': 'تم تطبيق فلتر أجهزة الهاتف',
-          'computer': 'تم تطبيق فلتر أجهزة الكمبيوتر',
-          'approved': 'تم تطبيق فلتر الأجهزة المقبولة',
-          'pending': 'تم تطبيق فلتر الأجهزة المعلقة',
-          'rejected': 'تم تطبيق فلتر الأجهزة المرفوضة',
-          'devices': 'تم عرض جميع الأجهزة'
-        };
-        
-        toast.success(filterMessages[filter] || `تم تطبيق الفلتر: ${filter}`);
-      }
-    }
+    // تسجيل الفلتر المستخدم للتصحيح
+    console.log('جاري تنفيذ fetchClients مع الفلتر:', filterOverride, 'الصفحة:', pageOverride, 'البحث:', searchTerm, 'الترتيب:', sortConfig);
+    
+    const filter = filterOverride !== undefined ? filterOverride : activeFilter;
+    const page = pageOverride !== undefined && pageOverride !== null ? pageOverride : currentPage;
     
     try {
-      // إعداد الاستعلام الأساسي
-      let query = supabase
+      // تحديث الفلتر النشط فقط إذا كان مختلفاً عن القيمة الحالية وليس استدعاء من useEffect
+      if (filter !== activeFilter && filterOverride !== undefined) {
+        // تحديث حالة الفلاتر المتقدمة بناءً على الفلتر النشط
+        if (filter) {
+          const newFilters = { ...filters, showDevices: true };
+          
+          // إعادة تعيين جميع الفلاتر أولاً
+          newFilters.deviceType = null;
+          newFilters.subscriptionStatus = null;
+          newFilters.approvalStatus = null;
+          
+          // تحديد الفلتر المناسب
+          switch (filter) {
+            case 'mobile':
+              newFilters.deviceType = 'mobile';
+              break;
+            case 'computer':
+              newFilters.deviceType = 'computer';
+              break;
+            case 'active':
+              newFilters.subscriptionStatus = 'active';
+              break;
+            case 'expired':
+              newFilters.subscriptionStatus = 'expired';
+              break;
+            case 'expiring':
+              newFilters.subscriptionStatus = 'expiring';
+              break;
+            case 'approved':
+              newFilters.approvalStatus = 'approved';
+              break;
+            case 'pending':
+              newFilters.approvalStatus = 'pending';
+              break;
+            case 'rejected':
+              newFilters.approvalStatus = 'rejected';
+              break;
+            case 'devices':
+              newFilters.showDevices = true;
+              break;
+            default:
+              newFilters.showDevices = false;
+              break;
+          }
+          
+          setFilters(newFilters);
+        }
+        
+        // إعادة تعيين الصفحة إلى الأولى عند تغيير الفلتر
+        if (page === currentPage) {
+          setCurrentPage(1);
+        }
+      }
+      
+      // حساب الصفحات للتصفح
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
+      // بناء استعلام قاعدة البيانات مع تطبيق الفلاتر مباشرة في الاستعلام
+      let clientsQuery = supabase
         .from('clients')
         .select(`
           id, 
@@ -272,330 +272,337 @@ export const ClientsList: React.FC = () => {
           subscription_start,
           subscription_end,
           agent_id,
-          agents(id, name)
-        `);
+          agents(id, name),
+          created_at,
+          created_by
+        `, { count: 'exact' });
       
       // تطبيق فلتر حسب الوكيل إذا كان المستخدم وكيل
       if (user?.role === 'agent') {
-        query = query.eq('agent_id', user.id);
+        clientsQuery = clientsQuery.eq('agent_id', user.id);
       }
       
-      const { data, error } = await query;
+      // تطبيق البحث على بيانات العميل
+      if (searchTerm) {
+        const searchTermLower = `%${searchTerm.toLowerCase()}%`;
+        clientsQuery = clientsQuery.or(
+          `client_name.ilike.${searchTermLower},organization_name.ilike.${searchTermLower},phone.ilike.${searchTermLower},phone2.ilike.${searchTermLower},notes.ilike.${searchTermLower}`
+        );
+      }
       
-      if (error) throw error;
+      // تطبيق الترتيب على الاستعلام
+      if (sortConfig) {
+        let sortKey = sortConfig.key;
+        
+        // التحقق من نوع الترتيب
+        if (sortKey === 'agent_id') {
+          // الترتيب حسب اسم المندوب غير مدعوم مباشرة في الاستعلام
+          // سيتم تطبيقه بعد جلب البيانات
+        } else if (sortKey === 'earliestEndDate' || sortKey === 'deviceCount' || sortKey === 'totalPrice') {
+          // هذه الحقول تتطلب معالجة بعد جلب البيانات
+          console.warn(`الترتيب حسب ${sortKey} يتطلب معالجة بعد جلب البيانات.`);
+        } else {
+          // تطبيق الترتيب مباشرة في الاستعلام
+          clientsQuery = clientsQuery.order(sortKey, {
+            ascending: sortConfig.direction === 'ascending',
+            nullsFirst: false
+          });
+        }
+      } else {
+        // الترتيب الافتراضي حسب تاريخ الإنشاء تنازلياً
+        clientsQuery = clientsQuery.order('created_at', { ascending: false });
+      }
       
-      // فحص بنية البيانات المسترجعة
-      console.log('Client data structure:', data && data.length > 0 ? data[0] : 'No data');
+      // تطبيق التصفح
+      clientsQuery = clientsQuery.range(from, to);
       
-      // جلب بيانات الأجهزة لكل عميل
-      const clientsWithDevices = await Promise.all((data || []).map(async (client) => {
-        const { data: devicesData, error: devicesError } = await supabase
+      // تنفيذ الاستعلام للحصول على العملاء
+      const { data: allClientsData, error: clientsError, count } = await clientsQuery;
+      
+      if (clientsError) throw clientsError;
+      
+      if (!allClientsData) {
+        setClients([]);
+        setTotalClients(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+      
+      // تحديث إجمالي العملاء والصفحات
+      if (count !== null) {
+        setTotalClients(count);
+        setTotalPages(Math.ceil(count / pageSize));
+      }
+      
+      // الحصول على معرفات العملاء لاستخدامها في استعلام الاشتراكات
+      const clientIds = allClientsData.map(c => c.id);
+      
+      // جلب الاشتراكات للعملاء في الصفحة الحالية فقط
+      let devices = [];
+      if (clientIds.length > 0) {
+        let devicesQuery = supabase
           .from('devices')
           .select('*')
-          .eq('client_id', client.id);
+          .in('client_id', clientIds);
+        
+        // تطبيق فلاتر الاشتراكات مباشرة في الاستعلام
+        if (filters.deviceType === 'mobile') {
+          devicesQuery = devicesQuery.neq('device_type', 'computer');
+        } else if (filters.deviceType === 'computer') {
+          devicesQuery = devicesQuery.eq('device_type', 'computer');
+        }
+        
+        if (filters.approvalStatus === 'approved') {
+          devicesQuery = devicesQuery.eq('approval_status', 'approved');
+        } else if (filters.approvalStatus === 'rejected') {
+          devicesQuery = devicesQuery.eq('approval_status', 'rejected');
+        } else if (filters.approvalStatus === 'pending') {
+          devicesQuery = devicesQuery.or('approval_status.is.null,approval_status.eq.pending');
+        }
+        
+        // تنفيذ الاستعلام للحصول على الاشتراكات
+        const { data: devicesData, error: devicesError } = await devicesQuery;
         
         if (devicesError) {
-          console.error('Error fetching devices for client:', devicesError);
-          return {
-            ...client,
-            devices: [],
-            mobileDevices: [],
-            computerDevices: []
-          };
+          console.error('Error fetching devices:', devicesError);
+        } else {
+          devices = devicesData || [];
         }
+      }
+      
+      // معالجة بيانات العملاء والاشتراكات
+      let processedClients = allClientsData.map(client => {
+        // الحصول على اشتراكات العميل الحالي
+        const clientDevices = devices.filter(d => d.client_id === client.id);
         
-        // تصنيف الأجهزة حسب النوع
-        const mobileDevices = devicesData?.filter(device => device.device_type !== 'computer') || [];
-        const computerDevices = devicesData?.filter(device => device.device_type === 'computer') || [];
+        // تطبيق فلتر حالة الاشتراك (يتطلب معالجة بعد جلب البيانات)
+        let filteredDevices = [...clientDevices];
         
-        // حساب إجمالي القيمة
-        const totalPrice = devicesData?.reduce((sum, device) => sum + (parseFloat(device.price) || 0), 0) || 0;
-        const mobilePrice = mobileDevices.reduce((sum, device) => sum + (parseFloat(device.price) || 0), 0);
-        const computerPrice = computerDevices.reduce((sum, device) => sum + (parseFloat(device.price) || 0), 0);
-        
-        // تحويل بيانات المندوب إلى الصيغة المطلوبة
-        let agent = null;
-        if (client.agents) {
-          // فحص إذا كان agents مصفوفة
-          if (Array.isArray(client.agents) && client.agents.length > 0) {
-            agent = {
-              id: client.agents[0].id,
-              name: client.agents[0].name
-            };
-          } else if (client.agents.id) {
-            // إذا كان كائن مفرد
-            agent = {
-              id: client.agents.id,
-              name: client.agents.name
-            };
+        if (filters.subscriptionStatus) {
+          const now = new Date();
+          
+          if (filters.subscriptionStatus === 'active') {
+            filteredDevices = filteredDevices.filter(device => 
+              device.subscription_type === 'permanent' || 
+              (device.subscription_end && new Date(device.subscription_end) > now)
+            );
+          } else if (filters.subscriptionStatus === 'expired') {
+            filteredDevices = filteredDevices.filter(device => 
+              device.subscription_type !== 'permanent' && 
+              device.subscription_end && 
+              new Date(device.subscription_end) <= now
+            );
+          } else if (filters.subscriptionStatus === 'expiring') {
+            const twoWeeksFromNow = new Date();
+            twoWeeksFromNow.setDate(now.getDate() + 15);
+            
+            filteredDevices = filteredDevices.filter(device => 
+              device.subscription_type !== 'permanent' && 
+              device.subscription_end && 
+              new Date(device.subscription_end) > now && 
+              new Date(device.subscription_end) <= twoWeeksFromNow
+            );
           }
         }
+        
+        // تطبيق البحث على بيانات الاشتراكات
+        if (searchTerm) {
+          const searchTermLower = searchTerm.toLowerCase();
+          
+          // التحقق مما إذا كانت الاشتراكات تطابق البحث
+          const deviceMatches = filteredDevices.some(d =>
+            (d.activation_code && d.activation_code.toLowerCase().includes(searchTermLower)) ||
+            (d.notes && d.notes.toLowerCase().includes(searchTermLower))
+          );
+          
+          // إذا كان البحث موجودًا ولكن لا العميل ولا اشتراكاته تطابق البحث، استبعد العميل
+          const clientMatches = 
+            (client.client_name && client.client_name.toLowerCase().includes(searchTermLower)) ||
+            (client.organization_name && client.organization_name.toLowerCase().includes(searchTermLower)) ||
+            (client.phone && client.phone.toLowerCase().includes(searchTermLower)) ||
+            (client.phone2 && client.phone2.toLowerCase().includes(searchTermLower)) ||
+            (client.notes && client.notes.toLowerCase().includes(searchTermLower));
+          
+          if (!clientMatches && !deviceMatches) {
+            return null; // سيتم تصفية هذا لاحقًا
+          }
+        }
+        
+        // إذا كان هناك فلتر نشط وليس هناك اشتراكات تطابق الفلتر، نتخطى هذا العميل
+        if ((filters.deviceType || filters.subscriptionStatus || filters.approvalStatus) && filteredDevices.length === 0) {
+          return null; // سيتم تصفية هذا العميل لاحقاً
+        }
+        
+        // تصنيف الاشتراكات حسب النوع
+        const mobileDevices = filteredDevices.filter(device => device.device_type !== 'computer');
+        const computerDevices = filteredDevices.filter(device => device.device_type === 'computer');
+        
+        // حساب إجمالي القيمة
+        const totalPrice = filteredDevices.reduce((sum, device) => sum + (parseFloat(device.price || '0') || 0), 0);
+        const mobilePrice = mobileDevices.reduce((sum, device) => sum + (parseFloat(device.price || '0') || 0), 0);
+        const computerPrice = computerDevices.reduce((sum, device) => sum + (parseFloat(device.price || '0') || 0), 0);
         
         // البحث عن أقرب تاريخ انتهاء
         let earliestEndDate = null;
-        if (devicesData && devicesData.length > 0) {
-          const nonPermanentDevices = devicesData.filter(device => 
-            device.subscription_type !== 'permanent' && device.subscription_end
-          );
-          
-          if (nonPermanentDevices.length > 0) {
-            earliestEndDate = nonPermanentDevices.reduce((earliest, device) => {
-              if (!earliest) return device.subscription_end;
+        const nonPermanentDevices = filteredDevices.filter(device => 
+          device.subscription_type !== 'permanent' && device.subscription_end
+        );
+        
+        if (nonPermanentDevices.length > 0) {
+          earliestEndDate = nonPermanentDevices.reduce((earliest, device) => {
+            if (!device.subscription_end) return earliest;
+            if (!earliest) return device.subscription_end;
+            
+            try {
               return new Date(device.subscription_end) < new Date(earliest) ? device.subscription_end : earliest;
-            }, null);
-          }
+            } catch (e) {
+              console.error("Error comparing dates:", device.subscription_end, earliest);
+              return earliest;
+            }
+          }, null);
         }
         
         // جمع أنواع الاشتراكات الفريدة
-        const subscriptionTypes = [...new Set(devicesData?.map(device => device.subscription_type) || [])];
+        const subscriptionTypes = [...new Set(filteredDevices.map(d => d.subscription_type).filter(Boolean))];
+        
+        // تحويل بيانات المندوب إلى الصيغة المطلوبة
+        let agent: { id?: string; name?: string } | null = null;
+        if (client.agents) {
+          // التعامل مع الحالات المختلفة لبنية بيانات المندوب
+          const agentsData = client.agents as any;
+          
+          if (Array.isArray(agentsData) && agentsData.length > 0) {
+            const firstAgent = agentsData[0];
+            if (firstAgent && typeof firstAgent === 'object') {
+              agent = {
+                id: firstAgent.id?.toString(),
+                name: firstAgent.name?.toString()
+              };
+            }
+          } else if (agentsData && typeof agentsData === 'object') {
+            // إذا كان كائن مفرد
+            agent = {
+              id: agentsData.id?.toString(),
+              name: agentsData.name?.toString()
+            };
+          }
+        }
         
         return {
           ...client,
-          devices: devicesData || [],
-          mobileDevices,
-          computerDevices,
-          deviceCount: devicesData?.length || 0,
+          devices: filteredDevices,
+          mobileDevices: filters.deviceType === 'mobile' ? filteredDevices : mobileDevices,
+          computerDevices: filters.deviceType === 'computer' ? filteredDevices : computerDevices,
+          deviceCount: filteredDevices.length,
           earliestEndDate,
           subscriptionTypes,
           totalPrice,
           mobilePrice,
           computerPrice,
-          agent: agent ? [agent] : null,
-          showDevices: false
+          agent: agent,
+          showDevices: filters.showDevices || (filters.deviceType || filters.subscriptionStatus || filters.approvalStatus)
         };
-      }));
+      }).filter(Boolean); // تصفية العملاء الذين ليس لديهم اشتراكات تطابق الفلتر (قيمة null)
       
-      let formattedData = clientsWithDevices;
-      
-      // تطبيق الفلتر المحدد
-      if (filter) {
-        const today = new Date();
-        
-        switch (filter) {
-          case 'active':
-            // فقط العملاء الذين لديهم اشتراكات نشطة (مع استثناء الأجهزة المرفوضة والمعلقة)
-            formattedData = formattedData.filter(client => {
-              // العميل نشط إذا كان لديه على الأقل جهاز واحد نشط ومقبول
-              return client.devices?.some((device: any) => {
-                // استثناء الأجهزة المرفوضة والمعلقة
-                if (device.approval_status !== 'approved') return false;
-                
-                if (device.subscription_type === 'permanent') return true;
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) > today;
-              });
-            });
-            // إظهار الأجهزة تحت كل عميل
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved') return false;
-                if (device.subscription_type === 'permanent') return true;
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) > today;
-              }) || [],
-              computerDevices: client.computerDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved') return false;
-                if (device.subscription_type === 'permanent') return true;
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) > today;
-              }) || []
-            }));
-            break;
-          case 'expired':
-            // فقط العملاء الذين لديهم اشتراكات منتهية (مع استثناء الأجهزة المرفوضة والمعلقة)
-            formattedData = formattedData.filter(client => {
-              // العميل لديه اشتراك منتهي إذا كان لديه على الأقل جهاز واحد باشتراك منتهي ومقبول
-              // وليس لديه أي اشتراك دائم
-              if (client.devices?.some((device: any) => device.subscription_type === 'permanent' && device.approval_status === 'approved')) {
-                return false; // استبعاد العملاء الذين لديهم اشتراكات دائمة مقبولة
-              }
-              return client.devices?.some((device: any) => {
-                // استثناء الأجهزة المرفوضة والمعلقة
-                if (device.approval_status !== 'approved') return false;
-                
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) < today;
-              });
-            });
-            // إظهار الأجهزة تحت كل عميل
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved') return false;
-                if (device.subscription_type === 'permanent') return false;
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) < today;
-              }) || [],
-              computerDevices: client.computerDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved') return false;
-                if (device.subscription_type === 'permanent') return false;
-                if (!device.subscription_end) return false;
-                return new Date(device.subscription_end) < today;
-              }) || []
-            }));
-            break;
-          case 'mobile':
-            // فقط العملاء الذين لديهم أجهزة موبايل (مع استثناء الأجهزة المرفوضة والمعلقة)
-            console.log('Applying mobile filter');
-            formattedData = formattedData.filter(client => {
-              // استخدام الأجهزة المصنفة مسبقًا مع استثناء المرفوضة والمعلقة
-              return client.mobileDevices?.some((device: any) => device.approval_status === 'approved');
-            });
-            // إظهار الأجهزة تحت كل عميل
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              computerDevices: [], // إخفاء أجهزة الكمبيوتر
-              mobileDevices: client.mobileDevices?.filter((device: any) => device.approval_status === 'approved') || []
-            }));
-            break;
-          case 'computer':
-            // فقط العملاء الذين لديهم أجهزة كمبيوتر (مع استثناء الأجهزة المرفوضة والمعلقة)
-            formattedData = formattedData.filter(client => 
-              client.devices?.some((device: any) => device.device_type === 'computer')
-            );
-            // إظهار الأجهزة تحت كل عميل
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: [], // إخفاء أجهزة الموبايل
-              computerDevices: client.computerDevices?.filter((device: any) => device.approval_status === 'approved') || []
-            }));
-            break;
-          case 'approved':
-            // فقط العملاء الذين لديهم أجهزة مقبولة
-            formattedData = formattedData.filter(client => {
-              return client.devices?.some((device: any) => device.approval_status === 'approved');
-            });
-            // إظهار الأجهزة المقبولة فقط
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => device.approval_status === 'approved') || [],
-              computerDevices: client.computerDevices?.filter((device: any) => device.approval_status === 'approved') || []
-            }));
-            break;
-          case 'pending':
-            // فقط العملاء الذين لديهم أجهزة معلقة
-            formattedData = formattedData.filter(client => {
-              return client.devices?.some((device: any) => device.approval_status === 'pending');
-            });
-            // إظهار الأجهزة المعلقة فقط
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => device.approval_status === 'pending') || [],
-              computerDevices: client.computerDevices?.filter((device: any) => device.approval_status === 'pending') || []
-            }));
-            break;
-          case 'rejected':
-            // فقط العملاء الذين لديهم أجهزة مرفوضة
-            formattedData = formattedData.filter(client => {
-              return client.devices?.some((device: any) => device.approval_status === 'rejected');
-            });
-            // إظهار الأجهزة المرفوضة فقط
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => device.approval_status === 'rejected') || [],
-              computerDevices: client.computerDevices?.filter((device: any) => device.approval_status === 'rejected') || []
-            }));
-            break;
-          case 'expiring':
-            // العملاء الذين لديهم اشتراكات تنتهي خلال 15 يوم
-            const twoWeeksFromNow = new Date();
-            twoWeeksFromNow.setDate(today.getDate() + 15);
-            
-            formattedData = formattedData.filter(client => {
-              return client.devices?.some((device: any) => {
-                // استثناء الأجهزة المرفوضة والمعلقة والدائمة
-                if (device.approval_status !== 'approved' || device.subscription_type === 'permanent') return false;
-                
-                if (!device.subscription_end) return false;
-                const endDate = new Date(device.subscription_end);
-                return endDate > today && endDate <= twoWeeksFromNow;
-              });
-            });
-            // إظهار الأجهزة التي تنتهي قريبًا فقط
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true,
-              mobileDevices: client.mobileDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved' || device.subscription_type === 'permanent') return false;
-                if (!device.subscription_end) return false;
-                const endDate = new Date(device.subscription_end);
-                return endDate > today && endDate <= twoWeeksFromNow;
-              }) || [],
-              computerDevices: client.computerDevices?.filter((device: any) => {
-                if (device.approval_status !== 'approved' || device.subscription_type === 'permanent') return false;
-                if (!device.subscription_end) return false;
-                const endDate = new Date(device.subscription_end);
-                return endDate > today && endDate <= twoWeeksFromNow;
-              }) || []
-            }));
-            break;
-          case 'devices':
-            // عرض جميع الأجهزة
-            formattedData = formattedData.map(client => ({
-              ...client,
-              agent: client.agents,
-              devices: client.devices || [],
-              mobileDevices: client.mobileDevices || [],
-              computerDevices: client.computerDevices || [],
-              deviceCount: client.deviceCount || 0,
-              earliestEndDate: client.earliestEndDate,
-              subscriptionTypes: client.subscriptionTypes || [],
-              totalPrice: client.totalPrice || 0,
-              mobilePrice: client.mobilePrice || 0,
-              computerPrice: client.computerPrice || 0,
-              showDevices: true // إظهار جميع الأجهزة
-            }));
-            break;
-          default:
-            // عرض جميع الأجهزة بدون فلترة
-            formattedData = formattedData.map(client => ({
-              ...client,
-              showDevices: true // إظهار جميع الأجهزة
-            }));
-            break;
-        }
+      // تطبيق الترتيب على النتائج المفلترة إذا كان الترتيب يتطلب معالجة بعد جلب البيانات
+      if (sortConfig && (sortConfig.key === 'deviceCount' || sortConfig.key === 'totalPrice' || sortConfig.key === 'earliestEndDate' || sortConfig.key === 'agent_id')) {
+        processedClients.sort((a, b) => {
+          let aValue, bValue;
+          
+          switch (sortConfig.key) {
+            case 'deviceCount':
+              aValue = a.deviceCount || 0;
+              bValue = b.deviceCount || 0;
+              break;
+            case 'totalPrice':
+              aValue = a.totalPrice || 0;
+              bValue = b.totalPrice || 0;
+              break;
+            case 'earliestEndDate':
+              // التعامل مع القيم الفارغة والتواريخ بشكل صحيح للترتيب
+              aValue = a.earliestEndDate ? new Date(a.earliestEndDate).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
+              bValue = b.earliestEndDate ? new Date(b.earliestEndDate).getTime() : (sortConfig.direction === 'ascending' ? Infinity : -Infinity);
+              break;
+            case 'agent_id':
+              aValue = a.agent ? a.agent.name || '' : '';
+              bValue = b.agent ? b.agent.name || '' : '';
+              return sortConfig.direction === 'ascending' 
+                ? aValue.localeCompare(bValue) 
+                : bValue.localeCompare(aValue);
+            default:
+              return 0;
+          }
+          
+          if (aValue < bValue) {
+            return sortConfig.direction === 'ascending' ? -1 : 1;
+          }
+          if (aValue > bValue) {
+            return sortConfig.direction === 'ascending' ? 1 : -1;
+          }
+          return 0;
+        });
       }
       
-      setClients(formattedData as unknown as DisplayClientType[]);
-      setLoading(false);
+      // تحديث قائمة العملاء
+      setClients(processedClients);
+      
     } catch (error) {
       console.error('Error fetching clients:', error);
-      toast.error(t('messages.errorFetchingClients', 'حدث خطأ أثناء تحميل بيانات العملاء'));
+      toast.error(`حدث خطأ أثناء جلب بيانات العملاء: ${error.message}`);
+      setClients([]);
+      setTotalClients(0);
+      setTotalPages(1);
+    } finally {
       setLoading(false);
     }
   };
 
-  // تأثير لتحميل العملاء عند تغيير الفلتر النشط
+  // استخدام useEffect واحد لإدارة جميع حالات تحميل البيانات
   useEffect(() => {
-    fetchClients(activeFilter);
-  }, [activeFilter]);
-
-  // استخدام useEffect لتحميل البيانات الأولية عند تحميل المكوّن
-  useEffect(() => {
-    // التحقق مما إذا كان هناك فلتر في حالة الموقع
-    const locationState = location.state as { filter?: string; applyFilterImmediately?: boolean } | null;
-    
-    if (locationState?.filter && locationState?.applyFilterImmediately) {
-      console.log('تطبيق الفلتر من حالة الموقع:', locationState.filter);
-      setActiveFilter(locationState.filter);
-      fetchClients(locationState.filter);
+    // دالة لتحميل البيانات
+    const loadData = async () => {
+      // التحقق مما إذا كان هناك فلتر في حالة الموقع
+      const locationState = location.state as { filter?: string; applyFilterImmediately?: boolean } | null;
       
-      // مسح حالة الموقع بعد استخدامها لتجنب إعادة تطبيق الفلتر عند تحديث الصفحة
-      navigate(location.pathname, { replace: true });
-    } else if (!initialLoadComplete) {
-      // إذا لم يكن هناك فلتر في حالة الموقع، قم بتحميل البيانات بشكل عادي
-      fetchClients(null);
-      setInitialLoadComplete(true);
-    }
-  }, [location, navigate, initialLoadComplete]);
+      try {
+        console.log('تنفيذ loadData، الحالة الأولية:', { 
+          locationState, 
+          initialLoadComplete, 
+          activeFilter 
+        });
+        
+        if (locationState?.filter && locationState?.applyFilterImmediately) {
+          console.log('تطبيق الفلتر من حالة الموقع:', locationState.filter);
+          
+          // مسح حالة الموقع فورًا لتجنب التكرار
+          navigate(location.pathname, { replace: true });
+          
+          // تعيين الفلتر النشط وتنفيذ الفلترة مباشرة
+          setActiveFilter(locationState.filter);
+          await fetchClients(locationState.filter);
+          
+          // تعيين حالة التحميل الأولي كمكتمل
+          setInitialLoadComplete(true);
+        } else if (!initialLoadComplete) {
+          // إذا لم يكن هناك فلتر في حالة الموقع، قم بتحميل البيانات بشكل عادي
+          console.log('تنفيذ التحميل الأولي للبيانات');
+          await fetchClients(null);
+          setInitialLoadComplete(true);
+        } else if (initialLoadComplete) {
+          // إذا تغير الفلتر النشط بعد التحميل الأولي
+          console.log('تحديث البيانات بعد التحميل الأولي، الفلتر النشط:', activeFilter);
+          await fetchClients(activeFilter);
+        }
+      } catch (error) {
+        console.error('خطأ أثناء تحميل البيانات:', error);
+        toast.error('حدث خطأ أثناء تحميل البيانات');
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [location, activeFilter, initialLoadComplete]);
 
   const handleShowDetails = (client: DisplayClientType) => {
     setSelectedClient(client as unknown as ImportedClientType);
@@ -612,11 +619,11 @@ export const ClientsList: React.FC = () => {
     try {
       const { error } = await supabase.from('clients').delete().match({ id: clientId });
       if (error) throw error;
-      toast.success(t('messages.clientDeleted', 'تم حذف العميل بنجاح'));
+      toast.success('تم حذف العميل بنجاح');
       handleCloseModal();
     } catch (error) {
       console.error('Error deleting client:', error);
-      toast.error(t('messages.errorDeletingClient', 'حدث خطأ أثناء حذف العميل'));
+      toast.error('حدث خطأ أثناء حذف العميل');
     }
   };
 
@@ -639,13 +646,13 @@ export const ClientsList: React.FC = () => {
         .match({ id: updatedClient.id });
 
       if (error) throw error;
-      toast.success(t('messages.clientUpdated', 'تم تحديث بيانات العميل بنجاح'));
+      toast.success('تم تحديث بيانات العميل بنجاح');
       handleCloseModal();
       // إعادة تحميل البيانات بعد التحديث
       fetchClients(activeFilter);
     } catch (error) {
       console.error('Error updating client:', error);
-      toast.error(t('messages.errorUpdatingClient', 'حدث خطأ أثناء تحديث بيانات العميل'));
+      toast.error('حدث خطأ أثناء تحديث بيانات العميل');
     }
   };
 
@@ -655,19 +662,19 @@ export const ClientsList: React.FC = () => {
   };
 
   const formatDateForDisplay = (dateStr?: string | Date): string => {
-    if (!dateStr) return t('common.notAvailable', 'غير متاح');
+    if (!dateStr) return 'غير متاح';
     try {
       const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
       if (isNaN(date.getTime())) {
-         return t('common.invalidDate', 'تاريخ غير صالح');
+         return 'تاريخ غير صالح';
       }
       if (date.getFullYear() <= 1970) {
-          return t('common.notSet', 'لم يحدد');
+          return 'لم يحدد';
       }
       return format(date, 'yyyy/MM/dd');
     } catch (error) {
       console.error("Error formatting date:", dateStr, error);
-      return t('common.invalidDate', 'تاريخ غير صالح');
+      return 'تاريخ غير صالح';
     }
   };
 
@@ -692,18 +699,18 @@ export const ClientsList: React.FC = () => {
               {t('clientsList.filterActive', 'الفلتر النشط')}:
             </span>
             <span className="px-3 py-1 bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 rounded-full text-sm font-medium">
-              {activeFilter === 'active' && t('clientsList.activeFilter', 'الأجهزة النشطة')}
-              {activeFilter === 'expired' && t('clientsList.expiredFilter', 'الأجهزة المنتهية')}
+              {activeFilter === 'active' && t('clientsList.activeFilter', 'الاشتراكات النشطة')}
+              {activeFilter === 'expired' && t('clientsList.expiredFilter', 'الاشتراكات المنتهية')}
               {activeFilter === 'permanent' && t('clientsList.permanentFilter', 'التراخيص الدائمة')}
               {activeFilter === 'monthly' && t('clientsList.monthlyFilter', 'الاشتراكات الشهرية')}
               {activeFilter === 'annual' && t('clientsList.annualFilter', 'الاشتراكات السنوية')}
               {activeFilter === 'expiring' && t('clientsList.expiringFilter', 'تنتهي خلال 15 يوم')}
-              {activeFilter === 'devices' && t('clientsList.devicesFilter', 'جميع الأجهزة')}
-              {activeFilter === 'mobile' && t('clientsList.mobileFilter', 'أجهزة الموبايل')}
-              {activeFilter === 'computer' && t('clientsList.computerFilter', 'أجهزة الكمبيوتر')}
-              {activeFilter === 'approved' && t('clientsList.approvedFilter', 'الأجهزة المقبولة')}
-              {activeFilter === 'pending' && t('clientsList.pendingFilter', 'الأجهزة المعلقة')}
-              {activeFilter === 'rejected' && t('clientsList.rejectedFilter', 'الأجهزة المرفوضة')}
+              {activeFilter === 'devices' && t('clientsList.devicesFilter', 'عرض جميع الاشتراكات')}
+              {activeFilter === 'mobile' && t('clientsList.mobileFilter', 'اشتراكات الهاتف')}
+              {activeFilter === 'computer' && t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}
+              {activeFilter === 'approved' && t('clientsList.approvedFilter', 'الاشتراكات المقبولة')}
+              {activeFilter === 'pending' && t('clientsList.pendingFilter', 'الاشتراكات المعلقة')}
+              {activeFilter === 'rejected' && t('clientsList.rejectedFilter', 'الاشتراكات المرفوضة')}
             </span>
             <button 
               onClick={() => {
@@ -722,107 +729,235 @@ export const ClientsList: React.FC = () => {
         )}
       </div>
 
-      {/* أزرار الفلترة السريعة */}
-      <div className="mb-6 flex flex-wrap gap-3 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl shadow-sm">
-        {/* جميع الأجهزة */}
-        <Button
-          onClick={() => fetchClients('devices')}
-          variant={activeFilter === 'devices' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'devices' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Package className="w-4 h-4" />
-          {t('clientsList.allDevices', 'جميع الأجهزة')}
-        </Button>
+      {/* أزرار الفلترة الجديدة */}
+      <div className="mb-6 bg-gray-50 dark:bg-gray-800 p-4 rounded-xl shadow-sm">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">فلترة العملاء</h2>
         
-        {/* الأجهزة النشطة */}
-        <Button
-          onClick={() => fetchClients('active')}
-          variant={activeFilter === 'active' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'active' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Zap className="w-4 h-4" />
-          {t('clientsList.activeFilter', 'الأجهزة النشطة')}
-        </Button>
+        {/* قسم فلترة نوع الاشتراك */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">نوع الاشتراك:</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  deviceType: prev.deviceType === 'mobile' ? null : 'mobile',
+                  showDevices: true
+                }));
+                fetchClients('mobile');
+              }}
+              variant={filters.deviceType === 'mobile' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.deviceType === 'mobile' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Smartphone className="w-3 h-3" />
+              <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  deviceType: prev.deviceType === 'computer' ? null : 'computer',
+                  showDevices: true
+                }));
+                fetchClients('computer');
+              }}
+              variant={filters.deviceType === 'computer' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.deviceType === 'computer' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Laptop className="w-3 h-3" />
+              <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
+            </Button>
+          </div>
+        </div>
         
-        {/* الأجهزة المنتهية */}
-        <Button
-          onClick={() => fetchClients('expired')}
-          variant={activeFilter === 'expired' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'expired' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <AlertCircle className="w-4 h-4" />
-          {t('clientsList.expiredFilter', 'الأجهزة المنتهية')}
-        </Button>
+        {/* قسم فلترة حالة الاشتراك */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">حالة الاشتراك:</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  subscriptionStatus: prev.subscriptionStatus === 'active' ? null : 'active',
+                  showDevices: true
+                }));
+                fetchClients('active');
+              }}
+              variant={filters.subscriptionStatus === 'active' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.subscriptionStatus === 'active' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Zap className="w-3 h-3" />
+              <span>{t('clientsList.activeFilter', 'الاشتراكات النشطة')}</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  subscriptionStatus: prev.subscriptionStatus === 'expired' ? null : 'expired',
+                  showDevices: true
+                }));
+                fetchClients('expired');
+              }}
+              variant={filters.subscriptionStatus === 'expired' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.subscriptionStatus === 'expired' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <AlertCircle className="w-3 h-3" />
+              <span>{t('clientsList.expiredFilter', 'الاشتراكات المنتهية')}</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  subscriptionStatus: prev.subscriptionStatus === 'expiring' ? null : 'expiring',
+                  showDevices: true
+                }));
+                fetchClients('expiring');
+              }}
+              variant={filters.subscriptionStatus === 'expiring' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.subscriptionStatus === 'expiring' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>{t('clientsList.expiringFilter', 'تنتهي خلال 15 يوم')}</span>
+            </Button>
+          </div>
+        </div>
         
-        {/* تنتهي خلال 15 يوم */}
-        <Button
-          onClick={() => fetchClients('expiring')}
-          variant={activeFilter === 'expiring' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'expiring' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Clock className="w-4 h-4" />
-          {t('clientsList.expiringFilter', 'تنتهي خلال 15 يوم')}
-        </Button>
+        {/* قسم فلترة حالة القبول */}
+        <div className="mb-4">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">حالة القبول:</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  approvalStatus: prev.approvalStatus === 'approved' ? null : 'approved',
+                  showDevices: true
+                }));
+                fetchClients('approved');
+              }}
+              variant={filters.approvalStatus === 'approved' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.approvalStatus === 'approved' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Check className="w-3 h-3" />
+              <span>{t('clientsList.approvedFilter', 'الاشتراكات المقبولة')}</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  approvalStatus: prev.approvalStatus === 'pending' ? null : 'pending',
+                  showDevices: true
+                }));
+                fetchClients('pending');
+              }}
+              variant={filters.approvalStatus === 'pending' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.approvalStatus === 'pending' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <Clock className="w-3 h-3" />
+              <span>{t('clientsList.pendingFilter', 'الاشتراكات المعلقة')}</span>
+            </Button>
+            
+            <Button
+              onClick={() => {
+                setLoading(true);
+                setFilters(prev => ({
+                  ...prev,
+                  approvalStatus: prev.approvalStatus === 'rejected' ? null : 'rejected',
+                  showDevices: true
+                }));
+                fetchClients('rejected');
+              }}
+              variant={filters.approvalStatus === 'rejected' ? 'primary' : 'secondary'}
+              size="sm"
+              className={`flex items-center gap-1 ${filters.approvalStatus === 'rejected' ? 'bg-primary-600 text-white' : ''}`}
+            >
+              <X className="w-3 h-3" />
+              <span>{t('clientsList.rejectedFilter', 'الاشتراكات المرفوضة')}</span>
+            </Button>
+          </div>
+        </div>
         
-        {/* أجهزة الموبايل */}
-        <Button
-          onClick={() => fetchClients('mobile')}
-          variant={activeFilter === 'mobile' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'mobile' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Smartphone className="w-4 h-4" />
-          {t('clientsList.mobileFilter', 'أجهزة الموبايل')}
-        </Button>
-        
-        {/* أجهزة الكمبيوتر */}
-        <Button
-          onClick={() => fetchClients('computer')}
-          variant={activeFilter === 'computer' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'computer' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Laptop className="w-4 h-4" />
-          {t('clientsList.computerFilter', 'أجهزة الكمبيوتر')}
-        </Button>
-        
-        {/* الأجهزة المقبولة */}
-        <Button
-          onClick={() => fetchClients('approved')}
-          variant={activeFilter === 'approved' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'approved' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Check className="w-4 h-4" />
-          {t('clientsList.approvedFilter', 'الأجهزة المقبولة')}
-        </Button>
-        
-        {/* الأجهزة المعلقة */}
-        <Button
-          onClick={() => fetchClients('pending')}
-          variant={activeFilter === 'pending' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'pending' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <Clock className="w-4 h-4" />
-          {t('clientsList.pendingFilter', 'الأجهزة المعلقة')}
-        </Button>
-        
-        {/* الأجهزة المرفوضة */}
-        <Button
-          onClick={() => fetchClients('rejected')}
-          variant={activeFilter === 'rejected' ? 'primary' : 'secondary'}
-          className={`flex items-center gap-2 ${activeFilter === 'rejected' ? 'bg-primary-600 text-white' : ''}`}
-        >
-          <X className="w-4 h-4" />
-          {t('clientsList.rejectedFilter', 'الأجهزة المرفوضة')}
-        </Button>
+        {/* أزرار إضافية */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          <Button
+            onClick={() => {
+              setLoading(true);
+              setFilters({
+                deviceType: null,
+                subscriptionStatus: null,
+                approvalStatus: null,
+                showDevices: true
+              });
+              fetchClients('devices');
+            }}
+            variant={activeFilter === 'devices' ? 'primary' : 'secondary'}
+            size="sm"
+            className={`flex items-center gap-1 ${activeFilter === 'devices' ? 'bg-primary-600 text-white' : ''}`}
+          >
+            <Package className="w-3 h-3" />
+            <span>{t('clientsList.devicesFilter', 'عرض جميع الاشتراكات')}</span>
+          </Button>
+          
+          <Button
+            onClick={() => {
+              setLoading(true);
+              setFilters({
+                deviceType: null,
+                subscriptionStatus: null,
+                approvalStatus: null,
+                showDevices: false
+              });
+              fetchClients(null);
+            }}
+            variant="secondary"
+            size="sm"
+            className="flex items-center gap-1"
+          >
+            <X className="w-3 h-3" />
+            <span>{t('clientsList.clearFilters', 'إلغاء جميع الفلاتر')}</span>
+          </Button>
+        </div>
       </div>
       
       <div className="mb-6 relative">
         <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
         <input
           type="text"
-          placeholder="ابحث بالاسم، المؤسسة، الهاتف، الملاحظات..."
+          placeholder="ابحث بالاسم، المؤسسة، الهاتف، الملاحظات، رمز التفعيل..."
           className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            // إعادة تعيين الصفحة إلى الأولى عند البحث
+            if (currentPage !== 1) {
+              setCurrentPage(1);
+            } else {
+              // إذا كانت الصفحة بالفعل هي الأولى، نقوم بإعادة جلب البيانات
+              const delayDebounceFn = setTimeout(() => {
+                fetchClients(activeFilter, 1);
+              }, 500);
+              
+              return () => clearTimeout(delayDebounceFn);
+            }
+          }}
         />
       </div>
 
@@ -878,7 +1013,7 @@ export const ClientsList: React.FC = () => {
                   className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[10%]"
                   onClick={() => requestSort('deviceCount')}
                 >
-                  الأجهزة
+                  الاشتراكات
                   {sortConfig?.key === 'deviceCount' && (
                     <span className="inline-block mr-1">
                       {sortConfig.direction === 'ascending' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -915,29 +1050,29 @@ export const ClientsList: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {filterClients().length > 0 ? (
-                filterClients().map((client) => (
+              {clients.length > 0 ? (
+                clients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[20%] md:w-[25%]">
                       {client.client_name}
-                      {((activeFilter === 'mobile' || activeFilter === 'computer') || client.showDevices) && (
+                      {((filters.deviceType === 'mobile' || filters.deviceType === 'computer') || client.showDevices) && (
                         <div className="mt-2">
-                          {/* عرض أجهزة الموبايل */}
-                          {/* عرض أجهزة الموبايل فقط إذا كان الفلتر هو موبايل أو إذا كان العميل يعرض جميع الأجهزة وليس الفلتر كمبيوتر */}
-                          {((activeFilter === 'mobile' && client.mobileDevices && client.mobileDevices.length > 0) || 
-                            (client.showDevices && client.mobileDevices && client.mobileDevices.length > 0 && activeFilter !== 'computer')) && (
+                          {/* عرض اشتراكات الهاتف */}
+                          {/* عرض اشتراكات الهاتف فقط إذا كان الفلتر هو موبايل أو إذا كان العميل يعرض جميع الاشتراكات وليس الفلتر كمبيوتر */}
+                          {((filters.deviceType === 'mobile' && client.mobileDevices && client.mobileDevices.length > 0) || 
+                            (client.showDevices && client.mobileDevices && client.mobileDevices.length > 0 && filters.deviceType !== 'computer')) && (
                             <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
                               <span className="font-semibold text-primary-600 dark:text-primary-400">
-                                <Smartphone className="inline h-3 w-3 mr-1" /> أجهزة الموبايل: 
+                                <Smartphone className="inline h-3 w-3 mr-1" /> اشتراكات الهاتف: 
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1">{client.mobileDevices.length}</span>
                               </span>
                               <div className="mt-1 space-y-1">
                                 {client.mobileDevices
                                   .filter((device: any) => {
-                                    // تصفية الأجهزة حسب حالة الموافقة إذا كان الفلتر مطبق
-                                    if (activeFilter === 'approved') return device.approval_status === 'approved';
-                                    if (activeFilter === 'pending') return device.approval_status === 'pending' || !device.approval_status;
-                                    if (activeFilter === 'rejected') return device.approval_status === 'rejected';
+                                    // تصفية الاشتراكات حسب حالة الموافقة إذا كان الفلتر مطبق
+                                    if (filters.approvalStatus === 'approved') return device.approval_status === 'approved';
+                                    if (filters.approvalStatus === 'pending') return device.approval_status === 'pending' || !device.approval_status;
+                                    if (filters.approvalStatus === 'rejected') return device.approval_status === 'rejected';
                                     return true;
                                   })
                                   .map((device: any, index: number) => (
@@ -985,22 +1120,22 @@ export const ClientsList: React.FC = () => {
                             </div>
                           )}
                           
-                          {/* عرض أجهزة الكمبيوتر */}
-                          {/* عرض أجهزة الكمبيوتر فقط إذا كان الفلتر هو كمبيوتر أو إذا كان العميل يعرض جميع الأجهزة وليس الفلتر موبايل */}
-                          {((activeFilter === 'computer' && client.computerDevices && client.computerDevices.length > 0) || 
-                            (client.showDevices && client.computerDevices && client.computerDevices.length > 0 && activeFilter !== 'mobile')) && (
+                          {/* عرض اشتراكات الكمبيوتر */}
+                          {/* عرض اشتراكات الكمبيوتر فقط إذا كان الفلتر هو كمبيوتر أو إذا كان العميل يعرض جميع الاشتراكات وليس الفلتر موبايل */}
+                          {((filters.deviceType === 'computer' && client.computerDevices && client.computerDevices.length > 0) || 
+                            (client.showDevices && client.computerDevices && client.computerDevices.length > 0 && filters.deviceType !== 'mobile')) && (
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               <span className="font-semibold text-primary-600 dark:text-primary-400">
-                                <Laptop className="inline h-3 w-3 mr-1" /> أجهزة الكمبيوتر: 
+                                <Laptop className="inline h-3 w-3 mr-1" /> اشتراكات الكمبيوتر: 
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1">{client.computerDevices.length}</span>
                               </span>
                               <div className="mt-1 space-y-1">
                                 {client.computerDevices
                                   .filter((device: any) => {
-                                    // تصفية الأجهزة حسب حالة الموافقة إذا كان الفلتر مطبق
-                                    if (activeFilter === 'approved') return device.approval_status === 'approved';
-                                    if (activeFilter === 'pending') return device.approval_status === 'pending' || !device.approval_status;
-                                    if (activeFilter === 'rejected') return device.approval_status === 'rejected';
+                                    // تصفية الاشتراكات حسب حالة الموافقة إذا كان الفلتر مطبق
+                                    if (filters.approvalStatus === 'approved') return device.approval_status === 'approved';
+                                    if (filters.approvalStatus === 'pending') return device.approval_status === 'pending' || !device.approval_status;
+                                    if (filters.approvalStatus === 'rejected') return device.approval_status === 'rejected';
                                     return true;
                                   })
                                   .map((device: any, index: number) => (
@@ -1057,19 +1192,19 @@ export const ClientsList: React.FC = () => {
                         // التعامل مع خاصية agent بشكل آمن
                         const agent = client.agent;
                         
-                        if (!agent) return t('common.notAvailable', 'غير متاح');
+                        if (!agent) return 'غير متاح';
                         
                         // إذا كان مصفوفة
                         if (Array.isArray(agent) && agent.length > 0) {
-                          return agent[0].name || t('common.notAvailable', 'غير متاح');
+                          return agent[0].name || 'غير متاح';
                         }
                         
                         // إذا كان كائن
                         if (typeof agent === 'object' && agent !== null) {
-                          return agent.name || t('common.notAvailable', 'غير متاح');
+                          return agent.name || 'غير متاح';
                         }
                         
-                        return t('common.notAvailable', 'غير متاح');
+                        return 'غير متاح';
                       })()}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -1077,13 +1212,13 @@ export const ClientsList: React.FC = () => {
                         <div className="flex flex-col space-y-1">
                           <div className="flex items-center gap-1">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                              <span className="font-bold">{client.deviceCount}</span> جهاز
+                              <span className="font-bold">{client.deviceCount}</span> اشتراك
                             </span>
                             
-                            {/* مؤشرات حالة الأجهزة */}
+                            {/* مؤشرات حالة الاشتراكات */}
                             {client.mobileDevices && client.computerDevices && (
                               <div className="flex items-center gap-2 mr-1">
-                                {/* الأجهزة المقبولة */}
+                                {/* الاشتراكات المقبولة */}
                                 {(() => {
                                   const approvedCount = [...client.mobileDevices, ...client.computerDevices].filter(device => device.approval_status === 'approved').length;
                                   return approvedCount > 0 ? (
@@ -1094,7 +1229,7 @@ export const ClientsList: React.FC = () => {
                                   ) : null;
                                 })()}
                                 
-                                {/* الأجهزة قيد المراجعة */}
+                                {/* الاشتراكات قيد المراجعة */}
                                 {(() => {
                                   const pendingCount = [...client.mobileDevices, ...client.computerDevices].filter(device => device.approval_status === 'pending' || !device.approval_status).length;
                                   return pendingCount > 0 ? (
@@ -1105,7 +1240,7 @@ export const ClientsList: React.FC = () => {
                                   ) : null;
                                 })()}
                                 
-                                {/* الأجهزة المرفوضة */}
+                                {/* الاشتراكات المرفوضة */}
                                 {(() => {
                                   const rejectedCount = [...client.mobileDevices, ...client.computerDevices].filter(device => device.approval_status === 'rejected').length;
                                   return rejectedCount > 0 ? (
@@ -1127,7 +1262,7 @@ export const ClientsList: React.FC = () => {
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                          لا يوجد أجهزة
+                          لا يوجد اشتراكات
                         </span>
                       )}
                     </td>
@@ -1171,7 +1306,7 @@ export const ClientsList: React.FC = () => {
                             onClick={() => toggleShowDevices(client.id)}
                             variant="secondary"
                             className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-transform hover:scale-105 p-1 rounded-md"
-                            aria-label={client.showDevices ? t('actions.hideDevices', 'إخفاء الأجهزة') : t('actions.showDevices', 'عرض الأجهزة') as string}
+                            aria-label={client.showDevices ? t('actions.hideDevices', 'إخفاء الاشتراكات') : t('actions.showDevices', 'عرض الاشتراكات') as string}
                           >
                             {client.showDevices ? (
                               <ChevronUp className="h-5 w-5" />
@@ -1201,6 +1336,85 @@ export const ClientsList: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* مكون التنقل بين الصفحات */}
+      {!loading && totalPages > 1 && (
+        <div className="mt-6 flex justify-center items-center space-x-2 rtl:space-x-reverse">
+          <Button
+            onClick={() => setCurrentPage(prev => {
+              const newPage = Math.max(prev - 1, 1);
+              fetchClients(activeFilter, newPage);
+              return newPage;
+            })}
+            disabled={currentPage === 1}
+            variant="secondary"
+            className="px-4 py-2 text-sm"
+            aria-label="الصفحة السابقة"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
+          
+          <div className="flex items-center space-x-1 rtl:space-x-reverse">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              // عرض 5 صفحات فقط مع الصفحة الحالية في المنتصف
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+              
+              return (
+                <Button
+                  key={pageNum}
+                  onClick={() => {
+                    setCurrentPage(pageNum);
+                    fetchClients(activeFilter, pageNum);
+                  }}
+                  variant={currentPage === pageNum ? "primary" : "secondary"}
+                  className={`px-4 py-2 text-sm ${currentPage === pageNum ? 'bg-primary-600 text-white' : ''}`}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+            
+            {totalPages > 5 && currentPage < totalPages - 2 && (
+              <>
+                <span className="px-2">...</span>
+                <Button
+                  onClick={() => {
+                    setCurrentPage(totalPages);
+                    fetchClients(activeFilter, totalPages);
+                  }}
+                  variant="secondary"
+                  className="px-4 py-2 text-sm"
+                >
+                  {totalPages}
+                </Button>
+              </>
+            )}
+          </div>
+          
+          <Button
+            onClick={() => setCurrentPage(prev => {
+              const newPage = Math.min(prev + 1, totalPages);
+              fetchClients(activeFilter, newPage);
+              return newPage;
+            })}
+            disabled={currentPage === totalPages}
+            variant="secondary"
+            className="px-4 py-2 text-sm"
+            aria-label="الصفحة التالية"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
         </div>
       )}
 
