@@ -433,10 +433,7 @@ export default function ClientDetailsModal({
         className={`fixed inset-0 flex items-center justify-center p-4 z-[60] transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, height: '100vh', width: '100vw', margin: 0, padding: 0 }}
       >
-        <div
-          className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden m-4"
-          onClick={(e: React.MouseEvent) => e.stopPropagation()}
-        >
+        <div dir="rtl" className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden m-4">
           <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               {t('clientDetails.title', 'تفاصيل العميل')}

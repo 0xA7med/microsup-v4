@@ -11,19 +11,22 @@ import {
   Smartphone, 
   Laptop, 
   Calendar,
-  User
+  Copy,
+  Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import Button from '../components/Button';
 import { APPROVAL_STATUS } from '../types/device.types';
 import { useAuthStore } from '../store/authStore';
+import ClientDetailsModal from '../components/ClientDetailsModal';
 
 interface PendingDevice {
   id: string;
   client_id: string;
   client_name?: string;
   agent_name?: string;
+  agent_id?: string;
   activation_code: string;
   device_type: string;
   subscription_type: string;
@@ -46,6 +49,8 @@ export default function PendingDevicesPage() {
   const [rejectionReason, setRejectionReason] = useState<string>('');
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [showClientModal, setShowClientModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
 
   useEffect(() => {
     fetchPendingDevices();
@@ -54,7 +59,6 @@ export default function PendingDevicesPage() {
   const fetchPendingDevices = async () => {
     setLoading(true);
     try {
-      // جلب الأجهزة حسب حالة الموافقة
       const { data: devicesData, error: devicesError } = await supabase
         .from('devices')
         .select('*')
@@ -63,7 +67,6 @@ export default function PendingDevicesPage() {
 
       if (devicesError) throw devicesError;
 
-      // جلب بيانات العملاء للأجهزة
       const clientIds = [...new Set(devicesData?.map(device => device.client_id) || [])];
       
       const { data: clientsData, error: clientsError } = await supabase
@@ -73,7 +76,6 @@ export default function PendingDevicesPage() {
 
       if (clientsError) throw clientsError;
 
-      // جلب بيانات المناديب
       const agentIds = [...new Set(clientsData?.map(client => client.created_by).filter(Boolean) || [])];
       
       const { data: agentsData, error: agentsError } = await supabase
@@ -83,18 +85,23 @@ export default function PendingDevicesPage() {
 
       if (agentsError) throw agentsError;
 
-      // دمج البيانات
+      console.log("Agents data:", agentsData);
+
       const devicesWithDetails = devicesData?.map(device => {
         const client = clientsData?.find(c => c.id === device.client_id);
         const agent = agentsData?.find(a => a.id === client?.created_by);
         
+        console.log(`Device ${device.id} - Client: ${client?.client_name}, Agent ID: ${client?.created_by}, Agent: ${agent?.name}`);
+        
         return {
           ...device,
           client_name: client?.client_name || t('common.unknown', 'غير معروف'),
-          agent_name: agent?.name || t('common.unknown', 'غير معروف')
+          agent_name: agent?.name || t('common.unknown', 'غير معروف'),
+          agent_id: client?.created_by
         };
       }) || [];
 
+      console.log("Devices with details:", devicesWithDetails);
       setDevices(devicesWithDetails);
     } catch (error) {
       console.error('Error fetching pending devices:', error);
@@ -126,7 +133,6 @@ export default function PendingDevicesPage() {
 
       toast.success(t('device.approvedSuccess', 'تمت الموافقة على الجهاز بنجاح'));
       
-      // تحديث القائمة
       setDevices(prev => prev.filter(device => device.id !== deviceId));
     } catch (error) {
       console.error('Error approving device:', error);
@@ -165,7 +171,6 @@ export default function PendingDevicesPage() {
 
       toast.success(t('device.rejectedSuccess', 'تم رفض الجهاز بنجاح'));
       
-      // تحديث القائمة
       setDevices(prev => prev.filter(device => device.id !== selectedDeviceId));
       setShowRejectionModal(false);
     } catch (error) {
@@ -176,7 +181,6 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // دالة للحصول على أيقونة نوع الجهاز
   const getDeviceIcon = (deviceType: string) => {
     if (deviceType === 'computer') {
       return <Laptop className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
@@ -185,7 +189,6 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // دالة للحصول على نص نوع الجهاز
   const getDeviceTypeLabel = (deviceType: string) => {
     if (deviceType === 'computer') {
       return t('device.computer', 'كمبيوتر');
@@ -194,7 +197,6 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // دالة للحصول على نص نوع الاشتراك
   const getSubscriptionTypeLabel = (subscriptionType: string) => {
     switch (subscriptionType) {
       case 'monthly':
@@ -208,7 +210,6 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // دالة للحصول على أيقونة حالة الموافقة
   const getApprovalStatusIcon = (status: string) => {
     switch (status) {
       case 'approved':
@@ -221,13 +222,11 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // دالة للحصول على نص حالة الموافقة
   const getApprovalStatusLabel = (status: string) => {
     const statusItem = APPROVAL_STATUS.find(item => item.value === status);
     return statusItem ? (isRTL ? statusItem.label : statusItem.labelEn) : (isRTL ? 'قيد المراجعة' : 'Pending');
   };
 
-  // دالة للحصول على لون خلفية حالة الموافقة
   const getApprovalStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
@@ -240,25 +239,49 @@ export default function PendingDevicesPage() {
     }
   };
 
-  // تصفية الأجهزة حسب البحث
+  const handleShowClientDetails = async (clientId: string) => {
+    try {
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', clientId)
+        .single();
+        
+      if (clientError) throw clientError;
+      
+      setSelectedClient(clientData);
+      setShowClientModal(true);
+    } catch (error) {
+      console.error('Error fetching client details:', error);
+      toast.error(t('errors.fetchClientDetails', 'حدث خطأ أثناء جلب بيانات العميل'));
+    }
+  };
+
   const filteredDevices = devices.filter(device => 
     device.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     device.agent_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.activation_code.toLowerCase().includes(searchTerm.toLowerCase())
+    device.activation_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const copyActivationCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+      .then(() => {
+        toast.success(t('device.codeCopied', 'تم نسخ رمز التفعيل'));
+      })
+      .catch((err) => {
+        console.error('Error copying activation code:', err);
+        toast.error(t('device.copyFailed', 'فشل نسخ رمز التفعيل'));
+      });
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-        {filterStatus === 'pending' 
-          ? t('device.pendingDevices', 'الأجهزة قيد المراجعة') 
-          : filterStatus === 'approved' 
-            ? t('device.approvedDevices', 'الأجهزة المعتمدة')
-            : t('device.rejectedDevices', 'الأجهزة المرفوضة')
-        }
+        {filterStatus === 'pending' && t('device.pendingReview', 'الأجهزة قيد المراجعة')}
+        {filterStatus === 'approved' && t('device.approved', 'الأجهزة المعتمدة')}
+        {filterStatus === 'rejected' && t('device.rejected', 'الأجهزة المرفوضة')}
       </h1>
 
-      {/* فلاتر وبحث */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative w-full md:w-64">
@@ -292,144 +315,168 @@ export default function PendingDevicesPage() {
         </div>
       </div>
 
-      {/* جدول الأجهزة */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="overflow-hidden">
         {loading ? (
-          <div className="flex justify-center items-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"></div>
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-        ) : filteredDevices.length === 0 ? (
-          <div className="py-16 text-center">
-            <div className="flex justify-center mb-4">
-              {filterStatus === 'pending' ? (
-                <AlertCircle className="h-16 w-16 text-yellow-500" />
-              ) : filterStatus === 'approved' ? (
-                <CheckCircle className="h-16 w-16 text-green-500" />
-              ) : (
-                <XCircle className="h-16 w-16 text-red-500" />
-              )}
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              {filterStatus === 'pending' 
-                ? t('device.noPendingDevices', 'لا توجد أجهزة قيد المراجعة') 
-                : filterStatus === 'approved' 
-                  ? t('device.noApprovedDevices', 'لا توجد أجهزة معتمدة')
-                  : t('device.noRejectedDevices', 'لا توجد أجهزة مرفوضة')
-              }
+        ) : devices.length === 0 ? (
+          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-8 text-center">
+            <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+              {filterStatus === 'pending' && t('device.noPendingDevices', 'لا توجد أجهزة معلقة')}
+              {filterStatus === 'approved' && t('device.noApprovedDevices', 'لا توجد أجهزة معتمدة')}
+              {filterStatus === 'rejected' && t('device.noRejectedDevices', 'لا توجد أجهزة مرفوضة')}
             </h3>
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {filterStatus === 'pending' 
-                ? t('device.allDevicesReviewed', 'تمت مراجعة جميع الأجهزة') 
-                : filterStatus === 'approved' 
-                  ? t('device.noApprovedDevicesYet', 'لم يتم اعتماد أي جهاز بعد')
-                  : t('device.noRejectedDevicesYet', 'لم يتم رفض أي جهاز بعد')
-              }
+            <p className="text-gray-600 dark:text-gray-400">
+              {filterStatus === 'pending' && t('device.noPendingDevicesDesc', 'ليس هناك أجهزة تنتظر المراجعة في الوقت الحالي.')}
+              {filterStatus === 'approved' && t('device.noApprovedDevicesDesc', 'لم يتم اعتماد أي أجهزة حتى الآن.')}
+              {filterStatus === 'rejected' && t('device.noRejectedDevicesDesc', 'لم يتم رفض أي أجهزة حتى الآن.')}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('client.name', 'اسم العميل')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('agent.name', 'اسم المندوب')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('device.deviceType', 'نوع الجهاز')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('device.activationCode', 'رمز التفعيل')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('device.subscriptionType', 'نوع الاشتراك')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('device.createdAt', 'تاريخ الإضافة')}
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t('common.actions', 'الإجراءات')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredDevices.map((device) => (
-                  <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {device.client_name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 text-gray-500 dark:text-gray-400 ml-2" />
-                        <span className="text-gray-700 dark:text-gray-300">{device.agent_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {getDeviceIcon(device.device_type)}
-                        <span className="mr-2 text-gray-700 dark:text-gray-300">{getDeviceTypeLabel(device.device_type)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="font-mono text-sm text-gray-700 dark:text-gray-300">
-                        {device.activation_code}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                        {getSubscriptionTypeLabel(device.subscription_type)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400 ml-2" />
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {format(new Date(device.created_at), 'dd/MM/yyyy', { locale: ar })}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {filterStatus === 'pending' && (
-                        <div className="flex justify-center space-x-2 rtl:space-x-reverse">
-                          <Button
-                            variant="primary"
-                            onClick={() => handleApproveDevice(device.id)}
-                            disabled={!!processingDeviceId}
-                            className="px-3 py-1.5 text-sm"
-                          >
-                            <CheckCircle className="h-4 w-4 ml-1.5" />
-                            {t('actions.approve', 'موافقة')}
-                          </Button>
-                          <Button
-                            variant="danger"
-                            onClick={() => handleRejectClick(device.id)}
-                            disabled={!!processingDeviceId}
-                            className="px-3 py-1.5 text-sm"
-                          >
-                            <XCircle className="h-4 w-4 ml-1.5" />
-                            {t('actions.reject', 'رفض')}
-                          </Button>
-                        </div>
-                      )}
-                      {filterStatus === 'rejected' && device.rejection_reason && (
-                        <div className="text-sm text-gray-700 dark:text-gray-300">
-                          <span className="font-semibold">{t('device.rejectionReason', 'سبب الرفض')}:</span> {device.rejection_reason}
-                        </div>
-                      )}
-                    </td>
+          <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden">
+            <div dir="rtl" className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    {/* إعادة ترتيب الأعمدة ليكون مشابهاً لصفحة العملاء */}
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.deviceType', 'نوع الجهاز')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.clientName', 'اسم العميل')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-32">
+                      {t('device.activationCode', 'رمز التفعيل')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.agentName', 'المندوب')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.subscriptionType', 'نوع الاشتراك')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.subscriptionDates', 'تاريخ الاشتراك')}
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      {t('device.actions', 'الإجراءات')}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredDevices.map((device) => (
+                    <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      {/* نوع الجهاز */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="ml-2">{getDeviceIcon(device.device_type)}</span>
+                          <span className="text-sm text-gray-900 dark:text-white">{getDeviceTypeLabel(device.device_type)}</span>
+                        </div>
+                      </td>
+                      
+                      {/* اسم العميل */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{device.client_name}</div>
+                      </td>
+                      
+                      {/* رمز التفعيل */}
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-32">
+                        <div className="flex items-center justify-between p-1 rounded bg-green-50 dark:bg-green-900/20">
+                          <div className="flex items-center">
+                            <div className="flex items-center">
+                              <span className="text-xs font-mono truncate max-w-[80px]" title={device.activation_code}>
+                                {device.activation_code}
+                              </span>
+                              <button
+                                className="mr-1 p-1 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                                title={t('device.copyActivationCode', 'نسخ رمز التفعيل')}
+                                onClick={() => copyActivationCode(device.activation_code)}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* المندوب */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {device.agent_name || t('common.unknown', 'غير معروف')}
+                        </div>
+                      </td>
+                      
+                      {/* نوع الاشتراك */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">{getSubscriptionTypeLabel(device.subscription_type)}</div>
+                      </td>
+                      
+                      {/* تاريخ الاشتراك */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col text-sm text-gray-500 dark:text-gray-400">
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 ml-1 text-gray-400 dark:text-gray-500" />
+                            <span>{format(new Date(device.subscription_start), 'dd/MM/yyyy', { locale: ar })}</span>
+                          </div>
+                          <div className="flex items-center mt-1">
+                            <Calendar className="h-4 w-4 ml-1 text-gray-400 dark:text-gray-500" />
+                            <span>{format(new Date(device.subscription_end), 'dd/MM/yyyy', { locale: ar })}</span>
+                          </div>
+                        </div>
+                      </td>
+                      
+                      {/* الإجراءات */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleShowClientDetails(device.client_id)}
+                            className="px-3 py-1.5 text-sm flex items-center gap-1"
+                            title={t('device.viewClientDetails', 'عرض تفاصيل العميل')}
+                          >
+                            <Eye className="h-4 w-4 ml-1" />
+                            {t('actions.view', 'عرض')}
+                          </Button>
+                          
+                          {filterStatus === 'pending' && (
+                            <>
+                              <Button
+                                variant="primary"
+                                onClick={() => handleApproveDevice(device.id)}
+                                disabled={!!processingDeviceId}
+                                className="px-3 py-1.5 text-sm flex items-center gap-1"
+                              >
+                                <CheckCircle className="h-4 w-4 ml-1" />
+                                {t('actions.approve', 'موافقة')}
+                              </Button>
+                              <Button
+                                variant="danger"
+                                onClick={() => handleRejectClick(device.id)}
+                                disabled={!!processingDeviceId}
+                                className="px-3 py-1.5 text-sm flex items-center gap-1"
+                              >
+                                <XCircle className="h-4 w-4 ml-1" />
+                                {t('actions.reject', 'رفض')}
+                              </Button>
+                            </>
+                          )}
+                          {filterStatus === 'rejected' && device.rejection_reason && (
+                            <div className="text-sm text-gray-700 dark:text-gray-300">
+                              <span className="font-semibold">{t('device.rejectionReason', 'سبب الرفض')}:</span> {device.rejection_reason}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
-      {/* نافذة سبب الرفض */}
       {showRejectionModal && (
         <>
           <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-[70] transition-opacity duration-150" onClick={() => setShowRejectionModal(false)} />
@@ -473,6 +520,20 @@ export default function PendingDevicesPage() {
             </div>
           </div>
         </>
+      )}
+
+      {showClientModal && selectedClient && (
+        <ClientDetailsModal
+          client={selectedClient}
+          agents={[]}
+          subscriptionTypes={[]}
+          versionTypes={[]}
+          isOpen={showClientModal}
+          onClose={() => setShowClientModal(false)}
+          onSave={async () => {}}
+          onDelete={async () => {}}
+          currentUser={user}
+        />
       )}
     </div>
   );

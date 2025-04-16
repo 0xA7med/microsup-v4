@@ -12,9 +12,8 @@ import { ClientsList } from './pages/ClientsList';
 import { AddClient } from './pages/AddClient';
 import { AgentsList } from './pages/AgentsList';
 import { AddAgent } from './pages/AddAgent';
-import { PendingAgents } from './pages/PendingAgents';
-import { PendingDevices } from './pages/PendingDevices';
 import BackupManager from './pages/BackupManager';
+import RequestsManagement from './pages/RequestsManagement';
 
 function App() {
   const { i18n } = useTranslation();
@@ -65,12 +64,8 @@ function App() {
           element={isAdmin ? <Layout children={<AddAgent />} /> : <Navigate to="/" replace />} 
         />
         <Route 
-          path="/pending-agents" 
-          element={isAdmin ? <Layout children={<PendingAgents />} /> : <Navigate to="/" replace />} 
-        />
-        <Route 
-          path="/pending-devices" 
-          element={isManager ? <Layout children={<PendingDevices />} /> : <Navigate to="/" replace />} 
+          path="/requests" 
+          element={isManager ? <Layout children={<RequestsManagement />} /> : <Navigate to="/" replace />} 
         />
         <Route 
           path="/backup-manager" 

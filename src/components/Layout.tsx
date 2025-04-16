@@ -5,8 +5,9 @@ import { cn } from '../lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, AlertCircle, UserCog, Database } from 'lucide-react';
+import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, AlertCircle, UserCog, Database, ClipboardList } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 
 // تعريف واضح لخصائص المكون
 interface LayoutProps {
@@ -19,6 +20,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const { user, signOut, refreshSession, sessionError, resetSessionError } = useAuthStore(); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [pendingAgentsCount, setPendingAgentsCount] = useState(0);
+  const [pendingDevicesCount, setPendingDevicesCount] = useState(0);
 
   // تحديث الجلسة عند تحميل المكون
   useEffect(() => {
@@ -33,6 +36,45 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       navigate('/');
     }
   }, [sessionError, resetSessionError, navigate]);
+
+  // جلب عدد طلبات المناديب المعلقة والأجهزة المعلقة
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'manager') {
+      const fetchCounts = async () => {
+        try {
+          // جلب عدد طلبات المناديب المعلقة
+          if (user.role === 'admin') {
+            const { count: agentsCount, error: agentsError } = await supabase
+              .from('agents')
+              .select('id', { count: 'exact', head: true })
+              .eq('approval_status', 'pending');
+            
+            if (!agentsError) {
+              setPendingAgentsCount(agentsCount || 0);
+            }
+          }
+          
+          // جلب عدد الأجهزة المعلقة
+          const { count: devicesCount, error: devicesError } = await supabase
+            .from('devices')
+            .select('id', { count: 'exact', head: true })
+            .eq('approval_status', 'pending');
+          
+          if (!devicesError) {
+            setPendingDevicesCount(devicesCount || 0);
+          }
+        } catch (error) {
+          console.error('Error fetching pending counts:', error);
+        }
+      };
+      
+      fetchCounts();
+      
+      // تحديث العدد كل دقيقة
+      const interval = setInterval(fetchCounts, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -88,7 +130,15 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: <PlusCircle className="w-5 h-5" />,
       roles: ['admin']
     },
+    // إزالة عنصري القائمة القديمين وإضافة عنصر جديد موحد
     {
+      path: '/requests',
+      label: t('nav.requests', 'إدارة الطلبات'),
+      icon: <ClipboardList className="w-5 h-5" />,
+      roles: ['manager', 'admin'],
+      badge: pendingAgentsCount + pendingDevicesCount > 0 ? pendingAgentsCount + pendingDevicesCount : null
+    },
+    /* {
       path: '/pending-agents',
       label: t('nav.pendingAgents', 'طلبات المندوبين'),
       icon: <UserCog className="w-5 h-5" />,
@@ -99,7 +149,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       label: t('nav.pendingDevices'),
       icon: <AlertCircle className="w-5 h-5" />,
       roles: ['manager', 'admin']
-    },
+    }, */
     {
       path: '/backup-manager',
       label: t('nav.backupManager', 'إدارة النسخ الاحتياطي'),
@@ -135,7 +185,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.path}
                   onClick={() => handleNavigation(item.path)}
                   className={cn(
-                    "px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 hover:scale-105",
+                    "px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 hover:scale-105 relative",
                     location.pathname === item.path
                       ? "bg-blue-600 text-white shadow-md"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -143,6 +193,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   {item.icon && <span className="inline-block">{item.icon}</span>}
                   {item.label}
+                  {item.badge && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               ))}
               
@@ -174,40 +229,45 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Mobile Navigation Menu */}
       {isMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-800 shadow-lg absolute top-16 left-0 right-0 z-40 border-t border-gray-200 dark:border-gray-700 animate-slideDown">
-          <nav className="px-4 py-2">
-            <ul className="space-y-2">
-              {filteredMenuItems.map((item) => (
-                <li key={item.path}>
-                  <button
-                    onClick={() => handleNavigation(item.path)}
-                    className={cn(
-                      "flex items-center w-full p-2 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
-                      location.pathname === item.path && "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 font-medium"
-                    )}
-                  >
-                    {item.icon}
-                    <span className="mr-3">{item.label}</span>
-                  </button>
-                </li>
-              ))}
-              <li>
+        <nav className="px-4 py-2">
+          <ul className="space-y-2">
+            {filteredMenuItems.map((item) => (
+              <li key={item.path}>
                 <button
-                  onClick={handleLogout}
-                  className="flex items-center w-full p-2 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                  onClick={() => handleNavigation(item.path)}
+                  className={cn(
+                    "flex items-center w-full p-2 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all relative",
+                    location.pathname === item.path && "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 font-medium"
+                  )}
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span className="mr-3">{t('app.logout')}</span>
+                  {item.icon}
+                  <span className="mr-3">{item.label}</span>
+                  {item.badge && (
+                    <span className="ml-auto bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               </li>
-              <li>
-                <div className="flex justify-between p-2">
-                  <ThemeToggle />
-                  <LanguageToggle />
-                </div>
-              </li>
-            </ul>
-          </nav>
-        </div>
+            ))}
+            <li>
+              <button
+                onClick={handleLogout}
+                className="flex items-center w-full p-2 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="mr-3">{t('app.logout')}</span>
+              </button>
+            </li>
+            <li>
+              <div className="flex justify-between p-2">
+                <ThemeToggle />
+                <LanguageToggle />
+              </div>
+            </li>
+          </ul>
+        </nav>
+      </div>
       )}
 
       {/* Main Content */}
