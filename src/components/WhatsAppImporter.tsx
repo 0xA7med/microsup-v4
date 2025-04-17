@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Card, Button, Tabs, Input, Table, Switch, Tooltip, Collapse, InputNumber, Radio, Modal, Upload, Progress, Slider } from 'antd';
-import { UploadOutlined, FileTextOutlined, FileExcelOutlined, PlusOutlined, SettingOutlined, InfoCircleOutlined, EditOutlined, GlobalOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Card, Button, Tabs, Input, Table, Switch, Tooltip, Radio, Modal, Upload, Progress, Slider } from 'antd';
+import { UploadOutlined, FileExcelOutlined, SettingOutlined, InfoCircleOutlined, EditOutlined, GlobalOutlined } from '@ant-design/icons';
 import { extractDataFromWhatsAppChat } from '../services/aiService';
 import * as XLSX from 'xlsx';
-import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
@@ -17,17 +16,20 @@ interface DeviceData {
   [key: string]: string;
 }
 
-const WhatsAppImporter: React.FC = () => {
+interface WhatsAppImporterProps {
+  onImportSuccess?: () => void;
+}
+
+const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) => {
   const { user } = useAuthStore();
 
   // حالة الملف والمعالجة
-  const [selectedFile, setSelectedFile] = useState<UploadFile | null>(null);
+  const [selectedFile, setSelectedFile] = useState<any | null>(null);
   const [clientsData, setClientsData] = useState<ClientData[]>([]);
   const [devicesData, setDevicesData] = useState<DeviceData[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showDataPreview, setShowDataPreview] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [isAddingToSystem, setIsAddingToSystem] = useState(false);
   const [messageText, setMessageText] = useState('');
   const [aiProvider, setAiProvider] = useState<'gemini' | 'deepseek'>('gemini');
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -114,21 +116,18 @@ const WhatsAppImporter: React.FC = () => {
   };
 
   // وظيفة قراءة محتوى الملف
-  const readFileContent = async (file: UploadFile): Promise<string> => {
+  const readFileContent = (file: any): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
-        if (e.target?.result) {
-          resolve(e.target.result as string);
+        if (e.target && typeof e.target.result === 'string') {
+          resolve(e.target.result);
         } else {
           reject(new Error('فشل قراءة الملف'));
         }
       };
-      reader.onerror = () => reject(new Error('فشل قراءة الملف'));
-      
-      // تحويل الملف إلى Blob
-      const blob = new Blob([(file as any).originFileObj || file]);
-      reader.readAsText(blob);
+      reader.onerror = () => reject(new Error('خطأ في قراءة الملف'));
+      reader.readAsText(file);
     });
   };
 
@@ -329,182 +328,37 @@ const WhatsAppImporter: React.FC = () => {
     }
   };
 
-  // إضافة البيانات إلى النظام باستخدام Supabase
-  const addDataToSystemWithSupabase = async () => {
-    setIsAddingToSystem(true);
-    
-    try {
-      // تحويل بيانات العملاء إلى التنسيق المناسب لقاعدة البيانات
-      const formattedClients = clientsData.map((client) => {
-        // استخراج اسم العميل
-        const clientName = client["اسم العميل"] || "";
-        
-        return {
-          id: uuidv4(),
-          client_name: clientName || "عميل جديد",
-          // استخدام اسم العميل كاسم للمؤسسة إذا كان فارغًا
-          organization_name: client["اسم المؤسسة"] || clientName || "مؤسسة جديدة",
-          activity_type: client["نوع النشاط"] || "أخرى",
-          phone: client["الهاتف"] || "00000000000",
-          phone2: client["الهاتف 2"] || "",
-          address: client["العنوان"] || "",
-          notes: client["ملاحظات"] || ""
-        };
-      });
-      
-      console.log('بيانات العملاء المنسقة:', formattedClients);
-      
-      // إضافة العملاء إلى Supabase
-      if (formattedClients.length > 0) {
-        const { error: clientsError } = await supabase.from('clients').insert(formattedClients);
-        
-        if (clientsError) {
-          throw clientsError;
-        }
-      }
-      
-      // تحويل بيانات الأجهزة إلى التنسيق المناسب لقاعدة البيانات
-      const formattedDevices = devicesData.map((device) => {
-        // البحث عن العميل المرتبط بالجهاز
-        const clientId = formattedClients.find(
-          (c) => c.client_name === device["اسم العميل"]
-        )?.id;
-        
-        return {
-          id: uuidv4(),
-          client_id: clientId || null,
-          activation_code: device["رمز التفعيل"] || uuidv4().substring(0, 8),
-          device_type: device["نوع الجهاز"] || "android",
-          subscription_type: device["نوع الاشتراك"] || "دائم",
-          subscription_start: device["تاريخ بداية الاشتراك"] || new Date().toISOString().split('T')[0],
-          subscription_end: device["تاريخ نهاية الاشتراك"] || null,
-          notes: device["ملاحظات"] || null,
-          approval_status: "approved"
-        };
-      });
-      
-      console.log('بيانات الأجهزة المنسقة:', formattedDevices);
-      
-      // إضافة الأجهزة إلى Supabase
-      if (formattedDevices.length > 0) {
-        const { error: devicesError } = await supabase.from('devices').insert(formattedDevices);
-        
-        if (devicesError) {
-          throw devicesError;
-        }
-      }
-      
-      toast.success('تم إضافة البيانات إلى النظام بنجاح');
-    } catch (error: any) {
-      console.error('Error adding data to system:', error);
-      toast.error('حدث خطأ أثناء إضافة البيانات إلى النظام');
-    } finally {
-      setIsAddingToSystem(false);
-    }
-  };
-
-  // إضافة البيانات إلى النظام باستخدام fetch API الأساسية
-  const addDataToSystemSimple = async () => {
-    try {
-      // تحويل بيانات العملاء إلى التنسيق المناسب لقاعدة البيانات
-      const formattedClients = clientsData.map((client) => {
-        // استخراج اسم العميل
-        const clientName = client["اسم العميل"] || "";
-        
-        return {
-          id: uuidv4(),
-          client_name: clientName || "عميل جديد",
-          organization_name: client["اسم المؤسسة"] || clientName || "مؤسسة جديدة",
-          activity_type: client["نوع النشاط"] || "أخرى",
-          phone: client["الهاتف"] || "00000000000",
-          phone2: client["الهاتف 2"] || "",
-          address: client["العنوان"] || "",
-          notes: client["ملاحظات"] || ""
-        };
-      });
-      
-      console.log('بيانات العملاء المنسقة:', formattedClients);
-      
-      // إضافة العملاء باستخدام fetch API
-      if (formattedClients.length > 0) {
-        // إظهار رسالة للمستخدم
-        const successDiv = document.createElement('div');
-        successDiv.className = 'success-message';
-        successDiv.style.position = 'fixed';
-        successDiv.style.top = '20px';
-        successDiv.style.right = '20px';
-        successDiv.style.backgroundColor = '#52c41a';
-        successDiv.style.color = 'white';
-        successDiv.style.padding = '10px 20px';
-        successDiv.style.borderRadius = '4px';
-        successDiv.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-        successDiv.style.zIndex = '9999';
-        successDiv.textContent = 'تم إضافة البيانات إلى النظام بنجاح';
-        
-        document.body.appendChild(successDiv);
-        
-        // إزالة العنصر بعد 3 ثوانٍ
-        setTimeout(() => {
-          if (document.body.contains(successDiv)) {
-            document.body.removeChild(successDiv);
-          }
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Error adding data to system:', error);
-      
-      // إظهار رسالة خطأ للمستخدم
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'error-message';
-      errorDiv.style.position = 'fixed';
-      errorDiv.style.top = '20px';
-      errorDiv.style.right = '20px';
-      errorDiv.style.backgroundColor = '#ff4d4f';
-      errorDiv.style.color = 'white';
-      errorDiv.style.padding = '10px 20px';
-      errorDiv.style.borderRadius = '4px';
-      errorDiv.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-      errorDiv.style.zIndex = '9999';
-      errorDiv.textContent = 'حدث خطأ أثناء إضافة البيانات إلى النظام';
-      
-      document.body.appendChild(errorDiv);
-      
-      // إزالة العنصر بعد 3 ثوانٍ
-      setTimeout(() => {
-        if (document.body.contains(errorDiv)) {
-          document.body.removeChild(errorDiv);
-        }
-      }, 3000);
-    }
-  };
-
   // إضافة البيانات إلى النظام بنفس طريقة ExcelImporter
   const addDataToSystemExcelStyle = async () => {
     // إنشاء عنصر div للإشعار
     const createNotification = (message: string, type: 'success' | 'error') => {
       const notificationDiv = document.createElement('div');
-      notificationDiv.className = `notification-${type}`;
-      notificationDiv.style.position = 'fixed';
-      notificationDiv.style.top = '20px';
-      notificationDiv.style.right = '20px';
-      notificationDiv.style.backgroundColor = type === 'success' ? '#52c41a' : '#ff4d4f';
-      notificationDiv.style.color = 'white';
-      notificationDiv.style.padding = '10px 20px';
-      notificationDiv.style.borderRadius = '4px';
-      notificationDiv.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.15)';
-      notificationDiv.style.zIndex = '9999';
-      notificationDiv.textContent = message;
+      notificationDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      } text-white max-w-md`;
+      
+      notificationDiv.innerHTML = `
+        <div class="flex items-center">
+          <div class="mr-3">
+            ${type === 'success' 
+              ? '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' 
+              : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'
+            }
+          </div>
+          <div>${message}</div>
+        </div>
+      `;
       
       document.body.appendChild(notificationDiv);
       
-      // إزالة العنصر بعد 3 ثوانٍ
       setTimeout(() => {
-        if (document.body.contains(notificationDiv)) {
+        notificationDiv.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+        setTimeout(() => {
           document.body.removeChild(notificationDiv);
-        }
+        }, 500);
       }, 3000);
     };
-    
+
     try {
       // الحصول على معرف المستخدم الحالي
       const agent_id = user?.id || getDefaultAgentId();
@@ -641,7 +495,7 @@ const WhatsAppImporter: React.FC = () => {
         
         return {
           client_name: device["اسم العميل"] || "",
-          activation_code: device["رمز التفعيل"] || Math.random().toString(36).substring(2, 10).toUpperCase(),
+          activation_code: device["رمز التفعيل"] || "",
           device_type: device["نوع الجهاز"] || "android",
           subscription_type: device["نوع الاشتراك"] || "دائم",
           subscription_start: startDate,
@@ -765,9 +619,16 @@ const WhatsAppImporter: React.FC = () => {
           createNotification('لم يتم إضافة أي بيانات', 'error');
         }
       }
-    } catch (error) {
+      
+      // استدعاء دالة onImportSuccess إذا كانت موجودة
+      if (onImportSuccess) {
+        onImportSuccess();
+      }
+      
+      toast.success('تمت إضافة البيانات بنجاح');
+    } catch (error: any) {
       console.error('خطأ في إضافة البيانات إلى النظام:', error);
-      createNotification('حدث خطأ أثناء إضافة البيانات إلى النظام', 'error');
+      toast.error(`حدث خطأ أثناء إضافة البيانات: ${error.message || 'خطأ غير معروف'}`);
     }
   };
 

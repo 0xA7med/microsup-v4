@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 
 interface PerformanceStatsProps {
   lastUpdated: number | null;
@@ -55,8 +55,10 @@ const PerformanceStats: React.FC<PerformanceStatsProps> = ({ lastUpdated }) => {
       </div>
       
       <div className="h-64 mt-4">
-        <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: '100%', height: '100%' }}>
           <LineChart
+            width={500}
+            height={300}
             data={performanceData}
             margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
           >
@@ -67,7 +69,7 @@ const PerformanceStats: React.FC<PerformanceStatsProps> = ({ lastUpdated }) => {
             <Legend />
             <Line type="monotone" dataKey="loadTime" stroke="#8884d8" activeDot={{ r: 8 }} name="وقت التحميل" />
           </LineChart>
-        </ResponsiveContainer>
+        </div>
       </div>
       
       <div className="mt-4 text-sm text-gray-500">
