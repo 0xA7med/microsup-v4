@@ -113,433 +113,251 @@ export const ClientsList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(50);
+  const [loadingClients, setLoadingClients] = useState(false);
   
-  // دالة جلب العملاء مع تطبيق الفلتر
   const fetchClients = useCallback(async (filterOverride?: string | null, pageOverride?: number | null) => {
+    const filter = filterOverride !== undefined ? filterOverride : activeFilter;
+    const page = (pageOverride !== undefined ? pageOverride : currentPage) || 1; // استخدم القيمة 1 إذا كانت null
+    const from = (page - 1) * 50;
+    const to = from + 49;
+    
+    console.log(`جلب العملاء مع الفلتر: ${filter}, الصفحة: ${page}, من: ${from}, إلى: ${to}`);
+    
+    setIsLoading(true);
+    setLoadingClients(true);
+    
     try {
-      // إلغاء أي طلب سابق لمنع تضارب البيانات
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      // 1. إذا كان هناك بحث، نجلب أولاً معرفات العملاء المطابقة من الأجهزة والعملاء
+      let matchingClientIds: string[] = [];
+      
+      if (searchTerm) {
+        console.log('البحث عن:', searchTerm);
+        
+        // 1.1 البحث في جدول الأجهزة
+        const devicesResponse = await supabase
+          .from('devices')
+          .select('client_id')
+          .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+        
+        if (devicesResponse.error) {
+          console.error('خطأ في البحث في الأجهزة:', devicesResponse.error);
+        } else if (devicesResponse.data && devicesResponse.data.length > 0) {
+          const deviceClientIds = [...new Set(devicesResponse.data.map(d => d.client_id))];
+          console.log('تم العثور على أجهزة تطابق البحث:', {
+            count: devicesResponse.data.length,
+            clientIds: deviceClientIds
+          });
+          matchingClientIds.push(...deviceClientIds);
+        }
+        
+        // 1.2 البحث في جدول العملاء
+        const clientsResponse = await supabase
+          .from('clients')
+          .select('id')
+          .or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+        
+        if (clientsResponse.error) {
+          console.error('خطأ في البحث في العملاء:', clientsResponse.error);
+        } else if (clientsResponse.data && clientsResponse.data.length > 0) {
+          const clientIds = clientsResponse.data.map(c => c.id);
+          console.log('تم العثور على عملاء يطابقون البحث:', {
+            count: clientsResponse.data.length,
+            clientIds: clientIds
+          });
+          matchingClientIds.push(...clientIds);
+        }
+        
+        // 1.3 إزالة التكرار
+        matchingClientIds = [...new Set(matchingClientIds)];
+        console.log('إجمالي العملاء المطابقين للبحث:', matchingClientIds.length);
+        
+        // 1.4 إذا لم نجد أي نتائج، نعيد قائمة فارغة
+        if (matchingClientIds.length === 0) {
+          console.log('لم يتم العثور على نتائج تطابق البحث');
+          setClients([]);
+          setTotalPages(0);
+          setIsLoading(false);
+          setLoadingClients(false);
+          return;
+        }
       }
       
-      // إنشاء وحدة تحكم جديدة للإلغاء
-      abortControllerRef.current = new AbortController();
-      const signal = abortControllerRef.current.signal;
+      // 2. إعداد الاستعلام الأساسي لجلب العملاء مع عدد الأجهزة
+      // هنا نستعيد كل بيانات العملاء والأجهزة للمعالجة في الذاكرة
+      let baseQuery = supabase.from('clients').select('*, devices(*), agent:agents(id, name)');
       
-      // تعيين حالة التحميل
-      setIsLoading(true);
+      // 3. تطبيق فلترة البحث إذا كان هناك نتائج بحث
+      if (searchTerm && matchingClientIds.length > 0) {
+        baseQuery = baseQuery.in('id', matchingClientIds);
+      }
       
-      const filter = filterOverride !== undefined ? filterOverride : activeFilter;
-      const page = pageOverride !== undefined && pageOverride !== null ? pageOverride : currentPage;
-      
-      // حساب الإزاحة للصفحة
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      console.log(`Fetching clients with filter: ${filter}, page: ${page}, from: ${from}, to: ${to}`);
-      
-      // استعلام أساسي لجلب العملاء
-      let query = supabase
-        .from('clients')
-        .select(`
-          *,
-          agent:agent_id(id, name),
-          devices(*)
-        `, { count: 'exact' });
-      
-      // تطبيق الفلتر
+      // 4. تطبيق الفلاتر الإضافية حسب نوع الفلتر النشط
       if (filter === 'mobile' || deviceFilter === 'mobile') {
-        // استعلام للعملاء الذين لديهم أجهزة هاتف
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id')
-          .eq('device_type', 'android');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك أجهزة هاتف، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
+        baseQuery = baseQuery.not('devices', 'is', null)
+                             .eq('devices.device_type', 'android');
       } else if (filter === 'computer' || deviceFilter === 'computer') {
-        // استعلام للعملاء الذين لديهم أجهزة كمبيوتر
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id')
-          .eq('device_type', 'computer');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك أجهزة كمبيوتر، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
+        baseQuery = baseQuery.not('devices', 'is', null)
+                             .eq('devices.device_type', 'computer');
       } else if (filter === 'active') {
         const today = new Date().toISOString().split('T')[0];
-        
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id')
-          .gte('subscription_end', today);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك اشتراكات نشطة، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
+        baseQuery = baseQuery.not('devices', 'is', null)
+                             .gte('devices.subscription_end', today);
       } else if (filter === 'expired') {
         const today = new Date().toISOString().split('T')[0];
+        baseQuery = baseQuery.not('devices', 'is', null)
+                             .lt('devices.subscription_end', today);
+      } else if (filter === 'expiring') {
+        const today = new Date().toISOString().split('T')[0];
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        const nextMonthStr = nextMonth.toISOString().split('T')[0];
         
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id')
-          .lt('subscription_end', today);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك اشتراكات منتهية، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
-      } else if (filter === 'expiringSoon' || filter === 'expiring') {
-        const today = new Date();
-        const thirtyDaysLater = new Date(today);
-        thirtyDaysLater.setDate(today.getDate() + 30);
-        
-        const todayStr = today.toISOString().split('T')[0];
-        const thirtyDaysLaterStr = thirtyDaysLater.toISOString().split('T')[0];
-        
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id')
-          .gte('subscription_end', todayStr)
-          .lte('subscription_end', thirtyDaysLaterStr);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك اشتراكات قريبة الانتهاء، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
+        baseQuery = baseQuery.not('devices', 'is', null)
+                             .gte('devices.subscription_end', today)
+                             .lte('devices.subscription_end', nextMonthStr);
       } else if (filter === 'noDevices') {
-        // استعلام للعملاء الذين ليس لديهم أجهزة
-        const { data: clientsWithDevices, error } = await supabase
-          .from('devices')
-          .select('client_id');
-        
-        if (error) throw error;
-        
-        if (clientsWithDevices && clientsWithDevices.length > 0) {
-          const clientIdsWithDevices = [...new Set(clientsWithDevices.map(d => d.client_id))];
-          query = query.not('id', 'in', clientIdsWithDevices);
-        }
+        baseQuery = baseQuery.is('devices', null);
       } else if (filter === 'allDevices') {
-        // عرض جميع العملاء مع أجهزتهم
-        const { data, error } = await supabase
-          .from('devices')
-          .select('client_id');
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const clientIds = [...new Set(data.map(d => d.client_id))];
-          query = query.in('id', clientIds);
-        } else {
-          // إذا لم يكن هناك أجهزة، نعيد قائمة فارغة
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          return;
-        }
+        baseQuery = baseQuery.not('devices', 'is', null);
       } else if (filter?.startsWith('agent_')) {
         const agentId = filter.replace('agent_', '');
-        query = query.eq('agent_id', agentId);
+        baseQuery = baseQuery.eq('agent_id', agentId);
       }
       
-      // إضافة البحث إذا كان موجودًا
-      if (searchTerm) {
-        // البحث في بيانات العملاء
-        query = query.or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
-        
-        try {
-          // البحث في بيانات الأجهزة بشكل منفصل
-          const { data: deviceData, error: deviceError } = await supabase
-            .from('devices')
-            .select('client_id')
-            .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-          
-          console.log('البحث في الأجهزة:', { searchTerm, deviceData, deviceError });
-          
-          if (!deviceError && deviceData && deviceData.length > 0) {
-            // إضافة معرفات العملاء الذين لديهم أجهزة تطابق البحث
-            const clientIdsFromDevices = [...new Set(deviceData.map(d => d.client_id))];
-            
-            // إذا كان هناك نتائج من البحث في الأجهزة، نضيفها إلى الاستعلام
-            if (clientIdsFromDevices.length > 0) {
-              // تعديل طريقة إضافة معرفات العملاء إلى الاستعلام
-              // استخدام in بدلاً من id.in
-              if (clientIdsFromDevices.length === 1) {
-                query = query.or(`id.eq.${clientIdsFromDevices[0]}`);
-              } else {
-                query = query.or(`id.in.(${clientIdsFromDevices.join(',')})`);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('خطأ في البحث عن الأجهزة:', error);
-        }
-      }
-      
-      // إضافة الترتيب
+      // 5. تطبيق الترتيب
       if (sortConfig) {
         const { key, direction } = sortConfig;
         const order = direction === 'ascending' ? true : false;
         
-        // تطبيق الترتيب على مستوى قاعدة البيانات لجميع الأعمدة المدعومة
         if (key === 'client_name' || key === 'organization_name' || key === 'phone' || key === 'agent_id') {
-          // ترتيب مباشر للأعمدة الموجودة في قاعدة البيانات (بدون حدود الصفحات)
-          query = query.order(key, { ascending: order });
-        } else if (key === 'deviceCount') {
-          // لا يمكن ترتيب عدد الأجهزة مباشرة، نحاول استخدام ترتيب بديل
-          // نجلب جميع البيانات ثم نرتبها في الذاكرة
-          // لا نضيف حدود الصفحات هنا
-        } else if (key === 'totalPrice') {
-          // لا يمكن ترتيب المستحقات مباشرة، نحاول استخدام ترتيب بديل
-          // نجلب جميع البيانات ثم نرتبها في الذاكرة
-          // لا نضيف حدود الصفحات هنا
-        } else if (key === 'subscription_end' || key === 'earliestEndDate') {
-          // ترتيب حسب تاريخ انتهاء الاشتراك
-          if (key === 'subscription_end') {
-            query = query.order('subscription_end', { ascending: order });
-          }
-          // لا نضيف حدود الصفحات هنا للحصول على جميع البيانات
-        } else {
-          // الترتيب الافتراضي حسب اسم العميل
-          query = query.order('client_name', { ascending: true });
+          baseQuery = baseQuery.order(key, { ascending: order });
         }
-      } else {
-        // الترتيب الافتراضي حسب اسم العميل
-        query = query.order('client_name', { ascending: true });
       }
       
-      // نحفظ الاستعلام الأصلي قبل إضافة حدود الصفحات
-      const fullQuery = query;
+      // 6. تنفيذ الاستعلام
+      console.log('تنفيذ استعلام Supabase الرئيسي...');
+      const { data, error, count } = await baseQuery;
       
-      // نجلب جميع البيانات إذا كان الترتيب على عمود محسوب
-      let allClientsData = null;
-      if (sortConfig && (sortConfig.key === 'deviceCount' || sortConfig.key === 'totalPrice' || sortConfig.key === 'earliestEndDate')) {
-        const { data: allData, error: allDataError } = await fullQuery.abortSignal(signal);
-        
-        if (allDataError) {
-          console.error('Error fetching all data for sorting:', allDataError);
-          throw allDataError;
-        }
-        
-        allClientsData = allData;
-      }
-      
-      // إضافة الصفحات للاستعلام العادي
-      query = query.range(from, to);
-      
-      console.log('Executing Supabase query...');
-      
-      // استخدام البيانات المجلوبة مسبقًا أو تنفيذ الاستعلام العادي
-      let clientsData, count, error;
-      
-      if (allClientsData) {
-        // إذا كان لدينا بيانات مجلوبة مسبقًا، نستخدمها
-        clientsData = allClientsData;
-        count = allClientsData.length;
-        error = null;
-      } else {
-        // تنفيذ الاستعلام العادي مع حدود الصفحات
-        const result = await query.abortSignal(signal);
-        clientsData = result.data;
-        count = result.count;
-        error = result.error;
-      }
-      
-      if (signal.aborted) {
-        console.log('Query aborted');
+      // 7. معالجة النتائج
+      if (error) {
+        console.error('خطأ في جلب العملاء:', error);
+        toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
+        setIsLoading(false);
+        setLoadingClients(false);
         return;
       }
       
-      if (error) {
-        console.error('Supabase query error:', error);
-        throw error;
-      }
-      
-      console.log(`Fetched ${clientsData?.length || 0} clients, total count: ${count || 0}`);
-      
-      // جلب الوكلاء إذا لم تكن موجودة بالفعل
-      if (!agents.length) {
-        const { data: agentsData, error: agentsError } = await supabase
-          .from('agents')
-          .select('*')
-          .abortSignal(signal);
-        
-        if (signal.aborted) return;
-        
-        if (agentsError) throw agentsError;
-        setAgents(agentsData || []);
-      }
-      
-      // تحويل البيانات إلى الشكل المطلوب للعرض
-      const clientsWithDevices = clientsData || [];
-      
-      const processedClients = clientsWithDevices.map(client => {
-        const devices = client.devices || [];
-        const mobileDevices = devices.filter((d: any) => d.device_type === 'android');
-        const computerDevices = devices.filter((d: any) => d.device_type === 'computer');
-        
-        // حساب تاريخ انتهاء أقرب اشتراك
-        let earliestEndDate: string | null = null;
-        let subscriptionTypes: string[] = [];
-        let totalPrice = 0;
-        let mobilePrice = 0;
-        let computerPrice = 0;
-        
-        if (devices.length > 0) {
-          // جمع أنواع الأجهزة الفريدة
-          subscriptionTypes = [...new Set(devices.map((d: any) => d.device_type))] as string[];
+      if (data) {
+        // معالجة البيانات وإضافة معلومات الأجهزة المحسوبة
+        const processedClients = data.map(client => {
+          // حساب عدد الأجهزة
+          const devices = client.devices || [];
+          const deviceCount = devices.length;
           
-          // حساب المستحقات الفعلية من الأجهزة
-          devices.forEach((device: any) => {
-            // استخدام السعر المخزن في الجهاز فقط إذا كان موجودًا
-            const devicePrice = device.price ? parseFloat(device.price) : 0;
+          // حساب أنواع الأجهزة
+          const mobileDevices = devices.filter((d: any) => d.device_type === 'android');
+          const computerDevices = devices.filter((d: any) => d.device_type === 'computer');
+          
+          // حساب تواريخ انتهاء الاشتراكات
+          let earliestEndDate = null;
+          const subscriptionTypes: string[] = [];
+          
+          // حساب إجمالي الأسعار
+          let totalPrice = 0;
+          let mobilePrice = 0;
+          let computerPrice = 0;
+          
+          if (deviceCount > 0) {
+            // حساب أقرب تاريخ انتهاء
+            const endDates = devices
+              .filter((d: any) => d.subscription_end)
+              .map((d: any) => d.subscription_end);
             
-            // إضافة السعر فقط للأجهزة المقبولة
-            if (device.approval_status === 'approved') {
-              totalPrice += devicePrice;
-              
-              if (device.device_type === 'android') {
-                mobilePrice += devicePrice;
-              } else if (device.device_type === 'computer') {
-                computerPrice += devicePrice;
-              }
+            if (endDates.length > 0) {
+              earliestEndDate = endDates.sort()[0];
             }
-          });
-          
-          // تحديد أقرب تاريخ انتهاء
-          const validEndDates = devices
-            .filter((d: any) => d.subscription_end)
-            .map((d: any) => new Date(d.subscription_end))
-            .filter((date: any) => !isNaN(date.getTime()))
-            .sort((a: any, b: any) => a.getTime() - b.getTime());
-          
-          if (validEndDates.length > 0) {
-            earliestEndDate = validEndDates[0].toISOString();
-          }
-        }
-        
-        return {
-          ...client,
-          deviceCount: devices.length,
-          devices,
-          mobileDevices,
-          computerDevices,
-          earliestEndDate,
-          subscriptionTypes,
-          totalPrice,
-          mobilePrice,
-          computerPrice,
-          showDevices: filter === 'allDevices' || filter === 'mobile' || filter === 'computer' || 
-                      filter === 'active' || filter === 'expired' || filter === 'expiring' || 
-                      deviceFilter === 'mobile' || deviceFilter === 'computer' || 
-                      (searchTerm && searchTerm.length > 0) // عرض الأجهزة تلقائيًا عند تطبيق أي فلتر أو البحث
-        };
-      });
-      
-      // تطبيق الترتيب للأعمدة المحسوبة
-      if (sortConfig && (sortConfig.key === 'deviceCount' || sortConfig.key === 'totalPrice' || sortConfig.key === 'subscription_end' || sortConfig.key === 'earliestEndDate')) {
-        const { key, direction } = sortConfig;
-        
-        processedClients.sort((a, b) => {
-          let comparison = 0;
-          
-          if (key === 'deviceCount') {
-            comparison = (a.deviceCount || 0) - (b.deviceCount || 0);
-          } else if (key === 'totalPrice') {
-            comparison = (a.totalPrice || 0) - (b.totalPrice || 0);
-          } else if (key === 'subscription_end') {
-            const dateA = a.subscription_end ? new Date(a.subscription_end).getTime() : 0;
-            const dateB = b.subscription_end ? new Date(b.subscription_end).getTime() : 0;
-            comparison = dateA - dateB;
-          } else if (key === 'earliestEndDate') {
-            const dateA = a.earliestEndDate ? new Date(a.earliestEndDate).getTime() : 0;
-            const dateB = b.earliestEndDate ? new Date(b.earliestEndDate).getTime() : 0;
-            comparison = dateA - dateB;
+            
+            // جمع أنواع الاشتراكات
+            devices.forEach((d: any) => {
+              if (d.subscription_type && !subscriptionTypes.includes(d.subscription_type)) {
+                subscriptionTypes.push(d.subscription_type);
+              }
+              
+              // إضافة السعر إلى الإجمالي
+              const price = d.price || 0;
+              totalPrice += price;
+              
+              // إضافة السعر حسب نوع الجهاز
+              if (d.device_type === 'android') {
+                mobilePrice += price;
+              } else if (d.device_type === 'computer') {
+                computerPrice += price;
+              }
+            });
           }
           
-          // تطبيق اتجاه الترتيب
-          return direction === 'ascending' ? comparison : -comparison;
+          return {
+            ...client,
+            deviceCount,
+            devices,
+            mobileDevices,
+            computerDevices,
+            earliestEndDate,
+            subscriptionTypes,
+            totalPrice,
+            mobilePrice,
+            computerPrice,
+            showDevices: searchTerm !== '' || filter !== null || deviceFilter !== null, // إظهار الأجهزة عند تطبيق البحث أو الفلترة
+            agent: client.agent
+          };
         });
-      }
-      
-      // حساب إجمالي الصفحات
-      const totalItems = count || 0;
-      const calculatedTotalPages = Math.ceil(totalItems / pageSize);
-      
-      // التأكد من أن الطلب لم يتم إلغاؤه قبل تحديث الحالة
-      if (!signal.aborted) {
-        // تحديث البيانات أولاً ثم تعيين حالة التحميل
-        setClients(processedClients);
-        setTotalPages(calculatedTotalPages);
         
-        // استخدام setTimeout لتأخير تحديث حالة التحميل
-        // هذا يمنع الفلكر عن طريق ضمان تحديث البيانات أولاً
-        setTimeout(() => {
-          if (!signal.aborted) {
-            setIsLoading(false);
-            isDataLoaded.current = true;
+        // تطبيق الترتيب في الذاكرة إذا لزم الأمر
+        const sortedClients = [...processedClients];
+        
+        if (sortConfig) {
+          const { key, direction } = sortConfig;
+          
+          if (key === 'deviceCount' || key === 'totalPrice' || key === 'earliestEndDate') {
+            sortedClients.sort((a, b) => {
+              let valueA = a[key];
+              let valueB = b[key];
+              
+              // معالجة خاصة لقيم NULL أو undefined
+              if (valueA === undefined || valueA === null) valueA = (direction === 'ascending') ? -Infinity : Infinity;
+              if (valueB === undefined || valueB === null) valueB = (direction === 'ascending') ? -Infinity : Infinity;
+              
+              // المقارنة
+              if (valueA < valueB) return direction === 'ascending' ? -1 : 1;
+              if (valueA > valueB) return direction === 'ascending' ? 1 : -1;
+              return 0;
+            });
           }
-        }, 100);
-        
-        // إذا كانت الصفحة الحالية أكبر من إجمالي الصفحات، نعود للصفحة الأولى
-        if (page > calculatedTotalPages && calculatedTotalPages > 0) {
-          setCurrentPage(1);
         }
+        
+        // تطبيق الصفحات
+        const total = sortedClients.length;
+        const totalPages = Math.ceil(total / 50);
+        const startIndex = (page - 1) * 50;
+        const endIndex = Math.min(startIndex + 50, total);
+        const paginatedClients = sortedClients.slice(startIndex, endIndex);
+        
+        console.log(`تم جلب ${paginatedClients.length} عميل من إجمالي ${total}`);
+        setClients(paginatedClients);
+        setTotalPages(totalPages);
+      } else {
+        console.log('لم يتم العثور على عملاء');
+        setClients([]);
+        setTotalPages(0);
       }
-    } catch (error: any) {
-      // التأكد من أن الخطأ ليس بسبب إلغاء الطلب
-      if (error.name !== 'AbortError') {
-        console.error('Error fetching clients:', error);
-        toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
-        setIsLoading(false);
-      }
+    } catch (error) {
+      console.error('خطأ غير متوقع في جلب العملاء:', error);
+      toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
+    } finally {
+      setIsLoading(false);
+      setLoadingClients(false);
     }
-  }, [activeFilter, deviceFilter, currentPage, pageSize, t, searchTerm, agents.length, sortConfig]);
+  }, [activeFilter, deviceFilter, currentPage, searchTerm, sortConfig, t]);
   
   // تحسين عملية تحميل البيانات وتجنب الفلكر
   const loadData = useCallback(async () => {
@@ -547,6 +365,7 @@ export const ClientsList: React.FC = () => {
       // تعيين حالة التحميل
       if (!isDataLoaded.current) {
         setIsLoading(true);
+        setLoadingClients(true);
       }
 
       // جلب الوكلاء أولاً
@@ -578,6 +397,7 @@ export const ClientsList: React.FC = () => {
         console.error('Error loading data:', error);
         toast.error(t('errors.loadData', 'حدث خطأ أثناء تحميل البيانات'));
         setIsLoading(false);
+        setLoadingClients(false);
       }
     }
   }, [fetchClients, location.search, t]);
@@ -612,6 +432,7 @@ export const ClientsList: React.FC = () => {
       // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
       if (searchTerm.trim().length > 0) {
         setIsLoading(true);
+        setLoadingClients(true);
       }
       
       fetchClients(activeFilter, 1);
@@ -629,6 +450,7 @@ export const ClientsList: React.FC = () => {
     // هذا يساعد في منع الفلكر عن طريق ضمان تزامن التحديثات مع دورة الرسم
     const frameId = requestAnimationFrame(() => {
       setIsLoading(true);
+      setLoadingClients(true);
       fetchClients(activeFilter, currentPage);
     });
     
@@ -664,6 +486,7 @@ export const ClientsList: React.FC = () => {
     // إعادة تحميل البيانات مع الترتيب الجديد
     setCurrentPage(1);
     setIsLoading(true);
+    setLoadingClients(true);
     fetchClients(activeFilter, 1);
   }, [activeFilter, fetchClients]);
 
@@ -785,6 +608,7 @@ export const ClientsList: React.FC = () => {
                   setActiveFilter(null);
                   setCurrentPage(1);
                   setIsLoading(true);
+                  setLoadingClients(true);
                   fetchClients(null, 1);
                 }}
                 variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
@@ -807,6 +631,7 @@ export const ClientsList: React.FC = () => {
                   setActiveFilter(null);
                   setCurrentPage(1);
                   setIsLoading(true);
+                  setLoadingClients(true);
                   fetchClients(null, 1);
                 }}
                 variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
@@ -829,6 +654,7 @@ export const ClientsList: React.FC = () => {
                   setDeviceFilter(null);
                   setCurrentPage(1);
                   setIsLoading(true);
+                  setLoadingClients(true);
                   fetchClients('allDevices', 1);
                 }}
                 variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
@@ -867,6 +693,7 @@ export const ClientsList: React.FC = () => {
                       setDeviceFilter(null);
                       setCurrentPage(1);
                       setIsLoading(true);
+                      setLoadingClients(true);
                       fetchClients(filter.value, 1);
                     }}
                     variant={activeFilter === filter.value ? 'primary' : 'secondary'}
@@ -904,12 +731,14 @@ export const ClientsList: React.FC = () => {
                       setDeviceFilter(null);
                       setCurrentPage(1);
                       setIsLoading(true);
+                      setLoadingClients(true);
                       fetchClients(selectedValue, 1);
                     } else {
                       setActiveFilter(null);
                       setDeviceFilter(null);
                       setCurrentPage(1);
                       setIsLoading(true);
+                      setLoadingClients(true);
                       fetchClients(null, 1);
                     }
                   }}
@@ -933,6 +762,7 @@ export const ClientsList: React.FC = () => {
                 setDeviceFilter(null);
                 setCurrentPage(1);
                 setIsLoading(true);
+                setLoadingClients(true);
                 fetchClients(null, 1);
               }}
               variant="secondary"
@@ -964,6 +794,7 @@ export const ClientsList: React.FC = () => {
           onClick={() => {
             setSearchTerm('');
             setIsLoading(true);
+            setLoadingClients(true);
             fetchClients(activeFilter, 1);
           }}
           className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -1008,6 +839,7 @@ export const ClientsList: React.FC = () => {
             setDeviceFilter(null);
             setCurrentPage(1);
             setIsLoading(true);
+            setLoadingClients(true);
             fetchClients(null, 1);
           }}
           className="mr-2 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -1048,6 +880,7 @@ export const ClientsList: React.FC = () => {
       // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
       if (searchTerm.trim().length > 0) {
         setIsLoading(true);
+        setLoadingClients(true);
       }
       
       fetchClients(activeFilter, 1);
