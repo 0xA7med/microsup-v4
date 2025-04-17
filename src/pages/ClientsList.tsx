@@ -1158,18 +1158,18 @@ export const ClientsList: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr className="bg-white dark:bg-gray-800">
-                <th
-                  scope="col"
-                  className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[20%] md:w-[25%]"
-                  onClick={() => requestSort('client_name')}
-                >
-                  اسم العميل
-                  {sortConfig?.key === 'client_name' && (
-                    <span className="inline-block mr-1">
-                      {sortConfig.direction === 'ascending' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </span>
-                  )}
-                </th>
+              <th
+  scope="col"
+  className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[20%] md:w-[25%]"
+  onClick={() => requestSort('client_name')}
+>
+  اسم العميل
+  {sortConfig?.key === 'client_name' && (
+    <span className="inline-block mr-1">
+      {sortConfig.direction === 'ascending' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+    </span>
+  )}
+</th>
                 <th
                   scope="col"
                   className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[20%]"
@@ -1246,19 +1246,32 @@ export const ClientsList: React.FC = () => {
                 stableClients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[20%] md:w-[25%]">
-                      <div className="flex items-center justify-between">
-                        <span>{client.client_name}</span>
-                        <button 
-                          onClick={() => toggleShowDevices(client.id)}
-                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                          title={client.showDevices ? "إخفاء الأجهزة" : "عرض الأجهزة"}
-                        >
-                          {client.showDevices ? 
-                            <ChevronUp className="h-4 w-4 text-gray-500 dark:text-gray-400" /> : 
-                            <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                          }
-                        </button>
-                      </div>
+  <div className="flex items-center justify-between">
+    <div
+      className={`
+        text-sm font-medium text-gray-900 dark:text-white
+        max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap
+        ${/^[A-Za-z]/.test(client.client_name || '') ? 'text-left' : 'text-right'}
+      `}
+      style={{
+        direction: /^[A-Za-z]/.test(client.client_name || '') ? 'ltr' : 'rtl',
+        unicodeBidi: 'plaintext'
+      }}
+      title={client.client_name || '-'}
+    >
+      {client.client_name || '-'}
+    </div>
+    <button 
+      onClick={() => toggleShowDevices(client.id)}
+      className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+      title={client.showDevices ? "إخفاء الأجهزة" : "عرض الأجهزة"}
+    >
+      {client.showDevices ? 
+        <ChevronUp className="h-4 w-4 text-gray-500 dark:text-gray-400" /> : 
+        <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+      }
+    </button>
+  </div>
                       {client.showDevices && (
                         <div className="mt-2">
                           {/* عرض اشتراكات الهاتف */}
@@ -1375,10 +1388,25 @@ export const ClientsList: React.FC = () => {
                     </td>
 
                     <td className={`px-4 py-4 whitespace-nowrap text-sm ${isRTL ? 'text-right' : 'text-left'} dir="ltr"`}>{client.phone}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {/* <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {client.agent && typeof client.agent === 'object' && !Array.isArray(client.agent) && client.agent.name ? 
                         client.agent.name : '-'}
-                    </td>
+                    </td> */}
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+  <div
+    className={`
+      max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap
+      ${/^[A-Za-z]/.test(client.agent?.name || '') ? 'text-left' : 'text-right'}
+    `}
+    style={{
+      direction: /^[A-Za-z]/.test(client.agent?.name || '') ? 'ltr' : 'rtl',
+      unicodeBidi: 'plaintext'
+    }}
+    title={client.agent?.name || '-'} // لعرض الاسم الكامل عند hover
+  >
+    {client.agent?.name || '-'}
+  </div>
+</td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {client.deviceCount && client.deviceCount > 0 ? (
                         <div className="flex flex-col space-y-1">
