@@ -48,6 +48,10 @@ export const Dashboard: React.FC = () => {
   // إضافة حالة لتخزين بيانات الاشتراكات
   const [devicesData, setDevicesData] = useState<any[]>([]);
   
+  // إضافة حالة لتتبع عمليات الجلب المعلقة
+  const isFetchingRef = useRef<boolean>(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  
   // حالة طي البطاقات في وضع الهاتف
   const [collapsedSections, setCollapsedSections] = useState({
     mainStats: true,
@@ -68,9 +72,38 @@ export const Dashboard: React.FC = () => {
   
   // مرجع لتتبع ما إذا كانت المكون مرئي
   const isVisible = useRef<boolean>(true);
+  const isComponentMounted = useRef<boolean>(false);
   
   // الحصول على معلومات المستخدم الحالي
   const user = useAuthStore(state => state.user);
+  
+  // دالة للانتقال إلى قائمة العملاء مع تطبيق فلتر
+  const navigateToClientsList = useCallback((filter?: string) => {
+    // تحديد المسار الأساسي
+    let path = '/clients';
+    
+    // إضافة معلمات الفلتر إذا تم تحديدها
+    if (filter) {
+      path += `?filter=${filter}`;
+    }
+    
+    // الانتقال إلى المسار المحدد
+    navigate(path);
+  }, [navigate]);
+  
+  // دالة للانتقال إلى قائمة الأجهزة المعلقة مع تطبيق فلتر
+  const navigateToPendingDevices = useCallback((status?: string) => {
+    // تحديد المسار الأساسي
+    let path = '/pending-devices';
+    
+    // إضافة معلمات الفلتر إذا تم تحديدها
+    if (status) {
+      path += `?status=${status}`;
+    }
+    
+    // الانتقال إلى المسار المحدد
+    navigate(path);
+  }, [navigate]);
   
   // استخراج البيانات من كائن لوحة المعلومات
   const {
@@ -341,6 +374,257 @@ export const Dashboard: React.FC = () => {
     }
   }, [getCachedDashboardData, cacheDashboardData, t]);
 
+  // دالة لتحميل البيانات الأولية
+  const loadInitialData = useCallback(async () => {
+    // إذا كان هناك طلب جلب قيد التنفيذ، قم بإلغائه
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // إنشاء وحدة تحكم جديدة للإلغاء
+    abortControllerRef.current = new AbortController();
+    
+    // تعيين حالة الجلب
+    isFetchingRef.current = true;
+    
+    // التحقق من التخزين المؤقت
+    const cachedData = localStorage.getItem(CACHE_KEY);
+    const now = new Date().getTime();
+    
+    if (cachedData) {
+      try {
+        const { data, timestamp } = JSON.parse(cachedData);
+        // استخدام البيانات المخزنة مؤقتًا إذا كانت حديثة
+        if (now - timestamp < CACHE_DURATION) {
+          setDashboardData(data);
+          setLoading(false);
+          isFetchingRef.current = false;
+          return;
+        }
+      } catch (error) {
+        console.error('Error parsing cached data:', error);
+      }
+    }
+    
+    // إذا لم تكن هناك بيانات مخزنة مؤقتًا أو كانت قديمة
+    setLoading(true);
+    
+    try {
+      // جلب بيانات العملاء
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('id, client_name, subscription_end, subscription_type, agent_id');
+      
+      if (clientsError) throw clientsError;
+      
+      // جلب بيانات المندوبين
+      const { data: agentsData, error: agentsError } = await supabase
+        .from('agents')
+        .select('id, name, email');
+      
+      if (agentsError) throw agentsError;
+      
+      // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
+      let filteredClientsData = clientsData || [];
+      
+      // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
+      if (user?.role === 'agent') {
+        const agentId = user.id;
+        filteredClientsData = filteredClientsData.filter(client => client.agent_id === agentId);
+        console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
+      }
+      
+      // جلب بيانات الاشتراكات
+      const { data: allDevicesData = [], error: devicesError } = await supabase
+        .from('devices')
+        .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status');
+      
+      if (devicesError) throw devicesError;
+      
+      // تصفية الاشتراكات حسب العملاء المصفاة
+      let filteredDevicesData = allDevicesData || [];
+      
+      // إذا كان المستخدم مندوب، نصفي الاشتراكات لعرض أجهزة عملائه فقط
+      if (user?.role === 'agent') {
+        const filteredClientIds = filteredClientsData.map(client => client.id);
+        filteredDevicesData = filteredDevicesData.filter(device => filteredClientIds.includes(device.client_id));
+        console.log('Filtered devices for agent:', filteredDevicesData.length);
+      }
+      
+      // تخزين بيانات الاشتراكات في حالة المكون
+      setDevicesData(filteredDevicesData || []);
+      
+      // حساب المستحقات
+      let totalValue = 0;
+      let mobileValue = 0;
+      let computerValue = 0;
+      
+      // حساب عدد الاشتراكات حسب النوع والحالة
+      let totalDevices = 0;
+      let pendingDevices = 0;
+      let rejectedDevices = 0;
+      let approvedDevices = 0;
+      
+      // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
+      let activeSubscriptionsCount = 0;
+      let expiredSubscriptionsCount = 0;
+      let expiringThisMonthCount = 0;
+      let mobileDevicesCount = 0;
+      let computerDevicesCount = 0;
+      
+      // الحصول على التاريخ الحالي
+      const currentDate = new Date();
+      // تاريخ بعد 15 يوم من الآن
+      const futureDate = new Date();
+      futureDate.setDate(currentDate.getDate() + 15);
+      
+      // حساب المستحقات المالية والأعداد من الاشتراكات
+      if (filteredDevicesData) {
+        // ابدأ بطباعة العدد الإجمالي للأجهزة للتشخيص
+        console.log('Total devices fetched:', filteredDevicesData.length);
+        
+        // تحليل البيانات للعثور على الاشتراكات المنتهية والنشطة
+        const approvedDevicesArr = filteredDevicesData.filter(device => device.approval_status === 'approved');
+        console.log('Approved devices:', approvedDevicesArr.length);
+        
+        // الاشتراكات المنتهية هي الاشتراكات المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
+        const expiredDevicesArr = approvedDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return false;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          const isExpired = endDate < currentDate;
+          return isExpired;
+        });
+        
+        // الاشتراكات النشطة هي الاشتراكات المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
+        const activeDevicesArr = approvedDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return true;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          return endDate >= currentDate;
+        });
+        
+        // تحديث المتغيرات
+        expiredSubscriptionsCount = expiredDevicesArr.length;
+        activeSubscriptionsCount = activeDevicesArr.length;
+        
+        console.log('Expired devices count:', expiredSubscriptionsCount);
+        console.log('Active devices count:', activeSubscriptionsCount);
+        
+        // الاشتراكات التي ستنتهي خلال 15 يوم
+        const expiringDevicesArr = activeDevicesArr.filter(device => {
+          if (device.subscription_type === 'permanent') return false;
+          if (!device.subscription_end) return false;
+          const endDate = new Date(device.subscription_end);
+          return endDate <= futureDate;
+        });
+        
+        expiringThisMonthCount = expiringDevicesArr.length;
+        console.log('Expiring soon devices count:', expiringThisMonthCount);
+        
+        filteredDevicesData.forEach((device: any) => {
+          // حساب المستحقات المالية فقط للأجهزة المقبولة
+          if (device.approval_status === 'approved') {
+            const price = parseFloat(device.price) || 0;
+            totalValue += price;
+            
+            if (device.device_type === 'computer') {
+              computerValue += price;
+              computerDevicesCount++;
+            } else {
+              mobileValue += price;
+              mobileDevicesCount++;
+            }
+          }
+          
+          // حساب عدد الاشتراكات حسب النوع والحالة
+          totalDevices++;
+          
+          if (device.approval_status === 'pending') {
+            pendingDevices++;
+          } else if (device.approval_status === 'rejected') {
+            rejectedDevices++;
+          } else if (device.approval_status === 'approved') {
+            approvedDevices++;
+          }
+        });
+      }
+      
+      // إنشاء كائن البيانات
+      const newDashboardData: DashboardData = {
+        totalClients: filteredClientsData?.length || 0,
+        totalAgents: agentsData?.length || 0,
+        activeSubscriptions: activeSubscriptionsCount,
+        recentClients: [],
+        expiredSubscriptions: expiredSubscriptionsCount,
+        averageDevices: 0,
+        renewalRate: 0,
+        agents: [],
+        permanentClients: 0,
+        expiringThisMonth: expiringThisMonthCount,
+        lastUpdated: new Date().toISOString(),
+        // المستحقات المالية
+        totalValue,
+        mobileValue,
+        computerValue,
+        // حالة الاشتراكات
+        pendingDevices,
+        rejectedDevices,
+        approvedDevices,
+        // عدد الاشتراكات حسب النوع
+        totalDevices,
+        // إضافة الحقول المفقودة
+        activeDevices: activeSubscriptionsCount || 0,
+        mobileDevices: mobileDevicesCount,
+        computerDevices: computerDevicesCount
+      };
+      
+      // تحديث حالة المكون
+      setDashboardData(newDashboardData);
+      
+      // تخزين البيانات مؤقتًا
+      cacheDashboardData(newDashboardData);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast.error(t('error.fetchingData', 'حدث خطأ أثناء جلب البيانات'));
+    } finally {
+      setLoading(false);
+      isFetchingRef.current = false;
+    }
+  }, [getCachedDashboardData, cacheDashboardData, t]);
+
+  // تأثير لتحميل البيانات عند تحميل المكون أو تغيير حالة الرؤية
+  useEffect(() => {
+    isComponentMounted.current = true;
+    
+    // دالة لمعالجة تغيير حالة الرؤية
+    const handleVisibilityChange = () => {
+      const isDocVisible = document.visibilityState === 'visible';
+      isVisible.current = isDocVisible;
+      
+      if (isDocVisible && isComponentMounted.current) {
+        loadInitialData();
+      }
+    };
+    
+    // إضافة مستمع لتغيير حالة الرؤية
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // تحميل البيانات الأولية
+    loadInitialData();
+    
+    // تنظيف المستمع عند إلغاء تحميل المكون
+    return () => {
+      isComponentMounted.current = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      
+      // إلغاء أي طلبات معلقة
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadInitialData]);
+
   // تحديث البيانات عند تغير رؤية الصفحة
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -475,15 +759,6 @@ export const Dashboard: React.FC = () => {
     navigate('/agents');
   };
 
-  // الانتقال إلى قائمة العملاء مع تطبيق الفلتر المناسب
-  const navigateToClientsList = useCallback((filter?: string) => {
-    if (!filter || filter === 'all') {
-      navigate('/clients');
-    } else {
-      navigate(`/clients?filter=${filter}`);
-    }
-  }, [navigate]);
-
   // عرض مؤشر التحميل أثناء التحميل الأولي
   if (loading) {
     return (
@@ -555,7 +830,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
           {/* إجمالي العملاء */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
@@ -678,7 +953,7 @@ export const Dashboard: React.FC = () => {
           {/* الاشتراكات المعلقة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('pending')}
+            onClick={() => navigateToPendingDevices('pending')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -694,7 +969,7 @@ export const Dashboard: React.FC = () => {
           {/* الاشتراكات المرفوضة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('rejected')}
+            onClick={() => navigateToPendingDevices('rejected')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -706,7 +981,22 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-         
+          
+          {/* الاشتراكات المقبولة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToPendingDevices('approved')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.approvedDevices', 'الاشتراكات المقبولة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedDevices || 0}</span>
+              </div>
+              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
+                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
