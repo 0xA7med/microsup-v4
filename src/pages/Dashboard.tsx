@@ -983,9 +983,9 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
-      
-      {/* قسم إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي قريباً */}
-      <div className="mb-5">
+
+    {/* قسم إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي قريباً */}
+    <div className="mb-5">
         <div 
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
           onClick={() => toggleSection('permanentStats')}
@@ -998,22 +998,7 @@ export const Dashboard: React.FC = () => {
             }
           </div>
         </div>
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.permanentStats ? 'hidden md:grid' : ''}`}>
-          {/* الاشتراكات الدائمة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('permanent')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.permanentSubscriptions', 'الاشتراكات الدائمة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{permanentCount}</span>
-              </div>
-              <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
-                <Infinity className="h-6 w-6 text-purple-600 dark:text-purple-300" />
-              </div>
-            </div>
-          </div>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
           {/* الاشتراكات المنتهية */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
@@ -1046,6 +1031,8 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+    
+      
       
        {/* قسم إحصائيات المستحقات - يظهر فقط للمديرين */}
        {(user?.role === 'admin' || user?.role === 'super_admin') && (
