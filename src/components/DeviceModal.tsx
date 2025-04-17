@@ -36,7 +36,8 @@ export default function DeviceModal({
     subscription_type: 'monthly',
     device_type: '',
     notes: '',
-    price: 0 // إضافة حقل السعر
+    price: 0, // إضافة حقل السعر
+    email: '' // إضافة حقل البريد الإلكتروني
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -82,7 +83,8 @@ export default function DeviceModal({
         subscription_type: 'monthly',
         device_type: '',
         notes: '',
-        price: 0 // إضافة حقل السعر
+        price: 0, // إضافة حقل السعر
+        email: '' // إضافة حقل البريد الإلكتروني
       });
     }
   }, [device, isOpen, clientId]);
@@ -183,38 +185,59 @@ export default function DeviceModal({
           {/* محتوى النافذة */}
           <div className="flex-1 overflow-y-auto p-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* رمز التفعيل */}
-              <CustomerField label={t('device.activationCode', 'رمز التفعيل')} children={
-                <div className="relative">
-                  <CustomerInput
-                    type="text"
-                    name="activation_code"
-                    value={formData.activation_code || ''}
-                    onChange={handleInputChange}
-                    isEditing={true}
-                    placeholder={t('device.enterActivationCode', 'أدخل رمز التفعيل') as string}
-                    required
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-10"
-                  />
-                  <Clipboard className="absolute top-3 left-3 h-6 w-6 text-gray-400 pointer-events-none" />
-                </div>
-              } />
+              {/* رمز التفعيل - جعله عريضاً بالأعلى */}
+              <div className="md:col-span-2">
+                <CustomerField label={t('device.activationCode', 'رمز التفعيل')} children={
+                  <div className="relative">
+                    <CustomerInput
+                      type="text"
+                      name="activation_code"
+                      placeholder={t('device.enterActivationCode', 'أدخل رمز التفعيل')}
+                      value={formData.activation_code}
+                      onChange={handleInputChange}
+                      isEditing={true}
+                      required
+                      className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-10"
+                    />
+                    <Clipboard className="absolute top-3 left-3 h-6 w-6 text-gray-400 pointer-events-none" />
+                  </div>
+                } />
+              </div>
 
               {/* نوع الجهاز */}
-              <CustomerField label={t('device.deviceType', 'نوع الجهاز')} children={
-                <CustomerSelect
-                  name="device_type"
-                  value={formData.device_type || ''}
-                  onChange={handleInputChange}
-                  isEditing={true}
-                  required
-                  options={DEVICE_TYPES.map(type => ({
-                    value: type.value,
-                    label: i18n.language === 'ar' ? type.label : type.labelEn
-                  }))}
-                  className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                />
-              } />
+              <div className="">
+                <CustomerField label={t('device.deviceType', 'نوع الجهاز')} children={
+                  <CustomerSelect
+                    name="device_type"
+                    value={formData.device_type}
+                    onChange={handleInputChange}
+                    isEditing={true}
+                    required
+                    options={DEVICE_TYPES.map(type => ({
+                      value: type.value,
+                      label: i18n.language === 'ar' ? type.label : type.labelEn
+                    }))}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+              </div>
+
+              {/* البريد الإلكتروني */}
+              <div className="">
+                <CustomerField label={t('device.email', 'البريد الإلكتروني')} children={
+                  <div className="relative">
+                    <CustomerInput
+                      type="email"
+                      name="email"
+                      placeholder={t('device.enterEmail', 'أدخل البريد الإلكتروني')}
+                      value={formData.email || ''}
+                      onChange={handleInputChange}
+                      isEditing={true}
+                      className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    />
+                  </div>
+                } />
+              </div>
 
               {/* نوع الاشتراك */}
               <CustomerField label={t('device.subscriptionType', 'نوع الاشتراك')} children={

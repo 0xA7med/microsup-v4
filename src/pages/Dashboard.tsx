@@ -475,19 +475,13 @@ export const Dashboard: React.FC = () => {
     navigate('/agents');
   };
 
-  // Navigate to clients list with filter
+  // الانتقال إلى قائمة العملاء مع تطبيق الفلتر المناسب
   const navigateToClientsList = useCallback((filter?: string) => {
-    // تخزين الفلتر الحالي في الحالة أولا
-    const filterToUse = filter || 'all';
-    
-    // ثم ننتقل إلى صفحة قائمة العملاء مع تمرير الفلتر كمعلمة
-    console.log(`Navigating to clients list with filter: ${filterToUse}`);
-    navigate('/clients', { 
-      state: { 
-        filter: filterToUse, 
-        applyFilterImmediately: true 
-      } 
-    });
+    if (!filter || filter === 'all') {
+      navigate('/clients');
+    } else {
+      navigate(`/clients?filter=${filter}`);
+    }
   }, [navigate]);
 
   // عرض مؤشر التحميل أثناء التحميل الأولي
@@ -565,7 +559,7 @@ export const Dashboard: React.FC = () => {
           {/* إجمالي العملاء */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList()}
+            onClick={() => navigateToClientsList('all')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">

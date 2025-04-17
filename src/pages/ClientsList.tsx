@@ -290,22 +290,13 @@ export const ClientsList: React.FC = () => {
       // إضافة البحث إذا كان موجودًا
       if (searchTerm) {
         // البحث في بيانات العملاء
-        query = query.or(`
-          client_name.ilike.%${searchTerm}%,
-          organization_name.ilike.%${searchTerm}%,
-          phone.ilike.%${searchTerm}%,
-          phone2.ilike.%${searchTerm}%,
-          notes.ilike.%${searchTerm}%
-        `);
+        query = query.or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
         
         // البحث في بيانات الأجهزة بشكل منفصل
         const { data: deviceData, error: deviceError } = await supabase
           .from('devices')
           .select('client_id')
-          .or(`
-            activation_code.ilike.%${searchTerm}%,
-            email.ilike.%${searchTerm}%
-          `);
+          .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
         
         if (!deviceError && deviceData && deviceData.length > 0) {
           // إضافة معرفات العملاء الذين لديهم أجهزة تطابق البحث
@@ -324,20 +315,69 @@ export const ClientsList: React.FC = () => {
         const { key, direction } = sortConfig;
         const order = direction === 'ascending' ? true : false;
         
-        if (key === 'client_name' || key === 'organization_name' || key === 'phone') {
+        // تطبيق الترتيب على مستوى قاعدة البيانات لجميع الأعمدة المدعومة
+        if (key === 'client_name' || key === 'organization_name' || key === 'phone' || key === 'agent_id') {
+          // ترتيب مباشر للأعمدة الموجودة في قاعدة البيانات (بدون حدود الصفحات)
           query = query.order(key, { ascending: order });
+        } else if (key === 'deviceCount') {
+          // لا يمكن ترتيب عدد الأجهزة مباشرة، نحاول استخدام ترتيب بديل
+          // نجلب جميع البيانات ثم نرتبها في الذاكرة
+          // لا نضيف حدود الصفحات هنا
+        } else if (key === 'totalPrice') {
+          // لا يمكن ترتيب المستحقات مباشرة، نحاول استخدام ترتيب بديل
+          // نجلب جميع البيانات ثم نرتبها في الذاكرة
+          // لا نضيف حدود الصفحات هنا
+        } else if (key === 'subscription_end' || key === 'earliestEndDate') {
+          // ترتيب حسب تاريخ انتهاء الاشتراك
+          if (key === 'subscription_end') {
+            query = query.order('subscription_end', { ascending: order });
+          }
+          // لا نضيف حدود الصفحات هنا للحصول على جميع البيانات
+        } else {
+          // الترتيب الافتراضي حسب اسم العميل
+          query = query.order('client_name', { ascending: true });
         }
       } else {
         // الترتيب الافتراضي حسب اسم العميل
         query = query.order('client_name', { ascending: true });
       }
       
-      // إضافة الصفحات
+      // نحفظ الاستعلام الأصلي قبل إضافة حدود الصفحات
+      const fullQuery = query;
+      
+      // نجلب جميع البيانات إذا كان الترتيب على عمود محسوب
+      let allClientsData = null;
+      if (sortConfig && (sortConfig.key === 'deviceCount' || sortConfig.key === 'totalPrice' || sortConfig.key === 'earliestEndDate')) {
+        const { data: allData, error: allDataError } = await fullQuery.abortSignal(signal);
+        
+        if (allDataError) {
+          console.error('Error fetching all data for sorting:', allDataError);
+          throw allDataError;
+        }
+        
+        allClientsData = allData;
+      }
+      
+      // إضافة الصفحات للاستعلام العادي
       query = query.range(from, to);
       
       console.log('Executing Supabase query...');
       
-      const { data: clientsData, count, error } = await query.abortSignal(signal);
+      // استخدام البيانات المجلوبة مسبقًا أو تنفيذ الاستعلام العادي
+      let clientsData, count, error;
+      
+      if (allClientsData) {
+        // إذا كان لدينا بيانات مجلوبة مسبقًا، نستخدمها
+        clientsData = allClientsData;
+        count = allClientsData.length;
+        error = null;
+      } else {
+        // تنفيذ الاستعلام العادي مع حدود الصفحات
+        const result = await query.abortSignal(signal);
+        clientsData = result.data;
+        count = result.count;
+        error = result.error;
+      }
       
       if (signal.aborted) {
         console.log('Query aborted');
@@ -383,10 +423,22 @@ export const ClientsList: React.FC = () => {
           // جمع أنواع الأجهزة الفريدة
           subscriptionTypes = [...new Set(devices.map((d: any) => d.device_type))] as string[];
           
-          // حساب الأسعار
-          mobilePrice = mobileDevices.length * 10; // افتراضي: 10 لكل اشتراك هاتف
-          computerPrice = computerDevices.length * 20; // افتراضي: 20 لكل اشتراك كمبيوتر
-          totalPrice = mobilePrice + computerPrice;
+          // حساب المستحقات الفعلية من الأجهزة
+          devices.forEach((device: any) => {
+            // استخدام السعر المخزن في الجهاز فقط إذا كان موجودًا
+            const devicePrice = device.price ? parseFloat(device.price) : 0;
+            
+            // إضافة السعر فقط للأجهزة المقبولة
+            if (device.approval_status === 'approved') {
+              totalPrice += devicePrice;
+              
+              if (device.device_type === 'android') {
+                mobilePrice += devicePrice;
+              } else if (device.device_type === 'computer') {
+                computerPrice += devicePrice;
+              }
+            }
+          });
           
           // تحديد أقرب تاريخ انتهاء
           const validEndDates = devices
@@ -411,9 +463,38 @@ export const ClientsList: React.FC = () => {
           totalPrice,
           mobilePrice,
           computerPrice,
-          showDevices: true // دائماً true
+          showDevices: filter === 'allDevices' || filter === 'mobile' || filter === 'computer' || 
+                      filter === 'active' || filter === 'expired' || filter === 'expiring' || 
+                      deviceFilter === 'mobile' || deviceFilter === 'computer' || 
+                      (searchTerm && searchTerm.length > 0) // عرض الأجهزة تلقائيًا عند تطبيق أي فلتر أو البحث
         };
       });
+      
+      // تطبيق الترتيب للأعمدة المحسوبة
+      if (sortConfig && (sortConfig.key === 'deviceCount' || sortConfig.key === 'totalPrice' || sortConfig.key === 'subscription_end' || sortConfig.key === 'earliestEndDate')) {
+        const { key, direction } = sortConfig;
+        
+        processedClients.sort((a, b) => {
+          let comparison = 0;
+          
+          if (key === 'deviceCount') {
+            comparison = (a.deviceCount || 0) - (b.deviceCount || 0);
+          } else if (key === 'totalPrice') {
+            comparison = (a.totalPrice || 0) - (b.totalPrice || 0);
+          } else if (key === 'subscription_end') {
+            const dateA = a.subscription_end ? new Date(a.subscription_end).getTime() : 0;
+            const dateB = b.subscription_end ? new Date(b.subscription_end).getTime() : 0;
+            comparison = dateA - dateB;
+          } else if (key === 'earliestEndDate') {
+            const dateA = a.earliestEndDate ? new Date(a.earliestEndDate).getTime() : 0;
+            const dateB = b.earliestEndDate ? new Date(b.earliestEndDate).getTime() : 0;
+            comparison = dateA - dateB;
+          }
+          
+          // تطبيق اتجاه الترتيب
+          return direction === 'ascending' ? comparison : -comparison;
+        });
+      }
       
       // حساب إجمالي الصفحات
       const totalItems = count || 0;
@@ -449,41 +530,37 @@ export const ClientsList: React.FC = () => {
     }
   }, [activeFilter, deviceFilter, currentPage, pageSize, t, searchTerm, agents.length, sortConfig]);
   
-  // دالة لتحميل البيانات
+  // تحسين عملية تحميل البيانات وتجنب الفلكر
   const loadData = useCallback(async () => {
     try {
-      // إلغاء أي طلب سابق
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      // تعيين حالة التحميل
+      if (!isDataLoaded.current) {
+        setIsLoading(true);
       }
-      
-      // إنشاء وحدة تحكم جديدة للإلغاء
-      abortControllerRef.current = new AbortController();
-      const signal = abortControllerRef.current.signal;
-      
-      setIsLoading(true);
-      
-      // جلب الوكلاء
+
+      // جلب الوكلاء أولاً
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
-        .select('*')
-        .abortSignal(signal);
-      
-      if (signal.aborted) return;
+        .select('*');
       
       if (agentsError) throw agentsError;
+      
       setAgents(agentsData || []);
       
-      // استخراج الفلتر من الرابط إن وجد
+      // التحقق من وجود معلمات في عنوان URL
       const params = new URLSearchParams(location.search);
-      const filterParam = params.get('filter');
+      const agentIdParam = params.get('agent_id');
       
-      if (filterParam) {
-        setActiveFilter(filterParam);
-        await fetchClients(filterParam);
+      if (agentIdParam) {
+        // إذا كان هناك معرف وكيل في العنوان، نقوم بتطبيق الفلتر
+        setActiveFilter(`agent_${agentIdParam}`);
+        await fetchClients(`agent_${agentIdParam}`);
       } else {
         await fetchClients();
       }
+      
+      // تعيين علامة تحميل البيانات
+      isDataLoaded.current = true;
     } catch (error: any) {
       // التأكد من أن الخطأ ليس بسبب إلغاء الطلب
       if (error.name !== 'AbortError') {
@@ -504,7 +581,7 @@ export const ClientsList: React.FC = () => {
       // هذا يساعد في منع الفلكر عن طريق ضمان استقرار المكون أولاً
       setTimeout(() => {
         loadData();
-      }, 0);
+      }, 100);
     }
     
     // تنظيف عند إلغاء تحميل المكون
@@ -526,15 +603,26 @@ export const ClientsList: React.FC = () => {
         setIsLoading(true);
       }
       
-      if (currentPage === 1) {
-        fetchClients(activeFilter, 1);
-      } else {
-        setCurrentPage(1);
-      }
+      fetchClients(activeFilter, 1);
     }, 500);
     
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, fetchClients, activeFilter, currentPage]);
+  }, [searchTerm, activeFilter, fetchClients]);
+  
+  // إضافة useEffect لمعالجة مشكلة الفلكر عند تغيير الصفحات
+  useEffect(() => {
+    // تجنب تحميل البيانات في الرندر الأول
+    if (isFirstRender.current) return;
+    
+    // استخدام requestAnimationFrame لتأخير تحديث واجهة المستخدم
+    // هذا يساعد في منع الفلكر عن طريق ضمان تزامن التحديثات مع دورة الرسم
+    const frameId = requestAnimationFrame(() => {
+      setIsLoading(true);
+      fetchClients(activeFilter, currentPage);
+    });
+    
+    return () => cancelAnimationFrame(frameId);
+  }, [currentPage, activeFilter, fetchClients]);
   
   // مكون هيكل التحميل للجدول
   const SkeletonRow = useCallback(() => (
@@ -551,12 +639,22 @@ export const ClientsList: React.FC = () => {
   
   // دالة لتغيير ترتيب الجدول
   const requestSort = useCallback((key: string) => {
-    let direction: 'ascending' | 'descending' = 'ascending';
-    if (sortConfig?.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  }, [sortConfig]);
+    setSortConfig(prevConfig => {
+      if (!prevConfig || prevConfig.key !== key) {
+        // إذا كان الترتيب على عمود مختلف، نبدأ بالترتيب التصاعدي
+        return { key, direction: 'ascending' };
+      } else {
+        // إذا كان الترتيب على نفس العمود، نعكس الاتجاه
+        const newDirection = prevConfig.direction === 'ascending' ? 'descending' : 'ascending';
+        return { key, direction: newDirection };
+      }
+    });
+    
+    // إعادة تحميل البيانات مع الترتيب الجديد
+    setCurrentPage(1);
+    setIsLoading(true);
+    fetchClients(activeFilter, 1);
+  }, [activeFilter, fetchClients]);
 
   // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
   const toggleShowDevices = useCallback((clientId: string) => {
@@ -919,7 +1017,7 @@ export const ClientsList: React.FC = () => {
       // هذا يساعد في منع الفلكر عن طريق ضمان استقرار المكون أولاً
       setTimeout(() => {
         loadData();
-      }, 0);
+      }, 100);
     }
     
     // تنظيف عند إلغاء تحميل المكون
@@ -941,19 +1039,15 @@ export const ClientsList: React.FC = () => {
         setIsLoading(true);
       }
       
-      if (currentPage === 1) {
-        fetchClients(activeFilter, 1);
-      } else {
-        setCurrentPage(1);
-      }
+      fetchClients(activeFilter, 1);
     }, 500);
     
     return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, fetchClients, activeFilter, currentPage]);
+  }, [searchTerm, activeFilter, fetchClients]);
   
   // إضافة useEffect لمتابعة التغييرات في جدول العملاء
   useEffect(() => {
-    supabase
+    const clientsChannel = supabase
       .channel('clients-changes')
       .on('postgres_changes', {
         event: '*',
@@ -963,14 +1057,17 @@ export const ClientsList: React.FC = () => {
         console.log('Clients table changed, refreshing data...');
         fetchClients(activeFilter, currentPage);
       })
-      .subscribe((subscription: any) => {
-        return () => subscription.unsubscribe();
-      });
+      .subscribe();
+      
+    // تنظيف عند إلغاء تحميل المكون
+    return () => {
+      supabase.removeChannel(clientsChannel);
+    };
   }, [activeFilter, currentPage, fetchClients]);
   
   // إضافة useEffect لمتابعة التغييرات في جدول الأجهزة
   useEffect(() => {
-    supabase
+    const devicesChannel = supabase
       .channel('devices-changes')
       .on('postgres_changes', {
         event: '*',
@@ -980,9 +1077,12 @@ export const ClientsList: React.FC = () => {
         console.log('Devices table changed, refreshing data...');
         fetchClients(activeFilter, currentPage);
       })
-      .subscribe((subscription: any) => {
-        return () => subscription.unsubscribe();
-      });
+      .subscribe();
+      
+    // تنظيف عند إلغاء تحميل المكون
+    return () => {
+      supabase.removeChannel(devicesChannel);
+    };
   }, [activeFilter, currentPage, fetchClients]);
   
   return (
@@ -1032,17 +1132,9 @@ export const ClientsList: React.FC = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {Array(5).fill(0).map((_, i) => (
-                <tr key={i} className="animate-pulse">
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div></td>
-                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div></td>
-                </tr>
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <SkeletonRow key={`skeleton-${index}`} />
               ))}
             </tbody>
           </table>
@@ -1106,7 +1198,7 @@ export const ClientsList: React.FC = () => {
                   className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[10%]"
                   onClick={() => requestSort('totalPrice')}
                 >
-                  القيمة
+                  المستحقات
                   {sortConfig?.key === 'totalPrice' && (
                     <span className="inline-block mr-1">
                       {sortConfig.direction === 'ascending' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -1131,7 +1223,12 @@ export const ClientsList: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {clients.length > 0 ? (
+              {isLoading ? (
+                // عرض صفوف التحميل عندما تكون البيانات قيد التحميل
+                Array.from({ length: 5 }).map((_, index) => (
+                  <SkeletonRow key={`skeleton-${index}`} />
+                ))
+              ) : clients.length > 0 ? (
                 clients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[20%] md:w-[25%]">
@@ -1194,7 +1291,7 @@ export const ClientsList: React.FC = () => {
                                         </span>
                                       )}
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                        {device.price ? device.price.toLocaleString() : '0'} جنيه
+                                        {device.price ? parseFloat(device.price).toLocaleString() : '0'} جنيه
                                       </span>
                                     </div>
                                   </div>
@@ -1247,7 +1344,7 @@ export const ClientsList: React.FC = () => {
                                         </span>
                                       )}
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                        {device.price ? device.price.toLocaleString() : '0'} جنيه
+                                        {device.price ? parseFloat(device.price).toLocaleString() : '0'} جنيه
                                       </span>
                                     </div>
                                   </div>
@@ -1326,7 +1423,7 @@ export const ClientsList: React.FC = () => {
                     <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                       {client.totalPrice ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          <span className="font-bold">{client.totalPrice.toLocaleString()}</span> جنيه
+                          <span className="font-bold">{typeof client.totalPrice === 'string' ? parseFloat(client.totalPrice).toLocaleString() : client.totalPrice.toLocaleString()}</span> جنيه
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -1415,29 +1512,28 @@ export const ClientsList: React.FC = () => {
           
           <div className="flex items-center space-x-1 rtl:space-x-reverse">
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              // عرض 5 صفحات فقط مع الصفحة الحالية في المنتصف
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
+              // حساب رقم الصفحة بناءً على موقع الصفحة الحالية
+              let pageNumber;
+              if (currentPage <= 3) {
+                pageNumber = i + 1;
               } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
+                pageNumber = totalPages - 4 + i;
               } else {
-                pageNum = currentPage - 2 + i;
+                pageNumber = currentPage - 2 + i;
               }
               
               return (
-                <div key={`page-${pageNum}`}>
+                <div key={`page-${pageNumber}`}>
                   <Button
                     onClick={() => {
-                      setCurrentPage(pageNum);
-                      fetchClients(activeFilter, pageNum);
+                      setCurrentPage(pageNumber);
+                      fetchClients(activeFilter, pageNumber);
                     }}
-                    variant={currentPage === pageNum ? "primary" : "secondary"}
-                    className={`px-4 py-2 text-sm ${currentPage === pageNum ? 'bg-primary-600 text-white' : ''}`}
+                    variant={currentPage === pageNumber ? 'primary' : 'secondary'}
+                    size="sm"
+                    className={`${currentPage === pageNumber ? 'bg-primary-600 text-white' : 'text-gray-700 dark:text-gray-300'}`}
                   >
-                    {pageNum}
+                    {pageNumber}
                   </Button>
                 </div>
               );
