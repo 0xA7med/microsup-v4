@@ -117,6 +117,9 @@ export const ClientsList: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
+  // إضافة متغير عام لتخزين معرفات الأجهزة المطابقة للبحث
+  const [matchingDeviceIds, setMatchingDeviceIds] = useState<string[]>([]);
+  
   // دالة لتأخير التنفيذ
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
@@ -198,7 +201,7 @@ export const ClientsList: React.FC = () => {
         // 1.1 البحث في جدول الأجهزة
         const devicesResponse = await supabase
           .from('devices')
-          .select('client_id')
+          .select('*') // تغيير من 'client_id' إلى '*' لجلب جميع بيانات الأجهزة
           .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`)
           .abortSignal(signal);
         
@@ -212,11 +215,18 @@ export const ClientsList: React.FC = () => {
         if (devicesResponse.error) {
           console.error('خطأ في البحث في الأجهزة:', devicesResponse.error);
         } else if (devicesResponse.data && devicesResponse.data.length > 0) {
-          const deviceClientIds = [...new Set(devicesResponse.data.map(d => d.client_id))];
+          // تخزين الأجهزة المطابقة للبحث
+          const matchingDevices = devicesResponse.data;
+          const deviceClientIds = [...new Set(matchingDevices.map(d => d.client_id))];
           console.log('تم العثور على أجهزة تطابق البحث:', {
-            count: devicesResponse.data.length,
+            count: matchingDevices.length,
             clientIds: deviceClientIds
           });
+          
+          // تخزين معرفات الأجهزة المطابقة للبحث في متغير عام
+          setMatchingDeviceIds(matchingDevices.map(d => d.id));
+          console.log('معرفات الأجهزة المطابقة للبحث:', matchingDeviceIds);
+          
           matchingClientIds.push(...deviceClientIds);
         }
         
@@ -583,6 +593,9 @@ export const ClientsList: React.FC = () => {
         // إعادة ضبط حالة الجلب قبل التنفيذ
         isFetchingRef.current = false;
         pendingFetchRef.current = null;
+        
+        // إعادة تعيين قائمة الأجهزة المطابقة عند إزالة البحث
+        setMatchingDeviceIds([]);
         
         // إضافة تأخير قصير لمنع الفلكر
         setTimeout(() => {
@@ -1254,7 +1267,9 @@ export const ClientsList: React.FC = () => {
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1">{client.mobileDevices.length}</span>
                               </span>
                               <div className="mt-1 space-y-1">
-                                {client.mobileDevices.map((device: any, index: number) => (
+                                {client.mobileDevices
+                                  .filter((device: any) => searchTerm === '' || matchingDeviceIds.includes(device.id))
+                                  .map((device: any, index: number) => (
                                   <div key={`mobile-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
@@ -1307,7 +1322,9 @@ export const ClientsList: React.FC = () => {
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1">{client.computerDevices.length}</span>
                               </span>
                               <div className="mt-1 space-y-1">
-                                {client.computerDevices.map((device: any) => (
+                                {client.computerDevices
+                                  .filter((device: any) => searchTerm === '' || matchingDeviceIds.includes(device.id))
+                                  .map((device: any, index: number) => (
                                   <div key={`computer-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
