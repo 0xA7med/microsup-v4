@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
+import ReactDOM from 'react-dom';
 import { 
   Search, 
   Smartphone, 
@@ -99,9 +100,11 @@ export const ClientsList: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isFirstRender = useRef(true);
   const isDataLoaded = useRef(false);
+  const isFetchingRef = useRef(false); // مرجع جديد لتتبع حالة الجلب
+  const pendingFetchRef = useRef<{filter: string | null, page: number | null} | null>(null); // مرجع لتخزين طلب معلق
   
   const [clients, setClients] = useState<DisplayClientType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [stableClients, setStableClients] = useState<DisplayClientType[]>([]); // حالة مستقرة للعملاء
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [deviceFilter, setDeviceFilter] = useState<'mobile' | 'computer' | null>(null);
@@ -112,10 +115,55 @@ export const ClientsList: React.FC = () => {
   const [agents, setAgents] = useState<ImportedAgent[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [pageSize] = useState(50);
-  const [loadingClients, setLoadingClients] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  
+  // دالة لتأخير التنفيذ
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  // دالة مساعدة لتحديث الحالة بطريقة مستقرة
+  const updateClientsStable = useCallback((newClients: DisplayClientType[], newTotalPages: number) => {
+    // أولاً، نعيين حالة التحميل إلى false
+    setIsLoadingMore(false);
+    
+    // تحديث الحالة المستقرة فوراً
+    setStableClients(newClients);
+    
+    // استخدام تقنية batching لتحديث الحالة في دفعة واحدة
+    // هذا يمنع React من إعادة الرسم عدة مرات
+    setTimeout(() => {
+      ReactDOM.flushSync(() => {
+        setClients(newClients);
+        setTotalPages(newTotalPages);
+      });
+    }, 50);
+  }, []);
   
   const fetchClients = useCallback(async (filterOverride?: string | null, pageOverride?: number | null) => {
+    // إذا كان هناك عملية جلب بيانات جارية، قم بتخزين الطلب الجديد وإنهاء الدالة
+    if (isFetchingRef.current) {
+      console.log('هناك عملية جلب بيانات جارية، تخزين الطلب الجديد للتنفيذ لاحقاً');
+      pendingFetchRef.current = {
+        filter: filterOverride !== undefined ? filterOverride : activeFilter,
+        page: pageOverride !== undefined ? pageOverride : currentPage
+      };
+      return;
+    }
+    
+    // تعيين حالة الجلب إلى نشط
+    isFetchingRef.current = true;
+    
+    // إلغاء أي طلب سابق لتجنب تداخل النتائج
+    if (abortControllerRef.current) {
+      console.log('إلغاء الطلب السابق لمنع الفلكر');
+      abortControllerRef.current.abort();
+      // انتظار لحظة قصيرة للتأكد من إلغاء الطلب السابق بالكامل
+      await delay(100);
+    }
+    
+    // إنشاء controller جديد
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    
     const filter = filterOverride !== undefined ? filterOverride : activeFilter;
     const page = (pageOverride !== undefined ? pageOverride : currentPage) || 1; // استخدم القيمة 1 إذا كانت null
     const from = (page - 1) * 50;
@@ -123,10 +171,24 @@ export const ClientsList: React.FC = () => {
     
     console.log(`جلب العملاء مع الفلتر: ${filter}, الصفحة: ${page}, من: ${from}, إلى: ${to}`);
     
-    setIsLoading(true);
-    setLoadingClients(true);
+    setIsLoadingMore(true);
     
     try {
+      // التحقق من إلغاء الطلب قبل المتابعة
+      if (signal.aborted) {
+        console.log('تم إلغاء الطلب، إنهاء الدالة');
+        isFetchingRef.current = false;
+        
+        // التحقق من وجود طلب معلق وتنفيذه
+        if (pendingFetchRef.current) {
+          const { filter: pendingFilter, page: pendingPage } = pendingFetchRef.current;
+          pendingFetchRef.current = null;
+          console.log('تنفيذ طلب معلق');
+          fetchClients(pendingFilter, pendingPage);
+        }
+        return;
+      }
+      
       // 1. إذا كان هناك بحث، نجلب أولاً معرفات العملاء المطابقة من الأجهزة والعملاء
       let matchingClientIds: string[] = [];
       
@@ -137,7 +199,15 @@ export const ClientsList: React.FC = () => {
         const devicesResponse = await supabase
           .from('devices')
           .select('client_id')
-          .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+          .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`)
+          .abortSignal(signal);
+        
+        // التحقق مرة أخرى من إلغاء الطلب
+        if (signal.aborted) {
+          console.log('تم إلغاء الطلب أثناء البحث في الأجهزة');
+          isFetchingRef.current = false;
+          return;
+        }
         
         if (devicesResponse.error) {
           console.error('خطأ في البحث في الأجهزة:', devicesResponse.error);
@@ -154,7 +224,15 @@ export const ClientsList: React.FC = () => {
         const clientsResponse = await supabase
           .from('clients')
           .select('id')
-          .or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
+          .or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`)
+          .abortSignal(signal);
+        
+        // التحقق مرة أخرى من إلغاء الطلب
+        if (signal.aborted) {
+          console.log('تم إلغاء الطلب أثناء البحث في العملاء');
+          isFetchingRef.current = false;
+          return;
+        }
         
         if (clientsResponse.error) {
           console.error('خطأ في البحث في العملاء:', clientsResponse.error);
@@ -174,10 +252,7 @@ export const ClientsList: React.FC = () => {
         // 1.4 إذا لم نجد أي نتائج، نعيد قائمة فارغة
         if (matchingClientIds.length === 0) {
           console.log('لم يتم العثور على نتائج تطابق البحث');
-          setClients([]);
-          setTotalPages(0);
-          setIsLoading(false);
-          setLoadingClients(false);
+          updateClientsStable([], 0);
           return;
         }
       }
@@ -189,39 +264,84 @@ export const ClientsList: React.FC = () => {
       // 3. تطبيق فلترة البحث إذا كان هناك نتائج بحث
       if (searchTerm && matchingClientIds.length > 0) {
         baseQuery = baseQuery.in('id', matchingClientIds);
+      } else if (searchTerm && matchingClientIds.length === 0) {
+        console.log('لا توجد نتائج بحث، إرجاع قائمة فارغة');
+        updateClientsStable([], 0);
+        return;
       }
       
-      // 4. تطبيق الفلاتر الإضافية حسب نوع الفلتر النشط
-      if (filter === 'mobile' || deviceFilter === 'mobile') {
-        baseQuery = baseQuery.not('devices', 'is', null)
-                             .eq('devices.device_type', 'android');
-      } else if (filter === 'computer' || deviceFilter === 'computer') {
-        baseQuery = baseQuery.not('devices', 'is', null)
-                             .eq('devices.device_type', 'computer');
-      } else if (filter === 'active') {
-        const today = new Date().toISOString().split('T')[0];
-        baseQuery = baseQuery.not('devices', 'is', null)
-                             .gte('devices.subscription_end', today);
-      } else if (filter === 'expired') {
-        const today = new Date().toISOString().split('T')[0];
-        baseQuery = baseQuery.not('devices', 'is', null)
-                             .lt('devices.subscription_end', today);
-      } else if (filter === 'expiring') {
-        const today = new Date().toISOString().split('T')[0];
-        const nextMonth = new Date();
-        nextMonth.setMonth(nextMonth.getMonth() + 1);
-        const nextMonthStr = nextMonth.toISOString().split('T')[0];
+      // 4. تطبيق الفلترات الأخرى
+      if (filter) {
+        if (filter === 'outOfDate') {
+          baseQuery = baseQuery.lt('subscription_end', new Date().toISOString());
+        } else if (filter === 'soon') {
+          const today = new Date();
+          const thirtyDaysFromNow = new Date();
+          thirtyDaysFromNow.setDate(today.getDate() + 30);
+          baseQuery = baseQuery
+            .gte('subscription_end', today.toISOString())
+            .lte('subscription_end', thirtyDaysFromNow.toISOString());
+        } else if (filter === 'active') {
+          baseQuery = baseQuery.gte('subscription_end', new Date().toISOString());
+        } else if (filter?.startsWith('agent_')) {
+          const agentId = filter.replace('agent_', '');
+          baseQuery = baseQuery.eq('agent_id', agentId);
+        }
+      }
+      
+      // فلترة حسب نوع الجهاز
+      if (deviceFilter === 'mobile' || filter === 'mobile') {
+        // جلب العملاء الذين لديهم أجهزة جوال
+        const mobileResponse = await supabase
+          .from('devices')
+          .select('client_id')
+          .eq('device_type', 'android')
+          .abortSignal(signal);
+          
+        if (signal.aborted) {
+          console.log('تم إلغاء الطلب أثناء فلترة الأجهزة الجوال');
+          isFetchingRef.current = false;
+          return;
+        }
         
-        baseQuery = baseQuery.not('devices', 'is', null)
-                             .gte('devices.subscription_end', today)
-                             .lte('devices.subscription_end', nextMonthStr);
-      } else if (filter === 'noDevices') {
-        baseQuery = baseQuery.is('devices', null);
-      } else if (filter === 'allDevices') {
-        baseQuery = baseQuery.not('devices', 'is', null);
-      } else if (filter?.startsWith('agent_')) {
-        const agentId = filter.replace('agent_', '');
-        baseQuery = baseQuery.eq('agent_id', agentId);
+        if (!mobileResponse.error && mobileResponse.data) {
+          const mobileClientIds = mobileResponse.data.map(d => d.client_id);
+          if (mobileClientIds.length > 0) {
+            baseQuery = baseQuery.in('id', mobileClientIds);
+          } else {
+            // إذا لم تكن هناك أجهزة جوال مطابقة
+            updateClientsStable([], 0);
+            return;
+          }
+        }
+      } else if (deviceFilter === 'computer' || filter === 'computer') {
+        // جلب العملاء الذين لديهم أجهزة كمبيوتر
+        const computerResponse = await supabase
+          .from('devices')
+          .select('client_id')
+          .eq('device_type', 'computer')
+          .abortSignal(signal);
+          
+        if (signal.aborted) {
+          console.log('تم إلغاء الطلب أثناء فلترة الأجهزة الكمبيوتر');
+          isFetchingRef.current = false;
+          return;
+        }
+        
+        if (!computerResponse.error && computerResponse.data) {
+          const computerClientIds = computerResponse.data.map(d => d.client_id);
+          if (computerClientIds.length > 0) {
+            baseQuery = baseQuery.in('id', computerClientIds);
+          } else {
+            // إذا لم تكن هناك أجهزة كمبيوتر مطابقة
+            updateClientsStable([], 0);
+            return;
+          }
+        }
+      }
+      
+      if (user?.role === 'agent' && user?.id) {
+        baseQuery = baseQuery.eq('agent_id', user.id);
       }
       
       // 5. تطبيق الترتيب
@@ -234,16 +354,24 @@ export const ClientsList: React.FC = () => {
         }
       }
       
-      // 6. تنفيذ الاستعلام
+      // إضافة إشارة الإلغاء إلى الاستعلام الرئيسي
+      baseQuery = baseQuery.abortSignal(signal);
+      
       console.log('تنفيذ استعلام Supabase الرئيسي...');
-      const { data, error, count } = await baseQuery;
+      // استخدام destructuring لاستخراج البيانات والأخطاء فقط، وتجاهل count غير المستخدم
+      const { data, error } = await baseQuery;
+      
+      if (signal.aborted) {
+        console.log('تم إلغاء الطلب بعد تنفيذه، إنهاء الدالة');
+        isFetchingRef.current = false;
+        return;
+      }
       
       // 7. معالجة النتائج
       if (error) {
         console.error('خطأ في جلب العملاء:', error);
         toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
-        setIsLoading(false);
-        setLoadingClients(false);
+        updateClientsStable([], 0);
         return;
       }
       
@@ -343,19 +471,29 @@ export const ClientsList: React.FC = () => {
         const paginatedClients = sortedClients.slice(startIndex, endIndex);
         
         console.log(`تم جلب ${paginatedClients.length} عميل من إجمالي ${total}`);
-        setClients(paginatedClients);
-        setTotalPages(totalPages);
+        updateClientsStable(paginatedClients, totalPages);
       } else {
         console.log('لم يتم العثور على عملاء');
-        setClients([]);
-        setTotalPages(0);
+        updateClientsStable([], 0);
       }
     } catch (error) {
       console.error('خطأ غير متوقع في جلب العملاء:', error);
       toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
     } finally {
-      setIsLoading(false);
-      setLoadingClients(false);
+      // نقوم بالتحقق من وجود طلب معلق وتنفيذه
+      if (pendingFetchRef.current) {
+        const { filter: pendingFilter, page: pendingPage } = pendingFetchRef.current;
+        pendingFetchRef.current = null;
+        console.log('تنفيذ طلب معلق بعد انتهاء الطلب الحالي');
+        
+        // تأخير قصير قبل تنفيذ الطلب المعلق
+        setTimeout(() => {
+          fetchClients(pendingFilter, pendingPage);
+        }, 100);
+      } else {
+        // إذا لم يكن هناك طلب معلق، نقوم بإعادة ضبط حالة الجلب
+        isFetchingRef.current = false;
+      }
     }
   }, [activeFilter, deviceFilter, currentPage, searchTerm, sortConfig, t]);
   
@@ -364,8 +502,7 @@ export const ClientsList: React.FC = () => {
     try {
       // تعيين حالة التحميل
       if (!isDataLoaded.current) {
-        setIsLoading(true);
-        setLoadingClients(true);
+        setIsLoadingMore(true);
       }
 
       // جلب الوكلاء أولاً
@@ -396,8 +533,7 @@ export const ClientsList: React.FC = () => {
       if (error.name !== 'AbortError') {
         console.error('Error loading data:', error);
         toast.error(t('errors.loadData', 'حدث خطأ أثناء تحميل البيانات'));
-        setIsLoading(false);
-        setLoadingClients(false);
+        setIsLoadingMore(false);
       }
     }
   }, [fetchClients, location.search, t]);
@@ -423,22 +559,36 @@ export const ClientsList: React.FC = () => {
     };
   }, [loadData]);
   
-  // إضافة useEffect للبحث مع تأخير زمني
   useEffect(() => {
-    // تجاهل التغييرات في الرندر الأول
-    if (isFirstRender.current) return;
-    
-    const delayDebounceFn = setTimeout(() => {
-      // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
-      if (searchTerm.trim().length > 0) {
-        setIsLoading(true);
-        setLoadingClients(true);
+    // استخدام debounce لمنع تنفيذ الاستعلامات المتكررة
+    const debounceTimer = setTimeout(() => {
+      if (searchTerm.trim() !== '') {
+        // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
+        setIsLoadingMore(true);
+        
+        // إعادة ضبط حالة الجلب قبل التنفيذ
+        isFetchingRef.current = false;
+        pendingFetchRef.current = null;
+        
+        // إضافة تأخير قصير لمنع الفلكر
+        setTimeout(() => {
+          fetchClients(activeFilter, 1);
+        }, 300);
+      } else if (searchTerm.trim() === '' && isFirstRender.current === false) {
+        setIsLoadingMore(true);
+        
+        // إعادة ضبط حالة الجلب قبل التنفيذ
+        isFetchingRef.current = false;
+        pendingFetchRef.current = null;
+        
+        // إضافة تأخير قصير لمنع الفلكر
+        setTimeout(() => {
+          fetchClients(activeFilter, 1);
+        }, 300);
       }
-      
-      fetchClients(activeFilter, 1);
-    }, 500);
+    }, 500); // انتظار 500 مللي ثانية بعد التوقف عن الكتابة
     
-    return () => clearTimeout(delayDebounceFn);
+    return () => clearTimeout(debounceTimer);
   }, [searchTerm, activeFilter, fetchClients]);
   
   // إضافة useEffect لمعالجة مشكلة الفلكر عند تغيير الصفحات
@@ -449,9 +599,16 @@ export const ClientsList: React.FC = () => {
     // استخدام requestAnimationFrame لتأخير تحديث واجهة المستخدم
     // هذا يساعد في منع الفلكر عن طريق ضمان تزامن التحديثات مع دورة الرسم
     const frameId = requestAnimationFrame(() => {
-      setIsLoading(true);
-      setLoadingClients(true);
-      fetchClients(activeFilter, currentPage);
+      setIsLoadingMore(true);
+      
+      // إعادة ضبط حالة الجلب قبل التنفيذ
+      isFetchingRef.current = false;
+      pendingFetchRef.current = null;
+      
+      // إضافة تأخير قصير لمنع الفلكر
+      setTimeout(() => {
+        fetchClients(activeFilter, currentPage);
+      }, 300);
     });
     
     return () => cancelAnimationFrame(frameId);
@@ -485,8 +642,7 @@ export const ClientsList: React.FC = () => {
     
     // إعادة تحميل البيانات مع الترتيب الجديد
     setCurrentPage(1);
-    setIsLoading(true);
-    setLoadingClients(true);
+    setIsLoadingMore(true);
     fetchClients(activeFilter, 1);
   }, [activeFilter, fetchClients]);
 
@@ -587,7 +743,7 @@ export const ClientsList: React.FC = () => {
         className="flex justify-between items-center cursor-pointer mb-2"
         onClick={() => setFiltersOpen(!filtersOpen)}
       >
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
           <Filter className="inline mr-2 h-4 w-4" />
           {t('clientsList.filters', 'فلترة العملاء')}
         </h2>
@@ -607,8 +763,7 @@ export const ClientsList: React.FC = () => {
                   setDeviceFilter(deviceFilter === 'mobile' ? null : 'mobile');
                   setActiveFilter(null);
                   setCurrentPage(1);
-                  setIsLoading(true);
-                  setLoadingClients(true);
+                  setIsLoadingMore(true);
                   fetchClients(null, 1);
                 }}
                 variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
@@ -630,8 +785,7 @@ export const ClientsList: React.FC = () => {
                   setDeviceFilter(deviceFilter === 'computer' ? null : 'computer');
                   setActiveFilter(null);
                   setCurrentPage(1);
-                  setIsLoading(true);
-                  setLoadingClients(true);
+                  setIsLoadingMore(true);
                   fetchClients(null, 1);
                 }}
                 variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
@@ -653,8 +807,7 @@ export const ClientsList: React.FC = () => {
                   setActiveFilter('allDevices');
                   setDeviceFilter(null);
                   setCurrentPage(1);
-                  setIsLoading(true);
-                  setLoadingClients(true);
+                  setIsLoadingMore(true);
                   fetchClients('allDevices', 1);
                 }}
                 variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
@@ -688,12 +841,12 @@ export const ClientsList: React.FC = () => {
                 const FilterIcon = filter.icon;
                 return (
                   <Button
+                    key={`filter-${filter.value}`}
                     onClick={() => {
                       setActiveFilter(activeFilter === filter.value ? null : filter.value);
                       setDeviceFilter(null);
                       setCurrentPage(1);
-                      setIsLoading(true);
-                      setLoadingClients(true);
+                      setIsLoadingMore(true);
                       fetchClients(filter.value, 1);
                     }}
                     variant={activeFilter === filter.value ? 'primary' : 'secondary'}
@@ -726,26 +879,35 @@ export const ClientsList: React.FC = () => {
                   value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                     const selectedValue = e.target.value;
-                    if (selectedValue) {
-                      setActiveFilter(selectedValue);
-                      setDeviceFilter(null);
-                      setCurrentPage(1);
-                      setIsLoading(true);
-                      setLoadingClients(true);
-                      fetchClients(selectedValue, 1);
-                    } else {
-                      setActiveFilter(null);
-                      setDeviceFilter(null);
-                      setCurrentPage(1);
-                      setIsLoading(true);
-                      setLoadingClients(true);
-                      fetchClients(null, 1);
-                    }
+                    
+                    // تحديث الحالة المستقرة فوراً قبل تغيير الفلتر
+                    setStableClients([]);
+                    
+                    // تأخير قصير قبل تنفيذ الاستعلام
+                    setTimeout(() => {
+                      // إعادة ضبط حالة الجلب قبل التنفيذ
+                      isFetchingRef.current = false;
+                      pendingFetchRef.current = null;
+                      
+                      if (selectedValue) {
+                        setActiveFilter(selectedValue);
+                        setDeviceFilter(null);
+                        setCurrentPage(1);
+                        setIsLoadingMore(true);
+                        fetchClients(selectedValue, 1);
+                      } else {
+                        setActiveFilter(null);
+                        setDeviceFilter(null);
+                        setCurrentPage(1);
+                        setIsLoadingMore(true);
+                        fetchClients(null, 1);
+                      }
+                    }, 50);
                   }}
                 >
                   <option value="">{t('clientsList.selectAgent', 'اختر المندوب...')}</option>
                   {agents.map(agent => (
-                    <option data-key={agent.id} value={`agent_${agent.id}`}>
+                    <option key={`agent-${agent.id}`} value={`agent_${agent.id}`}>
                       {agent.name}
                     </option>
                   ))}
@@ -761,8 +923,7 @@ export const ClientsList: React.FC = () => {
                 setActiveFilter(null);
                 setDeviceFilter(null);
                 setCurrentPage(1);
-                setIsLoading(true);
-                setLoadingClients(true);
+                setIsLoadingMore(true);
                 fetchClients(null, 1);
               }}
               variant="secondary"
@@ -793,8 +954,7 @@ export const ClientsList: React.FC = () => {
         <button
           onClick={() => {
             setSearchTerm('');
-            setIsLoading(true);
-            setLoadingClients(true);
+            setIsLoadingMore(true);
             fetchClients(activeFilter, 1);
           }}
           className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -838,8 +998,7 @@ export const ClientsList: React.FC = () => {
             setActiveFilter(null);
             setDeviceFilter(null);
             setCurrentPage(1);
-            setIsLoading(true);
-            setLoadingClients(true);
+            setIsLoadingMore(true);
             fetchClients(null, 1);
           }}
           className="mr-2 text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
@@ -870,24 +1029,6 @@ export const ClientsList: React.FC = () => {
       }
     };
   }, [loadData]);
-  
-  // إضافة useEffect للبحث مع تأخير زمني
-  useEffect(() => {
-    // تجاهل التغييرات في الرندر الأول
-    if (isFirstRender.current) return;
-    
-    const delayDebounceFn = setTimeout(() => {
-      // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
-      if (searchTerm.trim().length > 0) {
-        setIsLoading(true);
-        setLoadingClients(true);
-      }
-      
-      fetchClients(activeFilter, 1);
-    }, 500);
-    
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchTerm, activeFilter, fetchClients]);
   
   // إضافة useEffect لمتابعة التغييرات في جدول العملاء
   useEffect(() => {
@@ -948,7 +1089,7 @@ export const ClientsList: React.FC = () => {
       {renderActiveFilter()}
       {renderSearch()}
 
-      {isLoading ? (
+      {isLoadingMore ? (
         <div className="overflow-x-auto shadow-md rounded-lg">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1067,13 +1208,13 @@ export const ClientsList: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {isLoading ? (
+              {isLoadingMore ? (
                 // عرض صفوف التحميل عندما تكون البيانات قيد التحميل
                 Array.from({ length: 5 }).map((_, index) => (
                   <SkeletonRow key={`skeleton-${index}`} />
                 ))
-              ) : clients.length > 0 ? (
-                clients.map((client) => (
+              ) : stableClients.length > 0 ? (
+                stableClients.map((client) => (
                   <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[20%] md:w-[25%]">
                       <div className="flex items-center justify-between">
@@ -1100,7 +1241,7 @@ export const ClientsList: React.FC = () => {
                               </span>
                               <div className="mt-1 space-y-1">
                                 {client.mobileDevices.map((device: any, index: number) => (
-                                  <div key={index} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
+                                  <div key={`mobile-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
                                         {device.device_type || 'غير محدد'}
@@ -1152,8 +1293,8 @@ export const ClientsList: React.FC = () => {
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 mr-1">{client.computerDevices.length}</span>
                               </span>
                               <div className="mt-1 space-y-1">
-                                {client.computerDevices.map((device: any, index: number) => (
-                                  <div key={index} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
+                                {client.computerDevices.map((device: any) => (
+                                  <div key={`computer-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
                                         {device.device_type || 'غير محدد'}
@@ -1338,7 +1479,7 @@ export const ClientsList: React.FC = () => {
       )}
 
       {/* مكون التنقل بين الصفحات */}
-      {!isLoading && totalPages > 1 && (
+      {!isLoadingMore && totalPages > 1 && (
         <div className="mt-6 flex justify-center items-center space-x-2 rtl:space-x-reverse">
           <Button
             onClick={() => setCurrentPage(prev => {
