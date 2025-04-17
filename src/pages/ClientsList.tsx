@@ -758,6 +758,27 @@ export const ClientsList: React.FC = () => {
               {t('clientsList.deviceType', 'نوع الجهاز')}:
             </h3>
             <div className="flex flex-wrap gap-2">
+            <Button
+                onClick={() => {
+                  setActiveFilter('allDevices');
+                  setDeviceFilter(null);
+                  setCurrentPage(1);
+                  setIsLoadingMore(true);
+                  fetchClients('allDevices', 1);
+                }}
+                variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
+                size="sm"
+                className="flex items-center gap-1"
+                data-key="allDevices"
+              >
+                <Eye className="w-3 h-3" />
+                <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
+                {activeFilter === 'allDevices' && (
+                  <span className="mr-1 bg-white/20 px-1.5 py-0.5 rounded-full text-xs">
+                    ✓
+                  </span>
+                )}
+              </Button>
               <Button
                 onClick={() => {
                   setDeviceFilter(deviceFilter === 'mobile' ? null : 'mobile');
@@ -802,27 +823,7 @@ export const ClientsList: React.FC = () => {
                 )}
               </Button>
               
-              <Button
-                onClick={() => {
-                  setActiveFilter('allDevices');
-                  setDeviceFilter(null);
-                  setCurrentPage(1);
-                  setIsLoadingMore(true);
-                  fetchClients('allDevices', 1);
-                }}
-                variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
-                size="sm"
-                className="flex items-center gap-1"
-                data-key="allDevices"
-              >
-                <Eye className="w-3 h-3" />
-                <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
-                {activeFilter === 'allDevices' && (
-                  <span className="mr-1 bg-white/20 px-1.5 py-0.5 rounded-full text-xs">
-                    ✓
-                  </span>
-                )}
-              </Button>
+             
             </div>
           </div>
 
