@@ -18,40 +18,6 @@ import { useAuthStore } from '../store/authStore';
 import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types';
 import { DeviceType } from '../types/device.types';
 
-interface ClientType {
-  id: string;
-  client_name?: string;
-  organization_name?: string;
-  activity_type?: string;
-  address?: string;
-  phone?: string;
-  phone2?: string;
-  notes?: string;
-  subscription_type?: string;
-  subscription_start?: string | null;
-  subscription_end?: string | null;
-  agent_id?: string;
-  deviceCount?: number;
-  devices?: any[];
-  mobileDevices?: any[];
-  computerDevices?: any[];
-  earliestEndDate?: string | null;
-  subscriptionTypes?: string[];
-  totalPrice?: number; 
-  mobilePrice?: number;
-  computerPrice?: number;
-  showDevices?: boolean;
-  agent?: { 
-    id?: string;
-    name?: string;
-  } | null | any[];  
-  agents?: Agent[];
-  created_by?: string;
-  created_at?: string;
-  activation_code?: string;
-  device_type?: string;
-}
-
 interface DisplayClientType {
   id: string;
   client_name?: string;
@@ -79,15 +45,11 @@ interface DisplayClientType {
     id?: string;
     name?: string;
   } | null | any[];  
-  agents?: Agent[];
+  agents?: ImportedAgent[];
   created_by?: string;
   created_at?: string;
   activation_code?: string;
   device_type?: string;
-}
-
-interface Agent extends ImportedAgent {
-  // إضافة أي خصائص إضافية مطلوبة في واجهة العرض
 }
 
 const SUBSCRIPTION_TYPES = [
@@ -169,7 +131,7 @@ export const ClientsList: React.FC = () => {
     try {
       setLoading(true);
       const filter = filterOverride !== undefined ? filterOverride : activeFilter;
-      const page = pageOverride !== undefined ? pageOverride : currentPage;
+      const page = pageOverride !== undefined && pageOverride !== null ? pageOverride : currentPage;
       
       // حساب الإزاحة للصفحة
       const from = (page - 1) * pageSize;
@@ -338,7 +300,8 @@ export const ClientsList: React.FC = () => {
       setTotalPages(calculatedTotalPages);
       
       // إذا كانت الصفحة الحالية أكبر من إجمالي الصفحات، نعود للصفحة الأولى
-      if (page && page > calculatedTotalPages && calculatedTotalPages > 0) {
+      const currentPageNumber = typeof page === 'number' ? page : 1;
+      if (currentPageNumber > calculatedTotalPages && calculatedTotalPages > 0) {
         setCurrentPage(1);
         if (pageOverride === undefined) {
           fetchClients(filter, 1);
@@ -695,7 +658,7 @@ export const ClientsList: React.FC = () => {
           placeholder="ابحث بالاسم، المؤسسة، الهاتف، الملاحظات، رمز التفعيل..."
           className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
           value={searchTerm}
-          onChange={(e) => {
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             setSearchTerm(e.target.value);
             // إعادة تعيين الصفحة إلى الأولى عند البحث
             if (currentPage !== 1) {
@@ -918,25 +881,9 @@ export const ClientsList: React.FC = () => {
                     </td>
 
                     <td className={`px-4 py-4 whitespace-nowrap text-sm ${isRTL ? 'text-right' : 'text-left'} dir="ltr"`}>{client.phone}</td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[15%]">
-                      {(() => {
-                        // التعامل مع خاصية agent بشكل آمن
-                        const agent = client.agent;
-                        
-                        if (!agent) return 'غير متاح';
-                        
-                        // إذا كان مصفوفة
-                        if (Array.isArray(agent) && agent.length > 0) {
-                          return agent[0].name || 'غير متاح';
-                        }
-                        
-                        // إذا كان كائن
-                        if (typeof agent === 'object' && agent !== null) {
-                          return agent.name || 'غير متاح';
-                        }
-                        
-                        return 'غير متاح';
-                      })()}
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {client.agent && typeof client.agent === 'object' && !Array.isArray(client.agent) && client.agent.name ? 
+                        client.agent.name : '-'}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {client.deviceCount && client.deviceCount > 0 ? (
@@ -1102,17 +1049,18 @@ export const ClientsList: React.FC = () => {
               }
               
               return (
-                <Button
-                  key={pageNum}
-                  onClick={() => {
-                    setCurrentPage(pageNum);
-                    fetchClients(activeFilter, pageNum);
-                  }}
-                  variant={currentPage === pageNum ? "primary" : "secondary"}
-                  className={`px-4 py-2 text-sm ${currentPage === pageNum ? 'bg-primary-600 text-white' : ''}`}
-                >
-                  {pageNum}
-                </Button>
+                <div key={`page-${pageNum}`}>
+                  <Button
+                    onClick={() => {
+                      setCurrentPage(pageNum);
+                      fetchClients(activeFilter, pageNum);
+                    }}
+                    variant={currentPage === pageNum ? "primary" : "secondary"}
+                    className={`px-4 py-2 text-sm ${currentPage === pageNum ? 'bg-primary-600 text-white' : ''}`}
+                  >
+                    {pageNum}
+                  </Button>
+                </div>
               );
             })}
             
