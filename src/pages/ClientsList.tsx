@@ -292,21 +292,32 @@ export const ClientsList: React.FC = () => {
         // البحث في بيانات العملاء
         query = query.or(`client_name.ilike.%${searchTerm}%,organization_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,phone2.ilike.%${searchTerm}%,notes.ilike.%${searchTerm}%`);
         
-        // البحث في بيانات الأجهزة بشكل منفصل
-        const { data: deviceData, error: deviceError } = await supabase
-          .from('devices')
-          .select('client_id')
-          .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
-        
-        if (!deviceError && deviceData && deviceData.length > 0) {
-          // إضافة معرفات العملاء الذين لديهم أجهزة تطابق البحث
-          const clientIdsFromDevices = [...new Set(deviceData.map(d => d.client_id))];
+        try {
+          // البحث في بيانات الأجهزة بشكل منفصل
+          const { data: deviceData, error: deviceError } = await supabase
+            .from('devices')
+            .select('client_id')
+            .or(`activation_code.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
           
-          // إذا كان هناك نتائج من البحث في الأجهزة، نضيفها إلى الاستعلام
-          if (clientIdsFromDevices.length > 0) {
-            // نجمع بين نتائج البحث في العملاء والأجهزة
-            query = query.or(`id.in.(${clientIdsFromDevices.join(',')})`);
+          console.log('البحث في الأجهزة:', { searchTerm, deviceData, deviceError });
+          
+          if (!deviceError && deviceData && deviceData.length > 0) {
+            // إضافة معرفات العملاء الذين لديهم أجهزة تطابق البحث
+            const clientIdsFromDevices = [...new Set(deviceData.map(d => d.client_id))];
+            
+            // إذا كان هناك نتائج من البحث في الأجهزة، نضيفها إلى الاستعلام
+            if (clientIdsFromDevices.length > 0) {
+              // تعديل طريقة إضافة معرفات العملاء إلى الاستعلام
+              // استخدام in بدلاً من id.in
+              if (clientIdsFromDevices.length === 1) {
+                query = query.or(`id.eq.${clientIdsFromDevices[0]}`);
+              } else {
+                query = query.or(`id.in.(${clientIdsFromDevices.join(',')})`);
+              }
+            }
           }
+        } catch (error) {
+          console.error('خطأ في البحث عن الأجهزة:', error);
         }
       }
       
