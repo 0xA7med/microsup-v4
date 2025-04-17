@@ -1,6 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
 import * as XLSX from 'xlsx';
-import { v4 as uuidv4 } from 'uuid';
 
 interface ImportedClient {
   name: string;
@@ -9,6 +8,12 @@ interface ImportedClient {
   address?: string;
   business_type?: string;
   notes?: string;
+  'الاسم'?: string;
+  'رقم الهاتف'?: string;
+  'رقم الهاتف 2'?: string;
+  'العنوان'?: string;
+  'نوع النشاط'?: string;
+  'ملاحظات'?: string;
 }
 
 export const generateImportTemplate = (): Blob => {
@@ -86,12 +91,12 @@ export const importClientsFromFile = async (file: File): Promise<{ success: bool
           const validClients = [];
           
           for (const row of jsonData) {
-            const name = row.name || row['الاسم'];
-            const phone = row.phone || row['رقم الهاتف'];
-            const phone2 = row.phone2 || row['رقم الهاتف 2'];
-            const address = row.address || row['العنوان'];
-            const business_type = row.business_type || row['نوع النشاط'];
-            const notes = row.notes || row['ملاحظات'];
+            const name = row.name || row['الاسم'] || '';
+            const phone = row.phone || row['رقم الهاتف'] || '';
+            const phone2 = row.phone2 || row['رقم الهاتف 2'] || '';
+            const address = row.address || row['العنوان'] || '';
+            const business_type = row.business_type || row['نوع النشاط'] || '';
+            const notes = row.notes || row['ملاحظات'] || '';
 
             if (!name || !phone) {
               errors.push(`صف غير صالح: الاسم ورقم الهاتف مطلوبان`);

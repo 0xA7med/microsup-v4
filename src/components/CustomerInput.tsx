@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
+import type { InputHTMLAttributes } from 'react';
 
-interface CustomerInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface CustomerInputProps extends InputHTMLAttributes<HTMLInputElement> {
   isEditing: boolean;
 }
 
@@ -15,7 +16,7 @@ export default function CustomerInput({ isEditing, className = '', ...props }: C
     if (input && isNumberInput) {
       const disableWheel = () => {
         // إزالة التركيز عند تمرير الماوس فوق الحقل
-        input.addEventListener('wheel', (e) => {
+        input.addEventListener('wheel', () => {
           if (document.activeElement === input) {
             input.blur();
           }

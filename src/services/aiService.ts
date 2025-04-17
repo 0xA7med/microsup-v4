@@ -81,57 +81,49 @@ async function extractUsingGemini(text: string, apiKey: string): Promise<Extract
     - ضع الرقم التعريفي في حقل "ملاحظات" الخاص بالجهاز وليس كجهاز منفصل
     - قد يكون لبعض العملاء رقم تعريفي فقط أو رمز تفعيل فقط وهذا أمر طبيعي
     - إذا كان هناك رقم تعريفي بدون رمز تفعيل، قم بإنشاء جهازًا جديدًا باستخدام الرقم التعريفي كرقم التعريفي
-    - من المفترض ان يكون النتاج النهائي  في معظم الحالات هوا عدد اجهزة مساوي او اكثر لعدد العملاء 
-    - إذا وجدت عدد العملاء المستخرج اكثر من عدد الاجهزة حاول التاكد مجددا من انك قمت باستخراج كل شئ بشكل صحيح
-    
-    انتبه جيداً للحالات التالية:
-    - وجود علامة 🛑 أو 🔴 أو عبارة "تم الاستبدال" أو "مستبدل" تشير إلى أن العميل قام باستبدال جهاز
-    - قد تكون هناك أجهزة متعددة مشار إليها برقم تسلسلي إضافي (مثل 91- أو 92-)
-    - إذا تكرر رمز التفعيل نفسه لنفس العميل، سجله مرة واحدة فقط
 
-    قم بإرجاع النتائج بتنسيق JSON كما يلي:
-    
+    يجب أن يكون الإخراج بتنسيق JSON بالضبط كما يلي:
+    \`\`\`json
     {
       "clients": [
         {
-          "اسم العميل": "الاسم الكامل",
-          "اسم المؤسسة": "اسم المؤسسة إن وجد",
+          "اسم العميل": "اسم العميل",
+          "اسم المؤسسة": "اسم المؤسسة (إذا وجد، وإلا استخدم اسم العميل)",
           "نوع النشاط": "نوع النشاط التجاري",
           "الهاتف": "رقم الهاتف الرئيسي",
-          "الهاتف 2": "رقم هاتف ثاني إن وجد",
-          "العنوان": "المدينة أو الموقع المذكور",
+          "الهاتف 2": "رقم الهاتف الثانوي (إذا وجد)",
+          "العنوان": "العنوان (إذا وجد)",
           "ملاحظات": "أي ملاحظات إضافية"
         }
       ],
       "devices": [
         {
-          "اسم العميل": "الاسم الكامل (نفس اسم العميل المرتبط بالجهاز)",
+          "اسم العميل": "اسم العميل (يجب أن يتطابق مع اسم العميل في مصفوفة العملاء)",
           "رمز التفعيل": "رمز التفعيل بتنسيق XXXX-XXXX-XXXX",
-          "نوع الجهاز": "android",
+          "نوع الجهاز": "android (افتراضي)",
           "تاريخ بداية الاشتراك": "",
           "تاريخ نهاية الاشتراك": "",
-          "نوع الاشتراك": "دائم",
-          "ملاحظات": "الرقم التعريفي: XXX... ( إن وجد بدون كلمة الرقم التعريفي) + أي ملاحظات أخرى"
+          "نوع الاشتراك": "دائم (افتراضي)",
+          "ملاحظات": "الرقم التعريفي إذا وجد"
         }
       ]
     }
-    
-    تعليمات مهمة لمعالجة الرموز والأرقام:
-    1. أي رقم بتنسيق XXXX-XXXX-XXXX يعتبر رمز تفعيل لجهاز
-    2. أي رقم مكون من 12-15 رقم متصل (بدون شرطات) هو رقم تعريفي وليس رمز تفعيل
-    3. ضع الرقم التعريفي في حقل "ملاحظات" للجهاز بصيغة "الرقم التعريفي: XXX..."
-    4. لا تنشئ جهازًا منفصلاً للرقم التعريفي، بل أضفه كملاحظة للجهاز ذي رمز التفعيل المرتبط به
-    5. إذا وُجد رقم تعريفي بدون رمز تفعيل، أنشئ جهازًا مع رمز تفعيل افتراضي بصيغة "ID-XXXX" (حيث XXXX هي آخر 4 أرقام من الرقم التعريفي)
-    6. إذا تكرر نفس اسم العميل في أكثر من موضع، تأكد من دمج معلوماته وإنشاء سجل واحد له مع أجهزته المتعددة
+    \`\`\`
 
-    المحادثة: ${text}
-    `;
+    ملاحظات هامة:
+    - استخرج جميع العملاء والأجهزة من النص
+    - تأكد من تطابق أسماء العملاء بين مصفوفة العملاء ومصفوفة الأجهزة
+    - لا تضيف أي حقول إضافية غير المذكورة أعلاه
+    - لا تضيف أي نص إضافي قبل أو بعد JSON
+    - تأكد من صحة تنسيق JSON (أقواس، فواصل، إلخ)
+
+    محتوى محادثة واتساب:
+    ${text}`;
 
     try {
+      console.log('إرسال طلب إلى Gemini API...');
       const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const responseText = response.text();
-
+      const responseText = result.response.text();
       console.log('تم استلام الرد من Gemini API');
 
       try {
@@ -149,9 +141,9 @@ async function extractUsingGemini(text: string, apiKey: string): Promise<Extract
 
         console.log('محاولة تحليل JSON:', cleanJsonStr.substring(0, 100) + '...');
 
-        let data;
+        let parsedData;
         try {
-          data = JSON.parse(cleanJsonStr);
+          parsedData = JSON.parse(cleanJsonStr);
         } catch (parseError) {
           console.error('خطأ في التحليل الأول، محاولة إصلاح JSON:', parseError);
 
@@ -176,25 +168,38 @@ async function extractUsingGemini(text: string, apiKey: string): Promise<Extract
 
           // محاولة تحليل JSON مرة أخرى بعد الإصلاح
           try {
-            data = JSON.parse(cleanJsonStr);
+            parsedData = JSON.parse(cleanJsonStr);
           } catch (finalError) {
             console.error('فشل في تحليل JSON بعد محاولات الإصلاح:', finalError);
 
             // إنشاء هيكل بيانات بسيط للعودة
-            data = {
+            parsedData = {
               clients: [],
               devices: []
             };
           }
         }
 
-        // تنظيف وتوحيد الأجهزة لكل عميل
-        let devices = Array.isArray(data.devices) ? data.devices : [];
-        const clients = Array.isArray(data.clients) ? data.clients : [];
+        // استخراج بيانات العملاء والأجهزة
+        let clients: ClientData[] = parsedData.clients || [];
+        let devices: DeviceData[] = parsedData.devices || [];
         
-        // التحقق من الأجهزة وإصلاح أي مشاكل
-        if (devices.length > 0) {
-          // إنشاء مصفوفة نظيفة من الأجهزة
+        // تنظيف بيانات العملاء
+        clients = clients.map((client: ClientData) => {
+          return {
+            "اسم العميل": client["اسم العميل"] || "",
+            "اسم المؤسسة": client["اسم المؤسسة"] || client["اسم العميل"] || "",
+            "نوع النشاط": client["نوع النشاط"] || "",
+            "الهاتف": client["الهاتف"] || "",
+            "الهاتف 2": client["الهاتف 2"] || "",
+            "العنوان": client["العنوان"] || "",
+            "ملاحظات": client["ملاحظات"] || ""
+          };
+        });
+
+        // تنظيف وتوحيد الأجهزة لكل عميل
+        if (Array.isArray(devices)) {
+          // تنظيف الأجهزة وإزالة التكرارات
           const cleanedDevices = [];
           const processedActivationCodes = new Set();
           
@@ -228,7 +233,7 @@ async function extractUsingGemini(text: string, apiKey: string): Promise<Extract
         if (devices.length === 0 && clients.length > 0) {
           console.log('لم يتم العثور على أجهزة، إنشاء أجهزة افتراضية للعملاء');
 
-          devices = clients.map(client => ({
+          devices = clients.map((client: ClientData) => ({
             "اسم العميل": client["اسم العميل"],
             "رمز التفعيل": `ID-${Math.random().toString().substring(2, 6)}`,
             "نوع الجهاز": "android",
@@ -246,26 +251,21 @@ async function extractUsingGemini(text: string, apiKey: string): Promise<Extract
       } catch (error) {
         console.error('خطأ في تحليل JSON:', error);
         console.log('النص الأصلي:', responseText.substring(0, 200) + '...');
-
+        
         // محاولة استخراج البيانات باستخدام طريقة بديلة
-        return {
-          clients: [],
-          devices: []
-        };
+        return { clients: [], devices: [] };
       }
     } catch (apiError: any) {
       console.error('خطأ في استدعاء Gemini API:', apiError);
-
-      if (apiError.message && apiError.message.includes('API key not valid')) {
-        throw new Error('مفتاح API لـ Gemini غير صالح');
-      } else if (apiError.message && apiError.message.includes('not found')) {
-        throw new Error('نموذج Gemini غير موجود أو غير متاح');
+      
+      if (apiError.message?.includes('API key')) {
+        throw new Error('مفتاح API غير صالح.');
       } else {
-        throw apiError;
+        throw new Error(`خطأ في استدعاء Gemini API: ${apiError.message}`);
       }
     }
-  } catch (error) {
-    console.error('خطأ في استخراج البيانات باستخدام Gemini:', error);
+  } catch (error: any) {
+    console.error('Error in extractUsingGemini:', error);
     throw error;
   }
 }
@@ -398,7 +398,7 @@ async function extractUsingDeepSeek(text: string, apiKey: string): Promise<Extra
       if (devices.length === 0 && clients.length > 0) {
         console.log('لم يتم العثور على أجهزة، إنشاء أجهزة افتراضية للعملاء');
 
-        devices = clients.map(client => ({
+        devices = clients.map((client: ClientData) => ({
           "اسم العميل": client["اسم العميل"],
           "رمز التفعيل": `ID-${Math.random().toString().substring(2, 6)}`,
           "نوع الجهاز": "android",
@@ -434,29 +434,3 @@ async function extractUsingDeepSeek(text: string, apiKey: string): Promise<Extra
     }
   }
 }
-
-// /**
-//  * دالة مساعدة للتحقق من صحة رمز التفعيل
-//  */
-// function isValidActivationCode(code: string): boolean {
-//   return /^\d{4}-\d{4}-\d{4}$/.test(code.trim());
-// }
-
-// /**
-//  * دالة مساعدة للتحقق من صحة الرقم التعريفي
-//  */
-// function isValidIdentificationNumber(num: string): boolean {
-//   return /^\d{12,15}$/.test(num.trim());
-// }
-
-// /**
-//  * دالة مساعدة لإزالة التكرارات من مصفوفة الأجهزة
-//  */
-// function removeDuplicateDevices(devices: DeviceData[]): DeviceData[] {
-//   const seen = new Set();
-//   return devices.filter(device => {
-//     const duplicate = seen.has(device["رمز التفعيل"]);
-//     seen.add(device["رمز التفعيل"]);
-//     return !duplicate;
-//   });
-// }

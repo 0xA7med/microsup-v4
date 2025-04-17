@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Calendar, Eye, Copy, Smartphone, Laptop } from 'lucide-react';
 import Button from './Button';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Client } from '../types/dashboard.types';
 // نستخدم نوع أي للأجهزة لتبسيط الكود
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 
@@ -17,7 +17,7 @@ interface RecentClientsListProps {
   refreshTrigger?: boolean; // مؤشر لإعادة تحميل البيانات عند تغييره
 }
 
-const RecentClientsList: React.FC<RecentClientsListProps> = ({ 
+const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   isRTL,

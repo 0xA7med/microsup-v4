@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format, addMonths, addYears, isAfter, startOfToday, parseISO } from 'date-fns';
-import { X, Save, Ban, Calendar, Clipboard, Trash2 } from 'lucide-react';
+import { X, Save, Ban, Calendar, Clipboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { DeviceType, DEVICE_TYPES } from '../types/device.types';
 import Button from '../components/Button';
@@ -16,7 +16,6 @@ interface DeviceModalProps {
   onSave: (deviceData: DeviceType) => Promise<void>;
   device?: DeviceType | null;
   clientId: string;
-  versionTypes: { value: string; label: string; labelEn: string }[];
 }
 
 export default function DeviceModal({
@@ -24,8 +23,7 @@ export default function DeviceModal({
   onClose,
   onSave,
   device,
-  clientId,
-  versionTypes
+  clientId
 }: DeviceModalProps) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.dir() === 'rtl';
@@ -156,32 +154,17 @@ export default function DeviceModal({
     }
   };
 
+  // تنسيق التاريخ للإدخال
   const formatInputDate = (dateString?: string | null): string => {
-    if (!dateString) return '';
+    if (!dateString) return format(new Date(), 'yyyy-MM-dd');
+    
     try {
-      return format(parseISO(dateString), 'yyyy-MM-dd');
+      const date = parseISO(dateString);
+      return format(date, 'yyyy-MM-dd');
     } catch (error) {
-      console.warn("Error formatting input date:", dateString, error);
-      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString;
-      }
-      return '';
+      console.error('خطأ في تنسيق التاريخ:', error);
+      return format(new Date(), 'yyyy-MM-dd');
     }
-  };
-
-  const generateRandomCode = () => {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 16; i++) {
-      result += characters.charAt(Math.floor(Math.random() * characters.length));
-    }
-    
-    setFormData((prev) => ({
-      ...prev,
-      activation_code: result
-    }));
-    
-    toast.success(t('messages.codeGenerated', 'تم إنشاء رمز تفعيل جديد'));
   };
 
   if (!isOpen) return null;

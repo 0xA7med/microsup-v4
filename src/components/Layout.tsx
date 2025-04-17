@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, AlertCircle, UserCog, Database, ClipboardList } from 'lucide-react';
+import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, Database, ClipboardList } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 
 // تعريف واضح لخصائص المكون
 interface LayoutProps {
