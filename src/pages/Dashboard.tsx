@@ -89,6 +89,7 @@ export const Dashboard: React.FC = () => {
     // حالة الأجهزة
     pendingDevices,
     rejectedDevices,
+    approvedDevices = 0, // إضافة قيمة افتراضية
     // عدد الأجهزة حسب النوع
     totalDevices,
     // إضافة الحقول المفقودة
@@ -210,6 +211,7 @@ export const Dashboard: React.FC = () => {
       let totalDevices = 0;
       let pendingDevices = 0;
       let rejectedDevices = 0;
+      let approvedDevices = 0;
       
       // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
       let activeSubscriptionsCount = 0;
@@ -290,6 +292,8 @@ export const Dashboard: React.FC = () => {
             pendingDevices++;
           } else if (device.approval_status === 'rejected') {
             rejectedDevices++;
+          } else if (device.approval_status === 'approved') {
+            approvedDevices++;
           }
         });
       }
@@ -314,6 +318,7 @@ export const Dashboard: React.FC = () => {
         // حالة الأجهزة
         pendingDevices,
         rejectedDevices,
+        approvedDevices,
         // عدد الأجهزة حسب النوع
         totalDevices,
         // إضافة الحقول المفقودة
@@ -839,6 +844,72 @@ export const Dashboard: React.FC = () => {
               </div>
               <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
                 <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* إحصائيات حالة الأجهزة */}
+      <div className="mb-8">
+        <div 
+          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg mb-1 shadow cursor-pointer md:hidden"
+          onClick={() => toggleSection('deviceStatusStats')}
+        >
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatusStats', 'إحصائيات حالة الأجهزة')}</h2>
+          <div className="flex items-center">
+            {collapsedSections.deviceStatusStats ? 
+              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
+              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            }
+          </div>
+        </div>
+        
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : ''}`}>
+          {/* الأجهزة المعتمدة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('approved')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.approvedDevices', 'الأجهزة المعتمدة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedDevices || 0}</span>
+              </div>
+              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
+                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
+              </div>
+            </div>
+          </div>
+          
+          {/* الأجهزة المعلقة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('pending')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الأجهزة المعلقة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
+              </div>
+              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
+                <AlertCircle className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+              </div>
+            </div>
+          </div>
+          
+          {/* الأجهزة المرفوضة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('rejected')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الأجهزة المرفوضة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
+              </div>
+              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
+                <X className="h-6 w-6 text-red-600 dark:text-red-300" />
               </div>
             </div>
           </div>
