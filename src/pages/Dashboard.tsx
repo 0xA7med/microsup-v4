@@ -981,22 +981,6 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           </div>
-          
-          {/* الاشتراكات المقبولة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToPendingDevices('approved')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.approvedDevices', 'الاشتراكات المقبولة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedDevices || 0}</span>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
-              </div>
-            </div>
-          </div>
         </div>
       </div>
       
@@ -1133,6 +1117,7 @@ export const Dashboard: React.FC = () => {
         formatDateForDisplay={formatDateForDisplay}
         handleShowDetails={handleShowDetails}
         navigateToClientsList={navigateToClientsList}
+        subscriptionTypes={SUBSCRIPTION_TYPES}
         refreshTrigger={refreshTrigger} // إضافة مؤشر التحديث
       />
 

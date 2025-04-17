@@ -19,7 +19,7 @@ interface ClientDetailsModalProps {
   client: ClientType | null;
   agents: Agent[];
   subscriptionTypes: SubscriptionType[];
-  versionTypes: VersionType[];
+  versionTypes?: VersionType[];
   isOpen: boolean;
   onClose: () => void;
   onSave: (updatedClient: ClientType) => Promise<void>;
@@ -34,7 +34,7 @@ interface ClientDetailsModalProps {
 export default function ClientDetailsModal({
   client,
   agents,
-  versionTypes,
+  subscriptionTypes,
   isOpen,
   onClose,
   onSave,
@@ -865,7 +865,7 @@ export default function ClientDetailsModal({
               onSave={handleSaveDevice}
               device={selectedDevice}
               clientId={client?.id || ''}
-              versionTypes={versionTypes}
+              subscriptionTypes={subscriptionTypes}
             />
           )}
         </div>

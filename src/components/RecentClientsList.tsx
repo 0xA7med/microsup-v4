@@ -23,13 +23,15 @@ type RecentClientsListProps = {
   handleShowDetails: (client: Client) => void;
   navigateToClientsList?: (filter?: string) => void;
   refreshTrigger?: boolean;
+  subscriptionTypes?: { value: string; label: string; labelEn: string }[];
 }
 
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   navigateToClientsList,
-  refreshTrigger
+  refreshTrigger,
+  subscriptionTypes
 }: RecentClientsListProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,7 @@ const RecentClientsList = ({
           device_type,
           activation_code,
           subscription_type,
+          subscription_start,
           subscription_end,
           price,
           created_at,
@@ -62,7 +65,6 @@ const RecentClientsList = ({
             phone2,
             notes,
             subscription_type,
-            subscription_start,
             subscription_end,
             agent_id,
             agents!clients_agent_id_fkey(id, name, email)
@@ -102,8 +104,7 @@ const RecentClientsList = ({
         },
         client_name: device.clients?.client_name,
         phone: device.clients?.phone,
-        agent_name: device.clients?.agents?.name,
-        subscription_start: device.clients?.subscription_start
+        agent_name: device.clients?.agents?.name
       })) || [];
       
       setRecentDevices(formattedDevices);

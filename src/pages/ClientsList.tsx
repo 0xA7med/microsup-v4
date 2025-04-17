@@ -352,6 +352,9 @@ export const ClientsList: React.FC = () => {
         if (key === 'client_name' || key === 'organization_name' || key === 'phone' || key === 'agent_id') {
           baseQuery = baseQuery.order(key, { ascending: order });
         }
+      } else {
+        // إذا لم يكن هناك ترتيب محدد، نستخدم الترتيب الافتراضي (الأحدث أولاً)
+        baseQuery = baseQuery.order('created_at', { ascending: false });
       }
       
       // إضافة إشارة الإلغاء إلى الاستعلام الرئيسي
@@ -648,7 +651,17 @@ export const ClientsList: React.FC = () => {
 
   // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
   const toggleShowDevices = useCallback((clientId: string) => {
+    // تحديث حالة clients
     setClients(prevClients => 
+      prevClients.map(client => 
+        client.id === clientId 
+          ? { ...client, showDevices: !client.showDevices } 
+          : client
+      )
+    );
+    
+    // تحديث حالة stableClients أيضاً
+    setStableClients(prevClients => 
       prevClients.map(client => 
         client.id === clientId 
           ? { ...client, showDevices: !client.showDevices } 
@@ -1560,14 +1573,14 @@ export const ClientsList: React.FC = () => {
 
       {selectedClient && (
         <ClientDetailsModal
-          client={selectedClient as ImportedClientType}
+          client={selectedClient}
           agents={agents}
+          versionTypes={VERSION_TYPES}
+          subscriptionTypes={SUBSCRIPTION_TYPES}
           isOpen={showDetailsModal}
           onClose={handleCloseModal}
           onSave={handleUpdateClient}
           onDelete={handleDeleteClient}
-          subscriptionTypes={SUBSCRIPTION_TYPES}
-          versionTypes={VERSION_TYPES}
           currentUser={user}
         />
       )}

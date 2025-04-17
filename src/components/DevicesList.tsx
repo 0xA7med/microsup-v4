@@ -12,7 +12,7 @@ interface DevicesListProps {
   devices: DeviceType[];
   clientId: string;
   onDeviceUpdated: () => void;
-  versionTypes: { value: string; label: string; labelEn: string }[];
+  subscriptionTypes?: { value: string; label: string; labelEn: string }[];
   currentUser?: {
     id: string;
     role: string;
@@ -23,7 +23,7 @@ export default function DevicesList({
   devices,
   clientId,
   onDeviceUpdated,
-  versionTypes,
+  subscriptionTypes,
   currentUser
 }: DevicesListProps) {
   const { t, i18n } = useTranslation();
@@ -254,7 +254,7 @@ export default function DevicesList({
           onSave={handleSaveDevice}
           device={selectedDevice}
           clientId={clientId}
-          versionTypes={versionTypes}
+          subscriptionTypes={subscriptionTypes}
         />
       )}
     </div>

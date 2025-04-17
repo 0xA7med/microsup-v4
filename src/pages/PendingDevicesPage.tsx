@@ -34,6 +34,7 @@ interface PendingDevice {
   approval_status: 'pending' | 'approved' | 'rejected';
   rejection_reason?: string;
   created_at: string;
+  price: string;
 }
 
 export default function PendingDevicesPage() {
@@ -71,13 +72,26 @@ export default function PendingDevicesPage() {
   const fetchPendingDevices = useCallback(async () => {
     setLoading(true);
     try {
+      console.log(`بدء جلب الأجهزة بحالة: ${filterStatus}`);
       const { data: devicesData, error: devicesError } = await supabase
         .from('devices')
         .select('*')
         .eq('approval_status', filterStatus)
         .order('created_at', { ascending: false });
 
-      if (devicesError) throw devicesError;
+      if (devicesError) {
+        console.error('خطأ في جلب الأجهزة:', devicesError);
+        throw devicesError;
+      }
+
+      console.log(`تم جلب ${devicesData?.length || 0} جهاز بحالة ${filterStatus}`);
+      
+      // إذا لم تكن هناك أجهزة، قم بتحديث الحالة وإنهاء الدالة
+      if (!devicesData || devicesData.length === 0) {
+        setDevices([]);
+        setLoading(false);
+        return;
+      }
 
       const clientIds = [...new Set(devicesData?.map(device => device.client_id) || [])];
       
@@ -159,6 +173,22 @@ export default function PendingDevicesPage() {
     updatePendingCount();
   }, [fetchPendingDevices, updatePendingCount, filterStatus]);
 
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const statusParam = urlParams.get('status');
+    if (statusParam && ['pending', 'approved', 'rejected'].includes(statusParam)) {
+      setFilterStatus(statusParam);
+    }
+  }, []);
+
+  useEffect(() => {
+    updatePendingCount();
+  }, [updatePendingCount]);
+
+  useEffect(() => {
+    fetchPendingDevices();
+  }, [fetchPendingDevices, filterStatus]);
+
   const handleApproveDevice = async (deviceId: string) => {
     if (!user) {
       toast.error(t('errors.unauthorized', 'غير مصرح لك بهذه العملية'));
@@ -168,19 +198,25 @@ export default function PendingDevicesPage() {
     setProcessingDeviceId(deviceId);
     
     try {
+      console.log(`بدء عملية الموافقة على الجهاز ${deviceId}`);
       const { error } = await supabase
         .from('devices')
         .update({ 
-          approval_status: 'approved',
-          approved_by: user.id
+          approval_status: 'approved'
         })
         .eq('id', deviceId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('خطأ في تحديث حالة الجهاز:', error);
+        throw error;
+      }
 
+      console.log(`تمت الموافقة على الجهاز ${deviceId} بنجاح`);
       toast.success(t('success.deviceApproved', 'تم اعتماد الجهاز بنجاح'));
-      fetchPendingDevices();
-      updatePendingCount();
+      
+      // تحديث قائمة الأجهزة المعلقة وعدد الطلبات المعلقة
+      await fetchPendingDevices();
+      await updatePendingCount();
     } catch (error) {
       console.error('Error approving device:', error);
       toast.error(t('errors.approveDevice', 'حدث خطأ أثناء اعتماد الجهاز'));
@@ -204,26 +240,33 @@ export default function PendingDevicesPage() {
     setProcessingDeviceId(selectedDeviceId);
     
     try {
+      console.log(`بدء عملية رفض الجهاز ${selectedDeviceId}`);
       const { error } = await supabase
         .from('devices')
         .update({ 
           approval_status: 'rejected',
-          rejected_by: user.id,
-          rejected_at: new Date().toISOString(),
-          rejection_reason: rejectionReason.trim()
+          rejection_reason: rejectionReason.trim() || t('device.defaultRejectionReason', 'تم الرفض بدون سبب محدد')
         })
         .eq('id', selectedDeviceId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('خطأ في تحديث حالة الجهاز:', error);
+        throw error;
+      }
 
+      console.log(`تم رفض الجهاز ${selectedDeviceId} بنجاح`);
       toast.success(t('success.deviceRejected', 'تم رفض الجهاز بنجاح'));
       setShowRejectionModal(false);
-      fetchPendingDevices();
+      
+      // تحديث قائمة الأجهزة المعلقة وعدد الطلبات المعلقة
+      await fetchPendingDevices();
+      await updatePendingCount();
     } catch (error) {
       console.error('Error rejecting device:', error);
       toast.error(t('errors.rejectDevice', 'حدث خطأ أثناء رفض الجهاز'));
     } finally {
       setProcessingDeviceId(null);
+      setSelectedDeviceId(null);
     }
   };
 
@@ -303,8 +346,7 @@ export default function PendingDevicesPage() {
       const { error } = await supabase
         .from('devices')
         .update({ 
-          approval_status: 'approved',
-          approved_by: user.id
+          approval_status: 'approved'
         })
         .in('id', deviceIds);
 
@@ -459,6 +501,9 @@ export default function PendingDevicesPage() {
                           {t('device.subscriptionType', 'نوع الاشتراك')}
                         </th>
                         <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                          {t('device.price', 'السعر')}
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                           {t('device.subscriptionDates', 'تاريخ الاشتراك')}
                         </th>
                         <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -510,6 +555,10 @@ export default function PendingDevicesPage() {
                           </td>
                           
                           <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 dark:text-white">{device.price}</div>
+                          </td>
+                          
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex flex-col text-sm text-gray-500 dark:text-gray-400">
                               <div className="flex items-center">
                                 <Calendar className="h-4 w-4 ml-1 text-gray-400 dark:text-gray-500" />
@@ -543,7 +592,7 @@ export default function PendingDevicesPage() {
                                     className="px-3 py-1.5 text-sm flex items-center gap-1"
                                   >
                                     <CheckCircle className="h-4 w-4 ml-1" />
-                                    {t('actions.approve', 'موافقة')}
+                                    {processingDeviceId === device.id ? t('actions.approving', 'جار الموافقة...') : t('actions.approve', 'موافقة')}
                                   </Button>
                                   <Button
                                     variant="danger"
@@ -552,7 +601,7 @@ export default function PendingDevicesPage() {
                                     className="px-3 py-1.5 text-sm flex items-center gap-1"
                                   >
                                     <XCircle className="h-4 w-4 ml-1" />
-                                    {t('actions.reject', 'رفض')}
+                                    {processingDeviceId === device.id ? t('actions.rejecting', 'جار الرفض...') : t('actions.reject', 'رفض')}
                                   </Button>
                                 </>
                               )}
@@ -606,7 +655,7 @@ export default function PendingDevicesPage() {
                   <Button 
                     variant="danger" 
                     onClick={handleRejectDevice} 
-                    disabled={!!processingDeviceId || !rejectionReason.trim()}
+                    disabled={!!processingDeviceId}
                     className="flex items-center gap-2 px-5 py-2.5"
                   >
                     <XCircle className="w-5 h-5" />

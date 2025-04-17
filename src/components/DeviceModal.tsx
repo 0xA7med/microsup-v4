@@ -16,7 +16,7 @@ interface DeviceModalProps {
   onSave: (deviceData: DeviceType) => Promise<void>;
   device?: DeviceType | null;
   clientId: string;
-  versionTypes: { value: string; label: string; labelEn: string }[];
+  subscriptionTypes?: { value: string; label: string; labelEn: string }[];
 }
 
 export default function DeviceModal({
@@ -25,7 +25,12 @@ export default function DeviceModal({
   onSave,
   device,
   clientId,
-  versionTypes
+  subscriptionTypes = [
+    { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
+    { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Biannual' },
+    { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
+    { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
+  ]
 }: DeviceModalProps) {
   const { t, i18n } = useTranslation();
   const [formData, setFormData] = useState<DeviceType>({
@@ -247,7 +252,7 @@ export default function DeviceModal({
                   onChange={(e) => handleSubscriptionTypeChange(e.target.value)}
                   isEditing={true}
                   required
-                  options={versionTypes.map(type => ({
+                  options={subscriptionTypes.map(type => ({
                     value: type.value,
                     label: i18n.language === 'ar' ? type.label : type.labelEn
                   }))}
