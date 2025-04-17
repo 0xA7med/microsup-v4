@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { 
   Users, UserPlus, Phone, 
   Clock, AlertCircle, Zap, Package, RefreshCw,
@@ -33,8 +33,7 @@ const VERSION_TYPES = [
 ];
 
 export const Dashboard: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const isRTL = i18n.language === 'ar';
+  const { t } = useTranslation();
   const navigate = useNavigate();
   
   // حالة البيانات
@@ -88,13 +87,12 @@ export const Dashboard: React.FC = () => {
     mobileValue = 0,
     computerValue = 0,
     // حالة الأجهزة
-    approvedDevices,
     pendingDevices,
     rejectedDevices,
     // عدد الأجهزة حسب النوع
     totalDevices,
     // إضافة الحقول المفقودة
-    activeDevices,
+    activeDevices: activeDevicesCount,
     mobileDevices,
     computerDevices
   } = dashboardData || {};
@@ -113,8 +111,8 @@ export const Dashboard: React.FC = () => {
         expiringThisMonth
       });
     }
-  }, [dashboardData, totalClients, totalAgents, activeSubscriptions, expiredSubscriptions, averageDevices, renewalRate, permanentClients, expiringThisMonth]);
-  
+  }, [dashboardData]);
+
   // وظيفة للحصول على البيانات المخزنة مؤقتًا
   const getCachedDashboardData = useCallback((): { data: DashboardData | null, expired: boolean } => {
     try {
@@ -210,7 +208,6 @@ export const Dashboard: React.FC = () => {
       
       // حساب عدد الأجهزة حسب النوع والحالة
       let totalDevices = 0;
-      let approvedDevices = 0;
       let pendingDevices = 0;
       let rejectedDevices = 0;
       
@@ -289,12 +286,10 @@ export const Dashboard: React.FC = () => {
           // حساب عدد الأجهزة حسب النوع والحالة
           totalDevices++;
           
-          if (device.approval_status === 'approved') {
-            approvedDevices++;
+          if (device.approval_status === 'pending') {
+            pendingDevices++;
           } else if (device.approval_status === 'rejected') {
             rejectedDevices++;
-          } else {
-            pendingDevices++;
           }
         });
       }
@@ -317,13 +312,12 @@ export const Dashboard: React.FC = () => {
         mobileValue,
         computerValue,
         // حالة الأجهزة
-        approvedDevices,
         pendingDevices,
         rejectedDevices,
         // عدد الأجهزة حسب النوع
         totalDevices,
         // إضافة الحقول المفقودة
-        activeDevices: approvedDevices || 0,
+        activeDevices: activeSubscriptionsCount || 0,
         mobileDevices: mobileDevicesCount,
         computerDevices: computerDevicesCount
       };
@@ -534,7 +528,7 @@ export const Dashboard: React.FC = () => {
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
           onClick={() => toggleSection('deviceStatusStats')}
         >
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الاشتراكات')}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الأجهزة')}</h2>
           {collapsedSections.deviceStatusStats ? (
             <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
           ) : (
@@ -547,14 +541,14 @@ export const Dashboard: React.FC = () => {
         </div>
         
         <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
-          {/* إجمالي الاشتراكات */}
+          {/* إجمالي الأجهزة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
             onClick={() => navigateToClientsList('devices')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الاشتراكات')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
               </div>
               <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
@@ -563,15 +557,15 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* الاشتراكات المقبولة */}
+          {/* الأجهزة النشطة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('approved')}
+            onClick={() => navigateToClientsList('active')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.approvedDevices', 'الاشتراكات المقبولة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedDevices || 0}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الأجهزة النشطة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeDevicesCount || 0}</span>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
                 <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
@@ -579,14 +573,14 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* الاشتراكات المعلقة */}
+          {/* الأجهزة المعلقة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
             onClick={() => navigateToClientsList('pending')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الاشتراكات المعلقة')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الأجهزة المعلقة')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
               </div>
               <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
@@ -595,14 +589,14 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* الاشتراكات المرفوضة */}
+          {/* الأجهزة المرفوضة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
             onClick={() => navigateToClientsList('rejected')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الاشتراكات المرفوضة')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الأجهزة المرفوضة')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
               </div>
               <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
@@ -611,14 +605,14 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* اشتراكات الهاتف */}
+          {/* أجهزة الهاتف */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
             onClick={() => navigateToClientsList('mobile')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.mobileFilter', 'أجهزة الهاتف')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {mobileDevices || devicesData.filter((device: any) => device.device_type !== 'computer').length}
                 </span>
@@ -629,14 +623,14 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          {/* اشتراكات الكمبيوتر */}
+          {/* أجهزة الكمبيوتر */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
             onClick={() => navigateToClientsList('computer')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.computerFilter', 'أجهزة الكمبيوتر')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                   {computerDevices || devicesData.filter((device: any) => device.device_type === 'computer').length}
                 </span>
@@ -699,14 +693,14 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
           
-          {/* إجمالي الاشتراكات */}
+          {/* إجمالي الأجهزة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
             onClick={() => navigateToClientsList('devices')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الاشتراكات')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
@@ -750,14 +744,14 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             
-            {/* قيم اشتراكات الهاتف */}
+            {/* قيم أجهزة الهاتف */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={() => navigateToClientsList('mobile')}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'قيم اشتراكات الهاتف')}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'قيم أجهزة الهاتف')}</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(mobileValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
@@ -766,14 +760,14 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
             
-            {/* قيم اشتراكات الكمبيوتر */}
+            {/* قيم أجهزة الكمبيوتر */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={() => navigateToClientsList('computer')}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'قيم اشتراكات الكمبيوتر')}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'قيم أجهزة الكمبيوتر')}</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(computerValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
@@ -855,7 +849,6 @@ export const Dashboard: React.FC = () => {
       <RecentClientsList 
         formatDateForDisplay={formatDateForDisplay}
         handleShowDetails={handleShowDetails}
-        isRTL={isRTL}
         navigateToClientsList={navigateToClientsList}
         refreshTrigger={refreshTrigger} // إضافة مؤشر التحديث
       />

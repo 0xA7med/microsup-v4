@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Eye, Copy, Smartphone, Laptop } from 'lucide-react';
+import { Eye, Copy, Smartphone, Laptop } from 'lucide-react';
 import Button from './Button';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { Client } from '../types/dashboard.types';
 // نستخدم نوع أي للأجهزة لتبسيط الكود
 import { supabase } from '../lib/supabaseClient';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 
-interface RecentClientsListProps {
+type RecentClientsListProps = {
   formatDateForDisplay: (date?: string | Date) => string;
   handleShowDetails: (client: Client) => void;
-  isRTL: boolean;
   navigateToClientsList?: (filter?: string) => void;
   refreshTrigger?: boolean; // مؤشر لإعادة تحميل البيانات عند تغييره
 }
@@ -20,12 +18,10 @@ interface RecentClientsListProps {
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
-  isRTL,
   navigateToClientsList,
   refreshTrigger
-}) => {
-  const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
+}: RecentClientsListProps) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [recentDevices, setRecentDevices] = useState<any[]>([]);
   const user = useAuthStore.getState().user;
@@ -114,77 +110,54 @@ const RecentClientsList = ({
       setRecentDevices(formattedDevices);
     } catch (error) {
       console.error('Error fetching recent devices:', error);
-      toast.error(t('messages.errorFetchingDevices', 'حدث خطأ أثناء جلب بيانات الأجهزة'));
+      toast.error(t('messages.errorFetchingDevices', 'حدث خطأ أثناء جلب الأجهزة'));
     } finally {
       setLoading(false);
     }
   };
-  
-  // جلب أحدث 10 أجهزة تم إضافتها عند تحميل المكون أو عند تغيير مؤشر التحديث
+
+  // تحديث البيانات عند تغيير مؤشر التحديث
   useEffect(() => {
     fetchRecentDevices();
-  }, [t, user, refreshTrigger]); // إضافة refreshTrigger للمصفوفة لإعادة تحميل البيانات عند تغييره
+  }, [refreshTrigger]);
 
   // نسخ رمز التفعيل
   const copyActivationCode = (code: string) => {
     navigator.clipboard.writeText(code);
-    toast.success(t('messages.codeCopied', 'تم نسخ رمز التفعيل'));
+    toast.success(t('messages.codeCopied', 'تم نسخ الرمز بنجاح'));
   };
 
   // الحصول على أيقونة نوع الجهاز
   const getDeviceIcon = (deviceType: string) => {
-    return deviceType === 'computer' ? (
-      <Laptop className="h-5 w-5 text-blue-500" />
-    ) : (
-      <Smartphone className="h-5 w-5 text-indigo-500" />
-    );
+    switch (deviceType) {
+      case 'android':
+        return <Smartphone className="h-4 w-4 text-green-600" />;
+      case 'ios':
+        return <Smartphone className="h-4 w-4 text-blue-600" />;
+      default:
+        return <Laptop className="h-4 w-4 text-gray-600" />;
+    }
   };
 
   // الحصول على تسمية نوع الجهاز
   const getDeviceTypeLabel = (value: string) => {
-    switch(value) {
-      case 'computer': return i18n.language === 'ar' ? 'كمبيوتر' : 'Computer';
-      case 'android': return i18n.language === 'ar' ? 'موبايل' : 'Mobile';
+    switch (value) {
+      case 'android': return t('device.android', 'أندرويد');
+      case 'ios': return t('device.ios', 'آيفون');
+      case 'windows': return t('device.windows', 'ويندوز');
       default: return value;
-    }
-  };
-
-  // الحصول على تسمية حالة الموافقة
-  const getApprovalStatusLabel = (status: string) => {
-    switch(status) {
-      case 'approved': return t('device.approved', 'مقبول');
-      case 'rejected': return t('device.rejected', 'مرفوض');
-      case 'pending': 
-      default: return t('device.pending', 'معلق');
-    }
-  };
-
-  // الحصول على لون خلفية حالة الموافقة
-  const getApprovalStatusColor = (status: string) => {
-    switch(status) {
-      case 'approved': return 'bg-green-50 dark:bg-green-900/20';
-      case 'rejected': return 'bg-red-50 dark:bg-red-900/20';
-      case 'pending': 
-      default: return 'bg-yellow-50 dark:bg-yellow-900/20';
-    }
-  };
-
-  // الحصول على لون شارة حالة الموافقة
-  const getApprovalStatusBadgeColor = (status: string) => {
-    switch(status) {
-      case 'approved': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'rejected': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'pending': 
-      default: return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
     }
   };
 
   // التحقق مما إذا كان الاشتراك منتهياً
   const isSubscriptionExpired = (endDate: string) => {
     if (!endDate) return false;
+    
     try {
-      return new Date(endDate) < new Date();
-    } catch (error) {
+      const end = new Date(endDate);
+      const now = new Date();
+      return end < now;
+    } catch (e) {
       return false;
     }
   };
@@ -192,89 +165,66 @@ const RecentClientsList = ({
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
       <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-        <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+        <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">
           {t('dashboard.recentDevices', 'أحدث الأجهزة')}
-        </h2>
-        <Button
-          onClick={() => navigateToClientsList ? navigateToClientsList('devices') : navigate('/clients?filter=devices')}
-          variant="secondary"
-          className="text-sm"
-        >
-          {t('dashboard.viewAll', 'عرض الكل')}
-        </Button>
+        </h3>
+        {navigateToClientsList && (
+          <Button
+            onClick={() => navigateToClientsList()}
+            variant="secondary"
+            className="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
+          >
+            {t('dashboard.viewAllDevices', 'عرض الكل')}
+          </Button>
+        )}
       </div>
-      <div className="border-t border-gray-200 dark:border-gray-700 overflow-x-auto">
+      <div className="border-t border-gray-200 dark:border-gray-700">
         {loading ? (
-          <div className="px-4 py-6 text-center">
-            <div className="flex justify-center items-center h-32">
-              <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-10 w-10 mb-4"></div>
-              <p className="text-gray-500 dark:text-gray-400 ml-3">{t('common.loading', 'جار التحميل...')}</p>
-            </div>
+          <div className="flex justify-center items-center py-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"></div>
           </div>
         ) : recentDevices.length > 0 ? (
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th 
-                  scope="col" 
-                  className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[100px] min-w-[100px]`}
-                >
-                  {t('device.type', 'نوع الجهاز')}
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  {t('device.details', 'تفاصيل الجهاز')}
                 </th>
-                <th 
-                  scope="col" 
-                  className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-32`}
-                >
-                  {t('device.activationCode', 'رمز التفعيل')}
-                </th>
-                <th 
-                  scope="col" 
-                  className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[120px] min-w-[120px]`}
-                >
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   {t('client.name', 'اسم العميل')}
                 </th>
-                <th 
-                  scope="col" 
-                  className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[100px] min-w-[100px]`}
-                >
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   {t('client.agent', 'المندوب')}
                 </th>
-                <th 
-                  scope="col" 
-                  className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-[100px]`}
-                >
-                  {t('client.value', 'القيمة')}
+                <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  {t('device.price', 'السعر')}
                 </th>
-                <th 
-                  scope="col" 
-                  className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${isRTL ? 'text-right' : 'text-left'} cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700`}
-                >
-                  <Calendar className="inline h-4 w-4 mr-1" /> {t('device.subscriptionEnd', 'نهاية الاشتراك')}
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  {t('device.subscriptionEnd', 'نهاية الاشتراك')}
                 </th>
-                <th scope="col" className="px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-center">
-                  {t('common.actions', 'الإجراءات')}
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  {t('actions.actions', 'الإجراءات')}
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {recentDevices.map((device) => (
-                <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      {getDeviceIcon(device.device_type)}
-                      <span className="ml-2 text-gray-900 dark:text-white">{getDeviceTypeLabel(device.device_type)}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-32">
-                    <div className={`flex items-center justify-between p-1 rounded ${getApprovalStatusColor(device.approval_status || 'pending')}`}>
-                      <div className="flex items-center">
-                        <div className="flex items-center">
-                          <span className="text-xs font-mono truncate max-w-[80px]" title={device.activation_code}>
-                            {device.activation_code}
-                          </span>
-                          <button
+                      <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-full">
+                        {getDeviceIcon(device.device_type)}
+                      </div>
+                      <div className="mr-4 rtl:mr-4 ltr:ml-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {getDeviceTypeLabel(device.device_type) || t('device.unknown', 'غير معروف')}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <span className="font-mono">{device.activation_code}</span>
+                          <button 
                             onClick={() => copyActivationCode(device.activation_code)}
-                            className="ml-1 p-1 text-gray-500 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400 transition-colors"
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            aria-label={t('device.copyActivationCode', 'نسخ رمز التفعيل') as string}
                             title={t('device.copyActivationCode', 'نسخ رمز التفعيل') as string}
                           >
                             <Copy className="h-3.5 w-3.5" />

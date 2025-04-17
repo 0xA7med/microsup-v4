@@ -15,9 +15,8 @@ import {
   Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import Button from '../components/Button';
-import { APPROVAL_STATUS } from '../types/device.types';
 import { useAuthStore } from '../store/authStore';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 
@@ -38,8 +37,7 @@ interface PendingDevice {
 }
 
 export default function PendingDevicesPage() {
-  const { t, i18n } = useTranslation();
-  const isRTL = i18n.dir() === 'rtl';
+  const { t } = useTranslation();
   const user = useAuthStore((state) => state.user);
   const [devices, setDevices] = useState<PendingDevice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,21 +120,20 @@ export default function PendingDevicesPage() {
     try {
       const { error } = await supabase
         .from('devices')
-        .update({
+        .update({ 
           approval_status: 'approved',
-          approval_date: new Date().toISOString(),
-          approved_by: user.id
+          approved_by: user.id,
+          approved_at: new Date().toISOString()
         })
         .eq('id', deviceId);
 
       if (error) throw error;
 
-      toast.success(t('device.approvedSuccess', 'تمت الموافقة على الجهاز بنجاح'));
-      
-      setDevices(prev => prev.filter(device => device.id !== deviceId));
+      toast.success(t('success.deviceApproved', 'تم اعتماد الجهاز بنجاح'));
+      fetchPendingDevices();
     } catch (error) {
       console.error('Error approving device:', error);
-      toast.error(t('errors.approveDevice', 'حدث خطأ أثناء الموافقة على الجهاز'));
+      toast.error(t('errors.approveDevice', 'حدث خطأ أثناء اعتماد الجهاز'));
     } finally {
       setProcessingDeviceId(null);
     }
@@ -149,7 +146,7 @@ export default function PendingDevicesPage() {
   };
 
   const handleRejectDevice = async () => {
-    if (!selectedDeviceId || !user) {
+    if (!user || !selectedDeviceId) {
       toast.error(t('errors.unauthorized', 'غير مصرح لك بهذه العملية'));
       return;
     }
@@ -159,20 +156,19 @@ export default function PendingDevicesPage() {
     try {
       const { error } = await supabase
         .from('devices')
-        .update({
+        .update({ 
           approval_status: 'rejected',
-          approval_date: new Date().toISOString(),
-          approved_by: user.id,
-          rejection_reason: rejectionReason
+          rejected_by: user.id,
+          rejected_at: new Date().toISOString(),
+          rejection_reason: rejectionReason.trim()
         })
         .eq('id', selectedDeviceId);
 
       if (error) throw error;
 
-      toast.success(t('device.rejectedSuccess', 'تم رفض الجهاز بنجاح'));
-      
-      setDevices(prev => prev.filter(device => device.id !== selectedDeviceId));
+      toast.success(t('success.deviceRejected', 'تم رفض الجهاز بنجاح'));
       setShowRejectionModal(false);
+      fetchPendingDevices();
     } catch (error) {
       console.error('Error rejecting device:', error);
       toast.error(t('errors.rejectDevice', 'حدث خطأ أثناء رفض الجهاز'));
@@ -182,27 +178,25 @@ export default function PendingDevicesPage() {
   };
 
   const getDeviceIcon = (deviceType: string) => {
-    if (deviceType === 'computer') {
-      return <Laptop className="h-5 w-5 text-blue-500 dark:text-blue-400" />;
-    } else {
-      return <Smartphone className="h-5 w-5 text-green-500 dark:text-green-400" />;
-    }
+    return deviceType === 'android' ? 
+      <Smartphone className="h-5 w-5 text-blue-500" /> : 
+      <Laptop className="h-5 w-5 text-indigo-500" />;
   };
 
   const getDeviceTypeLabel = (deviceType: string) => {
-    if (deviceType === 'computer') {
-      return t('device.computer', 'كمبيوتر');
-    } else {
-      return t('device.mobile', 'موبايل');
-    }
+    return deviceType === 'android' ? 
+      t('device.mobile', 'موبايل') : 
+      t('device.computer', 'كمبيوتر');
   };
 
   const getSubscriptionTypeLabel = (subscriptionType: string) => {
     switch (subscriptionType) {
       case 'monthly':
         return t('subscription.monthly', 'شهري');
-      case 'yearly':
-        return t('subscription.yearly', 'سنوي');
+      case 'semi_annual':
+        return t('subscription.semiAnnual', 'نصف سنوي');
+      case 'annual':
+        return t('subscription.annual', 'سنوي');
       case 'permanent':
         return t('subscription.permanent', 'دائم');
       default:
@@ -210,51 +204,30 @@ export default function PendingDevicesPage() {
     }
   };
 
-  const getApprovalStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />;
-      case 'rejected':
-        return <XCircle className="h-5 w-5 text-red-500 dark:text-red-400" />;
-      case 'pending':
-      default:
-        return <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />;
-    }
-  };
-
-  const getApprovalStatusLabel = (status: string) => {
-    const statusItem = APPROVAL_STATUS.find(item => item.value === status);
-    return statusItem ? (isRTL ? statusItem.label : statusItem.labelEn) : (isRTL ? 'قيد المراجعة' : 'Pending');
-  };
-
-  const getApprovalStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'pending':
-      default:
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-    }
-  };
-
   const handleShowClientDetails = async (clientId: string) => {
     try {
-      const { data: clientData, error: clientError } = await supabase
+      const { data, error } = await supabase
         .from('clients')
         .select('*')
         .eq('id', clientId)
         .single();
-        
-      if (clientError) throw clientError;
-      
-      setSelectedClient(clientData);
-      setShowClientModal(true);
+
+      if (error) throw error;
+
+      if (data) {
+        setSelectedClient(data);
+        setShowClientModal(true);
+      }
     } catch (error) {
       console.error('Error fetching client details:', error);
       toast.error(t('errors.fetchClientDetails', 'حدث خطأ أثناء جلب بيانات العميل'));
     }
+  };
+
+  const copyActivationCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+      .then(() => toast.success(t('success.codeCopied', 'تم نسخ كود التفعيل')))
+      .catch(() => toast.error(t('errors.copyCode', 'حدث خطأ أثناء نسخ الكود')));
   };
 
   const filteredDevices = devices.filter(device => 
@@ -262,17 +235,6 @@ export default function PendingDevicesPage() {
     device.agent_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     device.activation_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const copyActivationCode = (code: string) => {
-    navigator.clipboard.writeText(code)
-      .then(() => {
-        toast.success(t('device.codeCopied', 'تم نسخ رمز التفعيل'));
-      })
-      .catch((err) => {
-        console.error('Error copying activation code:', err);
-        toast.error(t('device.copyFailed', 'فشل نسخ رمز التفعيل'));
-      });
-  };
 
   return (
     <div className="container mx-auto px-4 py-8">

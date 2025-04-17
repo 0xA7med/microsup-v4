@@ -16,6 +16,7 @@ interface DeviceModalProps {
   onSave: (deviceData: DeviceType) => Promise<void>;
   device?: DeviceType | null;
   clientId: string;
+  versionTypes: { value: string; label: string; labelEn: string }[];
 }
 
 export default function DeviceModal({
@@ -23,10 +24,10 @@ export default function DeviceModal({
   onClose,
   onSave,
   device,
-  clientId
+  clientId,
+  versionTypes
 }: DeviceModalProps) {
   const { t, i18n } = useTranslation();
-  const isRTL = i18n.dir() === 'rtl';
   const [formData, setFormData] = useState<DeviceType>({
     client_id: clientId,
     activation_code: '',
@@ -111,44 +112,35 @@ export default function DeviceModal({
         return;
       }
       
-      // حساب تاريخ نهاية الاشتراك تلقائياً
-      const endDate = calculateEndDate(value, formData.subscription_type || 'monthly');
-      
+      // تحديث تاريخ البداية وإعادة حساب تاريخ النهاية
       setFormData((prev) => ({
         ...prev,
         subscription_start: value,
-        subscription_end: endDate
+        subscription_end: calculateEndDate(value, prev.subscription_type || 'monthly')
       }));
     } else {
+      // تحديث أي حقل تاريخ آخر
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleSubscriptionTypeChange = (value: string) => {
-    // حساب تاريخ نهاية الاشتراك تلقائياً عند تغيير نوع الاشتراك
-    const startDate = formData.subscription_start;
-    const endDate = calculateEndDate(startDate, value);
-    
+    // تحديث نوع الاشتراك وإعادة حساب تاريخ النهاية
     setFormData((prev) => ({
       ...prev,
       subscription_type: value,
-      subscription_end: endDate
+      subscription_end: calculateEndDate(prev.subscription_start || format(new Date(), 'yyyy-MM-dd'), value)
     }));
   };
 
   const handleSaveClick = async () => {
-    if (!formData.activation_code) {
-      toast.error(t('messages.activationCodeRequired', 'يرجى إدخال رمز التفعيل'));
-      return;
-    }
-
     setIsSaving(true);
     try {
       await onSave(formData);
       onClose();
     } catch (error) {
-      console.error("Error saving device:", error);
-      toast.error(t('messages.errorSavingDevice', 'حدث خطأ أثناء حفظ بيانات الجهاز'));
+      console.error('Error saving device:', error);
+      toast.error(t('messages.errorSavingDevice', 'حدث خطأ أثناء حفظ الجهاز'));
     } finally {
       setIsSaving(false);
     }
@@ -171,66 +163,40 @@ export default function DeviceModal({
 
   return (
     <>
-      <div
-        className={`fixed inset-0 bg-black/50 dark:bg-black/70 z-50 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/60 dark:bg-black/80 z-[60] transition-opacity duration-150" onClick={onClose} />
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-3xl w-full rounded-xl shadow-2xl bg-white dark:bg-gray-800 z-[70] max-h-[90vh] overflow-hidden">
+        <div className="flex flex-col h-full">
+          {/* رأس النافذة */}
+          <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {device ? t('device.editDevice', 'تعديل جهاز') : t('device.addDevice', 'إضافة جهاز جديد')}
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+              aria-label={t('actions.close', 'إغلاق') as string}
+            >
+              <X className="h-6 w-6" />
+            </button>
+          </div>
 
-      <div
-        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-w-3xl w-full max-h-[90vh] overflow-auto rounded-xl bg-white dark:bg-gray-900 shadow-2xl z-[60] transition-all duration-300 ${
-          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'
-        }`}
-        dir={isRTL ? 'rtl' : 'ltr'}
-      >
-        {/* رأس النافذة */}
-        <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {device ? t('device.editDevice', 'تعديل بيانات الجهاز') : t('device.addDevice', 'إضافة جهاز جديد')}
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-            aria-label={t('actions.close', 'إغلاق') as string}
-          >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {/* محتوى النافذة */}
-        <div className="p-5">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          {/* محتوى النافذة */}
+          <div className="flex-1 overflow-y-auto p-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* رمز التفعيل */}
-              <CustomerField label={t('device.activationCode', 'رمز التفعيل')} className="md:col-span-2" children={
-                <div className="flex gap-2 items-center">
+              <CustomerField label={t('device.activationCode', 'رمز التفعيل')} children={
+                <div className="relative">
                   <CustomerInput
                     type="text"
                     name="activation_code"
-                    value={formData.activation_code}
+                    value={formData.activation_code || ''}
                     onChange={handleInputChange}
                     isEditing={true}
+                    placeholder={t('device.enterActivationCode', 'أدخل رمز التفعيل') as string}
                     required
-                    className="h-12 text-lg flex-grow border-gray-300 dark:border-gray-600"
-                    style={{ minWidth: 'calc(100% - 120px)' }}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-10"
                   />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => {
-                      navigator.clipboard.readText().then(text => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          activation_code: text
-                        }));
-                      });
-                    }}
-                    className="flex-shrink-0 h-12 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
-                  >
-                    <span className="flex items-center">
-                      <Clipboard className={`h-5 w-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                      {t('common.paste', 'لصق')}
-                    </span>
-                  </Button>
+                  <Clipboard className="absolute top-3 left-3 h-6 w-6 text-gray-400 pointer-events-none" />
                 </div>
               } />
 
@@ -238,9 +204,10 @@ export default function DeviceModal({
               <CustomerField label={t('device.deviceType', 'نوع الجهاز')} children={
                 <CustomerSelect
                   name="device_type"
-                  value={formData.device_type}
+                  value={formData.device_type || ''}
                   onChange={handleInputChange}
                   isEditing={true}
+                  required
                   options={DEVICE_TYPES.map(type => ({
                     value: type.value,
                     label: i18n.language === 'ar' ? type.label : type.labelEn
@@ -253,15 +220,11 @@ export default function DeviceModal({
               <CustomerField label={t('device.subscriptionType', 'نوع الاشتراك')} children={
                 <CustomerSelect
                   name="subscription_type"
-                  value={formData.subscription_type || 'monthly'}
+                  value={formData.subscription_type || ''}
                   onChange={(e) => handleSubscriptionTypeChange(e.target.value)}
                   isEditing={true}
-                  options={[
-                    { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
-                    { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Semi-Annual' },
-                    { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
-                    { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
-                  ].map(type => ({
+                  required
+                  options={versionTypes.map(type => ({
                     value: type.value,
                     label: i18n.language === 'ar' ? type.label : type.labelEn
                   }))}
