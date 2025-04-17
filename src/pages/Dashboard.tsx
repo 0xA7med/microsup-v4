@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 import { 
   Users, UserPlus, Phone, 
   Clock, AlertCircle, Zap, Package, RefreshCw,
-  ChevronDown, ChevronUp, Check, X, Smartphone, Laptop
+  ChevronDown, ChevronUp, Check, X, Smartphone, Laptop, Infinity
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/Button';
@@ -41,11 +41,11 @@ export const Dashboard: React.FC = () => {
   
   // حالة التحميل والتحديث
   const [loading, setLoading] = useState<boolean>(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(false); // مؤشر لتحديث مكون أحدث الأجهزة
+  const [refreshTrigger, setRefreshTrigger] = useState(false); // مؤشر لتحديث مكون أحدث الاشتراكات
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
   
-  // إضافة حالة لتخزين بيانات الأجهزة
+  // إضافة حالة لتخزين بيانات الاشتراكات
   const [devicesData, setDevicesData] = useState<any[]>([]);
   
   // حالة طي البطاقات في وضع الهاتف
@@ -54,7 +54,8 @@ export const Dashboard: React.FC = () => {
     valueStats: true,
     deviceStats: true,
     subscriptionStats: true,
-    deviceStatusStats: true // إضافة قسم جديد لحالة الأجهزة
+    deviceStatusStats: true, // إضافة قسم جديد لحالة الاشتراكات
+    permanentStats: true // إضافة قسم جديد لإحصائيات الاشتراكات الدائمة والمنتهية
   });
   
   // دالة لتبديل حالة طي القسم
@@ -82,15 +83,15 @@ export const Dashboard: React.FC = () => {
     permanentClients,
     expiringThisMonth,
     lastUpdated,
-    // القيم المالية
+    // المستحقات المالية
     totalValue = 0,
     mobileValue = 0,
     computerValue = 0,
-    // حالة الأجهزة
+    // حالة الاشتراكات
     pendingDevices,
     rejectedDevices,
-    approvedDevices = 0, // إضافة قيمة افتراضية
-    // عدد الأجهزة حسب النوع
+    approvedDevices = 0, // إضافة مستحقاتة افتراضية
+    // عدد الاشتراكات حسب النوع
     totalDevices,
     // إضافة الحقول المفقودة
     activeDevices: activeDevicesCount,
@@ -182,32 +183,32 @@ export const Dashboard: React.FC = () => {
         console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
       }
       
-      // جلب بيانات الأجهزة
+      // جلب بيانات الاشتراكات
       const { data: allDevicesData = [], error: devicesError } = await supabase
         .from('devices')
         .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status');
       
       if (devicesError) throw devicesError;
       
-      // تصفية الأجهزة حسب العملاء المصفاة
+      // تصفية الاشتراكات حسب العملاء المصفاة
       let filteredDevicesData = allDevicesData || [];
       
-      // إذا كان المستخدم مندوب، نصفي الأجهزة لعرض أجهزة عملائه فقط
+      // إذا كان المستخدم مندوب، نصفي الاشتراكات لعرض أجهزة عملائه فقط
       if (user?.role === 'agent') {
         const filteredClientIds = filteredClientsData.map(client => client.id);
         filteredDevicesData = filteredDevicesData.filter(device => filteredClientIds.includes(device.client_id));
         console.log('Filtered devices for agent:', filteredDevicesData.length);
       }
       
-      // تخزين بيانات الأجهزة في حالة المكون
+      // تخزين بيانات الاشتراكات في حالة المكون
       setDevicesData(filteredDevicesData || []);
       
-      // حساب القيم
+      // حساب المستحقات
       let totalValue = 0;
       let mobileValue = 0;
       let computerValue = 0;
       
-      // حساب عدد الأجهزة حسب النوع والحالة
+      // حساب عدد الاشتراكات حسب النوع والحالة
       let totalDevices = 0;
       let pendingDevices = 0;
       let rejectedDevices = 0;
@@ -226,16 +227,16 @@ export const Dashboard: React.FC = () => {
       const futureDate = new Date();
       futureDate.setDate(currentDate.getDate() + 15);
       
-      // حساب القيم المالية والأعداد من الأجهزة
+      // حساب المستحقات المالية والأعداد من الاشتراكات
       if (filteredDevicesData) {
         // ابدأ بطباعة العدد الإجمالي للأجهزة للتشخيص
         console.log('Total devices fetched:', filteredDevicesData.length);
         
-        // تحليل البيانات للعثور على الأجهزة المنتهية والنشطة
+        // تحليل البيانات للعثور على الاشتراكات المنتهية والنشطة
         const approvedDevicesArr = filteredDevicesData.filter(device => device.approval_status === 'approved');
         console.log('Approved devices:', approvedDevicesArr.length);
         
-        // الأجهزة المنتهية هي الأجهزة المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
+        // الاشتراكات المنتهية هي الاشتراكات المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
         const expiredDevicesArr = approvedDevicesArr.filter(device => {
           if (device.subscription_type === 'permanent') return false;
           if (!device.subscription_end) return false;
@@ -244,7 +245,7 @@ export const Dashboard: React.FC = () => {
           return isExpired;
         });
         
-        // الأجهزة النشطة هي الأجهزة المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
+        // الاشتراكات النشطة هي الاشتراكات المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
         const activeDevicesArr = approvedDevicesArr.filter(device => {
           if (device.subscription_type === 'permanent') return true;
           if (!device.subscription_end) return false;
@@ -259,7 +260,7 @@ export const Dashboard: React.FC = () => {
         console.log('Expired devices count:', expiredSubscriptionsCount);
         console.log('Active devices count:', activeSubscriptionsCount);
         
-        // الأجهزة التي ستنتهي خلال 15 يوم
+        // الاشتراكات التي ستنتهي خلال 15 يوم
         const expiringDevicesArr = activeDevicesArr.filter(device => {
           if (device.subscription_type === 'permanent') return false;
           if (!device.subscription_end) return false;
@@ -271,7 +272,7 @@ export const Dashboard: React.FC = () => {
         console.log('Expiring soon devices count:', expiringThisMonthCount);
         
         filteredDevicesData.forEach((device: any) => {
-          // حساب القيم المالية فقط للأجهزة المقبولة
+          // حساب المستحقات المالية فقط للأجهزة المقبولة
           if (device.approval_status === 'approved') {
             const price = parseFloat(device.price) || 0;
             totalValue += price;
@@ -285,7 +286,7 @@ export const Dashboard: React.FC = () => {
             }
           }
           
-          // حساب عدد الأجهزة حسب النوع والحالة
+          // حساب عدد الاشتراكات حسب النوع والحالة
           totalDevices++;
           
           if (device.approval_status === 'pending') {
@@ -311,15 +312,15 @@ export const Dashboard: React.FC = () => {
         permanentClients: 0,
         expiringThisMonth: expiringThisMonthCount,
         lastUpdated: new Date().toISOString(),
-        // القيم المالية
+        // المستحقات المالية
         totalValue,
         mobileValue,
         computerValue,
-        // حالة الأجهزة
+        // حالة الاشتراكات
         pendingDevices,
         rejectedDevices,
         approvedDevices,
-        // عدد الأجهزة حسب النوع
+        // عدد الاشتراكات حسب النوع
         totalDevices,
         // إضافة الحقول المفقودة
         activeDevices: activeSubscriptionsCount || 0,
@@ -498,6 +499,24 @@ export const Dashboard: React.FC = () => {
     );
   }
 
+  // حساب إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي خلال 15 يوم بشكل ديناميكي
+  const now = new Date();
+  const fifteenDaysLater = new Date();
+  fifteenDaysLater.setDate(now.getDate() + 15);
+
+  const permanentCount = devicesData.filter(device => device.subscription_type === 'permanent').length;
+  const expiredCount = devicesData.filter(device => {
+    if (device.subscription_type === 'permanent') return false;
+    if (!device.subscription_end) return false;
+    return new Date(device.subscription_end) < now;
+  }).length;
+  const expiringSoonCount = devicesData.filter(device => {
+    if (device.subscription_type === 'permanent') return false;
+    if (!device.subscription_end) return false;
+    const end = new Date(device.subscription_end);
+    return end >= now && end <= fifteenDaysLater;
+  }).length;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -510,7 +529,7 @@ export const Dashboard: React.FC = () => {
           <Button
             onClick={() => {
               fetchDashboardData(true);
-              setRefreshTrigger(prev => !prev); // تغيير قيمة مؤشر التحديث لإعادة تحميل بيانات الأجهزة
+              setRefreshTrigger(prev => !prev); // تغيير مستحقاتة مؤشر التحديث لإعادة تحميل بيانات الاشتراكات
             }}
             variant="secondary"
             className={`flex items-center space-x-1 rtl:space-x-reverse`}
@@ -526,128 +545,7 @@ export const Dashboard: React.FC = () => {
           {t('dashboard.lastUpdated', 'آخر تحديث')}: {formatDateForDisplay(lastUpdated)} {format(new Date(lastUpdated), 'HH:mm:ss')}
         </div>
       )}
-
-      {/* قسم حالة الأجهزة */}
-      <div className="mb-8">
-        <div 
-          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
-          onClick={() => toggleSection('deviceStatusStats')}
-        >
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الأجهزة')}</h2>
-          {collapsedSections.deviceStatusStats ? (
-            <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          ) : (
-            <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          )}
-        </div>
-        
-        <div className={`flex justify-between items-center mb-4 mt-4 ${collapsedSections.deviceStatusStats ? 'hidden md:flex' : 'flex'}`}>
-          {/* <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الأجهزة')}</h2> */}
-        </div>
-        
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
-          {/* إجمالي الأجهزة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('devices')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
-              </div>
-              <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
-                <Package className="h-6 w-6 text-blue-600 dark:text-blue-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الأجهزة النشطة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('active')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الأجهزة النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeDevicesCount || 0}</span>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الأجهزة المعلقة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('pending')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الأجهزة المعلقة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الأجهزة المرفوضة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('rejected')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الأجهزة المرفوضة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
-              </div>
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <X className="h-6 w-6 text-red-600 dark:text-red-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* أجهزة الهاتف */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList('mobile')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.mobileFilter', 'أجهزة الهاتف')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {mobileDevices || devicesData.filter((device: any) => device.device_type !== 'computer').length}
-                </span>
-              </div>
-              <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
-                <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* أجهزة الكمبيوتر */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList('computer')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.computerFilter', 'أجهزة الكمبيوتر')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {computerDevices || devicesData.filter((device: any) => device.device_type === 'computer').length}
-                </span>
-              </div>
-              <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
-                <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
+ 
       {/* الصف الأول من البطاقات */}
       <div className="mb-5">
         <div 
@@ -697,33 +595,198 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
           )}
-          
-          {/* إجمالي الأجهزة */}
+        </div>
+      </div>
+      
+     
+      {/* قسم حالة الاشتراكات */}
+      <div className="mb-8">
+        <div 
+          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
+          onClick={() => toggleSection('deviceStatusStats')}
+        >
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الاشتراكات')}</h2>
+          {collapsedSections.deviceStatusStats ? (
+            <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+          ) : (
+            <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+          )}
+        </div>
+        
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
+          {/* إجمالي الاشتراكات */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
             onClick={() => navigateToClientsList('devices')}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الأجهزة')}</span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الاشتراكات')}</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
               </div>
+              <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
+                <Package className="h-6 w-6 text-blue-600 dark:text-blue-300" />
+              </div>
+            </div>
+          </div>
+           
+          {/* أجهزة الهاتف */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
+            onClick={() => navigateToClientsList('mobile')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {mobileDevices || devicesData.filter((device: any) => device.device_type !== 'computer').length}
+                </span>
+              </div>
+              <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
+                <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
+              </div>
+            </div>
+          </div>
+          
+          {/* أجهزة الكمبيوتر */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
+            onClick={() => navigateToClientsList('computer')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                  {computerDevices || devicesData.filter((device: any) => device.device_type === 'computer').length}
+                </span>
+              </div>
+              <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
+                <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
+              </div>
+            </div>
+          </div>
+          {/* الاشتراكات النشطة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('active')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الاشتراكات النشطة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeDevicesCount || 0}</span>
+              </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Package className="h-6 w-6 text-green-600 dark:text-green-300" />
+                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
+              </div>
+            </div>
+          </div>
+          
+          {/* الاشتراكات المعلقة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('pending')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الاشتراكات المعلقة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
+              </div>
+              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
+                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+              </div>
+            </div>
+          </div>
+          
+          {/* الاشتراكات المرفوضة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('rejected')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الاشتراكات المرفوضة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
+              </div>
+              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
+                <X className="h-6 w-6 text-red-600 dark:text-red-300" />
+              </div>
+            </div>
+          </div>
+         
+        </div>
+      </div>
+      
+      {/* قسم إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي قريباً */}
+      <div className="mb-5">
+        <div 
+          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
+          onClick={() => toggleSection('permanentStats')}
+        >
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.subscriptionTypes', 'أنواع الاشتراكات')}</h2>
+          <div className="flex items-center">
+            {collapsedSections.permanentStats ? 
+              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
+              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            }
+          </div>
+        </div>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.permanentStats ? 'hidden md:grid' : ''}`}>
+          {/* الاشتراكات الدائمة */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('permanent')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.permanentSubscriptions', 'الاشتراكات الدائمة')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{permanentCount}</span>
+              </div>
+              <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
+                <Infinity className="h-6 w-6 text-purple-600 dark:text-purple-300" />
+              </div>
+            </div>
+          </div>
+          {/* الاشتراكات المنتهية */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('expired')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredCount}</span>
+              </div>
+              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
+                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
+              </div>
+            </div>
+          </div>
+          {/* تنتهي خلال 15 يوم */}
+          <div 
+            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+            onClick={() => navigateToClientsList('expiring')}
+          >
+            <div className="p-5 flex justify-between items-center">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiringSoonCount}</span>
+              </div>
+              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
+                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      {/* الصف الثاني من البطاقات - متاحة للمديرين فقط */}
-      {(user?.role === 'admin' || user?.role === 'super_admin') && (
+       {/* قسم إحصائيات المستحقات - يظهر فقط للمديرين */}
+       {(user?.role === 'admin' || user?.role === 'super_admin') && (
         <div className="mb-5">
           <div 
             className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
             onClick={() => toggleSection('valueStats')}
           >
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.valueStats', 'إحصائيات القيم')}</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.valueStats', 'إحصائيات المستحقات')}</h2>
             <div className="flex items-center">
               {collapsedSections.valueStats ? 
                 <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
@@ -731,16 +794,15 @@ export const Dashboard: React.FC = () => {
               }
             </div>
           </div>
-          
           <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.valueStats ? 'hidden md:grid' : ''}`}>
-            {/* إجمالي القيم */}
+            {/* إجمالي المستحقات */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={() => navigateToClientsList('all')}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalValue', 'إجمالي القيم')}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalValue', 'إجمالي المستحقات')}</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(totalValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
@@ -748,15 +810,14 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            
-            {/* قيم أجهزة الهاتف */}
+            {/* مستحقات أجهزة الهاتف */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={() => navigateToClientsList('mobile')}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'قيم أجهزة الهاتف')}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'مستحقات الهاتف')}</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(mobileValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
@@ -764,15 +825,14 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            
-            {/* قيم أجهزة الكمبيوتر */}
+            {/* مستحقات أجهزة الكمبيوتر */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={() => navigateToClientsList('computer')}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'قيم أجهزة الكمبيوتر')}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'مستحقات الكمبيوتر')}</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(computerValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                 </div>
                 <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
@@ -783,138 +843,6 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* الصف الرابع من البطاقات */}
-      <div className="mb-5">
-        <div 
-          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
-          onClick={() => toggleSection('subscriptionStats')}
-        >
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.subscriptionStats', 'إحصائيات الاشتراكات')}</h2>
-          <div className="flex items-center">
-            {collapsedSections.subscriptionStats ? 
-              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
-              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            }
-          </div>
-        </div>
-        
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.subscriptionStats ? 'hidden md:grid' : ''}`}>
-          {/* الاشتراكات النشطة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('active')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeSubscriptions', 'الاشتراكات النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeSubscriptions || 0}</span>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Zap className="h-6 w-6 text-green-600 dark:text-green-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الاشتراكات المنتهية */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('expired')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredSubscriptions || 0}</span>
-              </div>
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* تنتهي خلال 15 يوم */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('expiring')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiringThisMonth || 0}</span>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* إحصائيات حالة الأجهزة */}
-      <div className="mb-8">
-        <div 
-          className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg mb-1 shadow cursor-pointer md:hidden"
-          onClick={() => toggleSection('deviceStatusStats')}
-        >
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatusStats', 'إحصائيات حالة الأجهزة')}</h2>
-          <div className="flex items-center">
-            {collapsedSections.deviceStatusStats ? 
-              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
-              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            }
-          </div>
-        </div>
-        
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : ''}`}>
-          {/* الأجهزة المعتمدة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('approved')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.approvedDevices', 'الأجهزة المعتمدة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedDevices || 0}</span>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الأجهزة المعلقة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('pending')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الأجهزة المعلقة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <AlertCircle className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-              </div>
-            </div>
-          </div>
-          
-          {/* الأجهزة المرفوضة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('rejected')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الأجهزة المرفوضة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
-              </div>
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <X className="h-6 w-6 text-red-600 dark:text-red-300" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       
       {/* أحدث الاشتراكات */}
       <RecentClientsList 
