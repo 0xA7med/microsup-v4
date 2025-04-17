@@ -199,7 +199,24 @@ const RecentClientsList = ({
         return subscriptionType || '-';
     }
   };
-
+  const truncateName = (name: string) => {
+    if (!name || name.trim() === '') return '-';
+    
+    const maxLength = 10; // يمكنك تعديل الرقم حسب احتياجك
+    
+    // تحقق إذا كان النص عربي (باستخدام نطاق Unicode للعربية)
+    const isArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(name);
+    
+    if (name.length <= maxLength) return name;
+    
+    if (isArabic) {
+      // للعربية: نأخذ آخر maxLength حرف ونضيف ... في البداية
+      return `...${name.slice(-maxLength)}`;
+    } else {
+      // للإنجليزية: نأخذ أول maxLength حرف ونضيف ... في النهاية
+      return `${name.slice(0, maxLength)}...`;
+    }
+  };
   const filteredDevices = recentDevices.filter(device => 
     device.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     device.agent_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,20 +295,24 @@ const RecentClientsList = ({
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         {t('device.deviceType', 'نوع الاشتراك')}
                       </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[25%]">
                         {t('device.clientName', 'اسم العميل')}
                       </th>
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-32">
                         {t('device.activationCode', 'رمز التفعيل')}
                       </th>
-                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[10%]">
                         {t('device.agentName', 'المندوب')}
                       </th>
+                      
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         {t('device.subscriptionType', 'نوع الاشتراك')}
                       </th>
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         {t('device.subscriptionDates', 'تاريخ الاشتراك')}
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        {t('device.price', 'المستحقات')}
                       </th>
                       <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         {t('device.actions', 'الإجراءات')}
@@ -310,11 +331,22 @@ const RecentClientsList = ({
                           </div>
                         </td>
                         
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {device.client_name || '-'}
-                          </div>
-                        </td>
+                        <td className="px-3 py-4 whitespace-nowrap">
+  <div
+    className={`
+      text-sm font-medium text-gray-900 dark:text-white
+      max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
+      ${/^[A-Za-z]/.test(device.client_name || '') ? 'text-left' : 'text-right'}
+    `}
+    style={{
+      direction: /^[A-Za-z]/.test(device.client_name || '') ? 'ltr' : 'rtl',
+      unicodeBidi: 'plaintext'
+    }}
+    title={device.client_name || '-'} // لعرض الاسم الكامل عند hover
+  >
+    {device.client_name || '-'}
+  </div>
+</td>
                         
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-32">
                           <div className={`flex items-center justify-between p-1 rounded ${
@@ -351,11 +383,20 @@ const RecentClientsList = ({
                           </div>
                         </td>
                         
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {device.agent_name || '-'}
-                          </div>
-                        </td>
+{/* عمود اسم المندوب */}
+<td className="px-3 py-4 whitespace-nowrap">
+  <div 
+    className={`
+      text-sm text-gray-500 dark:text-gray-400 
+      max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
+      ${/^[A-Za-z]/.test(device.agent_name) ? 'text-left' : 'text-right rtl'}
+    `}
+    style={{ direction: /^[A-Za-z]/.test(device.agent_name) ? 'ltr' : 'rtl', unicodeBidi: 'plaintext' }}
+    title={device.agent_name || '-'}
+  >
+    {device.agent_name || '-'}
+  </div>
+</td>
                         
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">
@@ -381,6 +422,16 @@ const RecentClientsList = ({
                                 {t('client.noEndDate', 'لا يوجد تاريخ انتهاء')}
                               </span>
                             )}
+                          </div>
+                        </td>
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {device.price ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                <span className="font-bold">{device.price}</span> جنيه
+                              </span>
+                            ) : '-'}
                           </div>
                         </td>
                         

@@ -424,15 +424,17 @@ export const ClientsList: React.FC = () => {
                 subscriptionTypes.push(d.subscription_type);
               }
               
-              // إضافة السعر إلى الإجمالي
-              const price = d.price || 0;
-              totalPrice += price;
-              
-              // إضافة السعر حسب نوع الجهاز
-              if (d.device_type === 'android') {
-                mobilePrice += price;
-              } else if (d.device_type === 'computer') {
-                computerPrice += price;
+              // إضافة السعر إلى الإجمالي فقط للأجهزة المقبولة
+              if (d.approval_status === 'approved') {
+                const price = d.price || 0;
+                totalPrice += price;
+                
+                // إضافة السعر حسب نوع الجهاز
+                if (d.device_type === 'android') {
+                  mobilePrice += price;
+                } else if (d.device_type === 'computer') {
+                  computerPrice += price;
+                }
               }
             });
           }
