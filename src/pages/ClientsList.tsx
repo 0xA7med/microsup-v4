@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -70,7 +70,7 @@ export const ClientsList: React.FC = () => {
   const [copiedCodes, setCopiedCodes] = useState<{[key: string]: boolean}>({});
   
   // وظيفة لنسخ رمز التفعيل
-  const copyActivationCode = (code: string, deviceId: string) => {
+  const copyActivationCode = useCallback((code: string, deviceId: string) => {
     navigator.clipboard.writeText(code)
       .then(() => {
         setCopiedCodes(prev => ({
@@ -91,13 +91,18 @@ export const ClientsList: React.FC = () => {
       .catch(() => {
         toast.error('فشل نسخ رمز التفعيل');
       });
-  };
+  }, []);
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuthStore(); // استخدام معلومات المستخدم المسجل دخوله
 
+  // استخدام useRef للتحكم في طلبات الشبكة
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isFirstRender = useRef(true);
+  const isDataLoaded = useRef(false);
+  
   const [clients, setClients] = useState<DisplayClientType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
@@ -106,30 +111,25 @@ export const ClientsList: React.FC = () => {
   const [agents, setAgents] = useState<ImportedAgent[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [pageSize] = useState(10);
+  const [pageSize] = useState(50);
   
-  // دالة لتغيير ترتيب الجدول
-  const requestSort = (key: string) => {
-    let direction: 'ascending' | 'descending' = 'ascending';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    setSortConfig({ key, direction });
-  };
-
-  // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
-  const toggleShowDevices = (clientId: string) => {
-    setClients(prevClients => 
-      prevClients.map(client => 
-        client.id === clientId ? { ...client, showDevices: !client.showDevices } : client
-      )
-    );
-  };
-
   // دالة جلب العملاء مع تطبيق الفلتر
-  const fetchClients = async (filterOverride?: string | null, pageOverride?: number | null) => {
+  const fetchClients = useCallback(async (filterOverride?: string | null, pageOverride?: number | null) => {
     try {
-      setLoading(true);
+      // إلغاء أي طلب سابق لمنع تضارب البيانات
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // إنشاء وحدة تحكم جديدة للإلغاء
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+      
+      // تعيين حالة التحميل فقط إذا لم تكن البيانات محملة من قبل
+      if (!isDataLoaded.current) {
+        setIsLoading(true);
+      }
+      
       const filter = filterOverride !== undefined ? filterOverride : activeFilter;
       const page = pageOverride !== undefined && pageOverride !== null ? pageOverride : currentPage;
       
@@ -185,7 +185,10 @@ export const ClientsList: React.FC = () => {
           phone.ilike.%${searchTerm}%,
           phone2.ilike.%${searchTerm}%,
           address.ilike.%${searchTerm}%,
-          activity_type.ilike.%${searchTerm}%
+          activity_type.ilike.%${searchTerm}%,
+          notes.ilike.%${searchTerm}%,
+          devices.activation_code.ilike.%${searchTerm}%,
+          devices.email.ilike.%${searchTerm}%
         `);
       }
       
@@ -210,7 +213,9 @@ export const ClientsList: React.FC = () => {
       // إضافة الصفحات
       query = query.range(from, to);
       
-      const { data: clientsData, count, error } = await query;
+      const { data: clientsData, count, error } = await query.abortSignal(signal);
+      
+      if (signal.aborted) return;
       
       if (error) throw error;
       
@@ -296,42 +301,62 @@ export const ClientsList: React.FC = () => {
       const totalItems = count || 0;
       const calculatedTotalPages = Math.ceil(totalItems / pageSize);
       
-      setClients(filteredProcessedClients);
-      setTotalPages(calculatedTotalPages);
-      
-      // إذا كانت الصفحة الحالية أكبر من إجمالي الصفحات، نعود للصفحة الأولى
-      const currentPageNumber = typeof page === 'number' ? page : 1;
-      if (currentPageNumber > calculatedTotalPages && calculatedTotalPages > 0) {
-        setCurrentPage(1);
-        if (pageOverride === undefined) {
-          fetchClients(filter, 1);
-          return;
+      // التأكد من أن الطلب لم يتم إلغاؤه قبل تحديث الحالة
+      if (!signal.aborted) {
+        // تحديث البيانات أولاً ثم تعيين حالة التحميل
+        setClients(filteredProcessedClients);
+        setTotalPages(calculatedTotalPages);
+        
+        // استخدام setTimeout لتأخير تحديث حالة التحميل
+        // هذا يمنع الفلكر عن طريق ضمان تحديث البيانات أولاً
+        setTimeout(() => {
+          if (!signal.aborted) {
+            setIsLoading(false);
+            isDataLoaded.current = true;
+          }
+        }, 0);
+        
+        // إذا كانت الصفحة الحالية أكبر من إجمالي الصفحات، نعود للصفحة الأولى
+        if (page > calculatedTotalPages && calculatedTotalPages > 0) {
+          setCurrentPage(1);
         }
       }
     } catch (error: any) {
-      console.error('Error fetching clients:', error);
-      toast.error('حدث خطأ أثناء جلب بيانات العملاء');
-    } finally {
-      setLoading(false);
+      // التأكد من أن الخطأ ليس بسبب إلغاء الطلب
+      if (error.name !== 'AbortError') {
+        console.error('Error fetching clients:', error);
+        toast.error(t('errors.fetchClients', 'حدث خطأ أثناء جلب بيانات العملاء'));
+        setIsLoading(false);
+      }
     }
-  };
+  }, [activeFilter, currentPage, pageSize, t, searchTerm]);
   
   // دالة لتحميل البيانات
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
-      setLoading(true);
+      // إلغاء أي طلب سابق
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // إنشاء وحدة تحكم جديدة للإلغاء
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+      
+      setIsLoading(true);
       
       // جلب الوكلاء
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
         .select('*')
-        .order('name');
+        .abortSignal(signal);
+      
+      if (signal.aborted) return;
       
       if (agentsError) throw agentsError;
-      
       setAgents(agentsData || []);
       
-      // تحديد الفلتر النشط من عنوان URL
+      // استخراج الفلتر من الرابط إن وجد
       const params = new URLSearchParams(location.search);
       const filterParam = params.get('filter');
       
@@ -339,33 +364,104 @@ export const ClientsList: React.FC = () => {
         setActiveFilter(filterParam);
         await fetchClients(filterParam);
       } else {
-        setActiveFilter('all');
-        await fetchClients('all');
+        await fetchClients();
       }
     } catch (error: any) {
-      console.error('Error loading data:', error);
-      toast.error('حدث خطأ أثناء تحميل البيانات');
-    } finally {
-      setLoading(false);
+      // التأكد من أن الخطأ ليس بسبب إلغاء الطلب
+      if (error.name !== 'AbortError') {
+        console.error('Error loading data:', error);
+        toast.error(t('errors.loadData', 'حدث خطأ أثناء تحميل البيانات'));
+        setIsLoading(false);
+      }
     }
-  };
+  }, [fetchClients, location.search, t]);
   
   // تحميل البيانات عند تحميل المكون
   useEffect(() => {
-    loadData();
-  }, []);
+    // تجنب التحميل المزدوج في الرندر الأول في وضع التطوير
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      
+      // استخدام setTimeout لتأخير تحميل البيانات
+      // هذا يساعد في منع الفلكر عن طريق ضمان استقرار المكون أولاً
+      setTimeout(() => {
+        loadData();
+      }, 0);
+    }
+    
+    // تنظيف عند إلغاء تحميل المكون
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [loadData]);
   
-  const handleShowDetails = (client: DisplayClientType) => {
+  // إضافة useEffect للبحث مع تأخير زمني
+  useEffect(() => {
+    // تجاهل التغييرات في الرندر الأول
+    if (isFirstRender.current) return;
+    
+    const delayDebounceFn = setTimeout(() => {
+      // تعيين حالة التحميل فقط إذا كان هناك مصطلح بحث
+      if (searchTerm.trim().length > 0) {
+        setIsLoading(true);
+      }
+      
+      if (currentPage === 1) {
+        fetchClients(activeFilter, 1);
+      } else {
+        setCurrentPage(1);
+      }
+    }, 500);
+    
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchTerm, fetchClients, activeFilter, currentPage]);
+  
+  // مكون هيكل التحميل للجدول
+  const SkeletonRow = useCallback(() => (
+    <tr className="animate-pulse">
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div></td>
+      <td className="px-4 py-4 whitespace-nowrap"><div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div></td>
+    </tr>
+  ), []);
+  
+  // دالة لتغيير ترتيب الجدول
+  const requestSort = useCallback((key: string) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig?.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  }, [sortConfig]);
+
+  // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
+  const toggleShowDevices = useCallback((clientId: string) => {
+    setClients(prevClients => 
+      prevClients.map(client => 
+        client.id === clientId 
+          ? { ...client, showDevices: !client.showDevices } 
+          : client
+      )
+    );
+  }, []);
+
+  const handleShowDetails = useCallback((client: DisplayClientType) => {
     setSelectedClient(client);
     setShowDetailsModal(true);
-  };
+  }, []);
   
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setShowDetailsModal(false);
     setSelectedClient(null);
-  };
+  }, []);
   
-  const handleDeleteClient = async (clientId: string) => {
+  const handleDeleteClient = useCallback(async (clientId: string) => {
     try {
       const { error } = await supabase
         .from('clients')
@@ -374,16 +470,16 @@ export const ClientsList: React.FC = () => {
       
       if (error) throw error;
       
-      toast.success('تم حذف العميل بنجاح');
+      toast.success(t('clientsList.deleteSuccess', 'تم حذف العميل بنجاح'));
       handleCloseModal();
       fetchClients(); // إعادة تحميل البيانات
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error deleting client:', error);
-      toast.error('حدث خطأ أثناء حذف العميل');
+      toast.error(t('clientsList.deleteError', 'حدث خطأ أثناء حذف العميل'));
     }
-  };
+  }, [fetchClients, handleCloseModal, t]);
   
-  const handleUpdateClient = async (updatedClient: ImportedClientType | DisplayClientType) => {
+  const handleUpdateClient = useCallback(async (updatedClient: ImportedClientType | DisplayClientType) => {
     try {
       // تحديث بيانات العميل في قاعدة البيانات
       const { error } = await supabase
@@ -402,20 +498,20 @@ export const ClientsList: React.FC = () => {
       
       if (error) throw error;
       
-      toast.success('تم تحديث بيانات العميل بنجاح');
+      toast.success(t('clientsList.updateSuccess', 'تم تحديث بيانات العميل بنجاح'));
       handleCloseModal();
       fetchClients(); // إعادة تحميل البيانات
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating client:', error);
-      toast.error('حدث خطأ أثناء تحديث بيانات العميل');
+      toast.error(t('clientsList.updateError', 'حدث خطأ أثناء تحديث بيانات العميل'));
     }
-  };
+  }, [fetchClients, handleCloseModal, t]);
   
-  const getSubscriptionTypeLabel = (value: string) => {
+  const getSubscriptionTypeLabel = useCallback((value: string) => {
     return SUBSCRIPTION_TYPES.find(type => type.value === value)?.label || value;
-  };
+  }, []);
   
-  const formatDateForDisplay = (dateStr?: string | Date): string => {
+  const formatDateForDisplay = useCallback((dateStr?: string | Date): string => {
     if (!dateStr) return '-';
     
     try {
@@ -432,8 +528,8 @@ export const ClientsList: React.FC = () => {
       console.error('Error formatting date:', error);
       return '-';
     }
-  };
-
+  }, []);
+  
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-lg">
       <div className="flex justify-between items-center mb-6">
@@ -495,7 +591,7 @@ export const ClientsList: React.FC = () => {
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('mobile');
                 fetchClients('mobile');
               }}
@@ -509,7 +605,7 @@ export const ClientsList: React.FC = () => {
             
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('computer');
                 fetchClients('computer');
               }}
@@ -529,7 +625,7 @@ export const ClientsList: React.FC = () => {
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('active');
                 fetchClients('active');
               }}
@@ -543,7 +639,7 @@ export const ClientsList: React.FC = () => {
             
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('expired');
                 fetchClients('expired');
               }}
@@ -557,7 +653,7 @@ export const ClientsList: React.FC = () => {
             
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('expiring');
                 fetchClients('expiring');
               }}
@@ -577,7 +673,7 @@ export const ClientsList: React.FC = () => {
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('approved');
                 fetchClients('approved');
               }}
@@ -591,7 +687,7 @@ export const ClientsList: React.FC = () => {
             
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('pending');
                 fetchClients('pending');
               }}
@@ -605,7 +701,7 @@ export const ClientsList: React.FC = () => {
             
             <Button
               onClick={() => {
-                setLoading(true);
+                setIsLoading(true);
                 setActiveFilter('rejected');
                 fetchClients('rejected');
               }}
@@ -623,7 +719,7 @@ export const ClientsList: React.FC = () => {
         <div className="flex flex-wrap gap-2 mt-4">
           <Button
             onClick={() => {
-              setLoading(true);
+              setIsLoading(true);
               setActiveFilter('devices');
               fetchClients('devices');
             }}
@@ -637,7 +733,7 @@ export const ClientsList: React.FC = () => {
           
           <Button
             onClick={() => {
-              setLoading(true);
+              setIsLoading(true);
               setActiveFilter(null);
               fetchClients(null);
             }}
@@ -651,34 +747,61 @@ export const ClientsList: React.FC = () => {
         </div>
       </div>
       
-      <div className="mb-6 relative">
+      <div className="relative mb-6">
         <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
         <input
           type="text"
-          placeholder="ابحث بالاسم، المؤسسة، الهاتف، الملاحظات، رمز التفعيل..."
+          placeholder="ابحث بالاسم، المؤسسة، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل..."
           className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
           value={searchTerm}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
             setSearchTerm(e.target.value);
-            // إعادة تعيين الصفحة إلى الأولى عند البحث
-            if (currentPage !== 1) {
-              setCurrentPage(1);
-            } else {
-              // إذا كانت الصفحة بالفعل هي الأولى، نقوم بإعادة جلب البيانات
-              const delayDebounceFn = setTimeout(() => {
-                fetchClients(activeFilter, 1);
-              }, 500);
-              
-              return () => clearTimeout(delayDebounceFn);
-            }
           }}
         />
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">{t('common.loading', 'جار التحميل...')}</p>
+      {isLoading ? (
+        <div className="overflow-x-auto shadow-md rounded-lg">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr className="bg-white dark:bg-gray-800">
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right w-[20%] md:w-[25%]">
+                  اسم العميل
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  المؤسسة
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  الهاتف
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  المندوب
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  عدد الأجهزة
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  تاريخ الانتهاء
+                </th>
+                <th className="px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider text-right">
+                  الإجراءات
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {Array(5).fill(0).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div></td>
+                  <td className="px-4 py-4 whitespace-nowrap"><div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-20"></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="overflow-x-auto shadow-md rounded-lg">
@@ -1018,7 +1141,7 @@ export const ClientsList: React.FC = () => {
       )}
 
       {/* مكون التنقل بين الصفحات */}
-      {!loading && totalPages > 1 && (
+      {!isLoading && totalPages > 1 && (
         <div className="mt-6 flex justify-center items-center space-x-2 rtl:space-x-reverse">
           <Button
             onClick={() => setCurrentPage(prev => {

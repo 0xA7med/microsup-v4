@@ -7,6 +7,7 @@ export interface DeviceType {
   subscription_end: string;
   subscription_type?: string;
   device_type: string;
+  email?: string; // البريد الإلكتروني المرتبط بالجهاز (اختياري)
   notes?: string;
   created_at?: string;
   updated_at?: string;

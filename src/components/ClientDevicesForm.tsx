@@ -38,6 +38,7 @@ export default function ClientDevicesForm({
         device_type: 'computer',
         approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
         notes: '',
+        email: '', // إضافة حقل البريد الإلكتروني الافتراضي
         price: 0 // إضافة حقل القيمة الافتراضية
       }]);
     }
@@ -136,6 +137,13 @@ export default function ClientDevicesForm({
         };
       }
     }
+    // إذا كان الحقل هو البريد الإلكتروني
+    else if (field === 'email') {
+      updatedDevices[index] = {
+        ...updatedDevices[index],
+        email: value
+      };
+    }
     // غير ذلك، نقوم بتحديث الحقل المطلوب فقط
     else {
       updatedDevices[index] = {
@@ -160,6 +168,7 @@ export default function ClientDevicesForm({
       device_type: 'computer',
       approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
       notes: '',
+      email: '', // إضافة حقل البريد الإلكتروني الافتراضي
       price: 0 // إضافة حقل القيمة الافتراضية
     }]);
     
@@ -269,6 +278,19 @@ export default function ClientDevicesForm({
                   value: type.value,
                   label: i18n.language === 'ar' ? type.label : type.labelEn
                 }))}
+                className="h-12 text-lg border-gray-300 dark:border-gray-600"
+              />
+            } />
+
+            {/* البريد الإلكتروني المرتبط بالجهاز */}
+            <CustomerField label={t('device.email', 'البريد الإلكتروني')} children={
+              <CustomerInput
+                type="email"
+                name={`email_${index}`}
+                value={device.email || ''}
+                onChange={(e) => handleDeviceChange(index, 'email', e.target.value)}
+                isEditing={true}
+                placeholder={t('device.emailPlaceholder', 'البريد الإلكتروني المرتبط بالجهاز (اختياري)')}
                 className="h-12 text-lg border-gray-300 dark:border-gray-600"
               />
             } />
