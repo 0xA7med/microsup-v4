@@ -3,7 +3,6 @@ import { Card, Button, Tabs, Input, Table, Switch, Tooltip, Radio, Modal, Upload
 import { UploadOutlined, FileExcelOutlined, SettingOutlined, InfoCircleOutlined, EditOutlined, GlobalOutlined } from '@ant-design/icons';
 import { extractDataFromWhatsAppChat } from '../services/aiService';
 import * as XLSX from 'xlsx';
-import { supabase } from '../lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
 
@@ -21,7 +20,7 @@ interface WhatsAppImporterProps {
 }
 
 const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) => {
-  const { user } = useAuthStore();
+  const {  } = useAuthStore();
 
   // حالة الملف والمعالجة
   const [selectedFile, setSelectedFile] = useState<any | null>(null);
@@ -458,12 +457,6 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
       )
     }
   ];
-
-  // إضافة وظيفة لإنشاء معرف مستخدم افتراضي إذا لم يكن المستخدم مسجل دخوله
-  const getDefaultAgentId = () => {
-    // استخدام معرف ثابت للمستخدم الافتراضي (يمكن تغييره حسب الحاجة)
-    return "00000000-0000-0000-0000-000000000000";
-  };
 
   return (
     <div className="p-4 max-w-full mx-auto rtl">
