@@ -155,14 +155,17 @@ export default function DeviceModal({
     }
     
     // تسجيل البيانات للتأكد من وجود البريد الإلكتروني
-    console.log('بيانات الجهاز قبل الحفظ:', formData);
+    console.log('بيانات الجهاز قبل الحفظ في DeviceModal:', formData);
+    console.log('البريد الإلكتروني:', formData.email);
     
     // التأكد من أن البريد الإلكتروني موجود في البيانات المرسلة
     const dataToSave = {
       ...formData,
-      // التأكد من وجود البريد الإلكتروني (undefined بدلاً من null للتوافق مع نوع DeviceType)
+      // التأكد من وجود البريد الإلكتروني (سلسلة فارغة بدلاً من null للتوافق مع نوع DeviceType)
       email: formData.email || ''
     };
+    
+    console.log('البيانات المرسلة بعد المعالجة:', dataToSave);
     
     try {
       await onSave(dataToSave);

@@ -122,7 +122,8 @@ export const AddClient: React.FC = () => {
             subscription_type: device.subscription_type,
             device_type: device.device_type,
             notes: device.notes || '',
-            price: device.price || 0 // إضافة حقل السعر
+            price: device.price || 0, // إضافة حقل السعر
+            email: device.email || '' // إضافة حقل البريد الإلكتروني
             // تم إزالة حقل approval_status حتى يتم إضافته إلى قاعدة البيانات
           };
           

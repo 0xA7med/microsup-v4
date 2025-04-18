@@ -46,6 +46,7 @@ export default function ClientDevicesForm({
 
   // إرسال التغييرات إلى المكون الأب
   useEffect(() => {
+    console.log('الأجهزة المرسلة إلى المكون الأب:', devices);
     onDevicesChange(devices);
   }, [devices, onDevicesChange]);
 
@@ -139,6 +140,7 @@ export default function ClientDevicesForm({
     }
     // إذا كان الحقل هو البريد الإلكتروني
     else if (field === 'email') {
+      console.log(`تغيير البريد الإلكتروني للجهاز [${index}]:`, value);
       updatedDevices[index] = {
         ...updatedDevices[index],
         email: value
@@ -285,7 +287,7 @@ export default function ClientDevicesForm({
             <CustomerField label={t('device.email', 'البريد الإلكتروني')} children={
               <CustomerInput
                 type="email"
-                name={`email_${index}`}
+                name="email"
                 value={device.email || ''}
                 onChange={(e) => handleDeviceChange(index, 'email', e.target.value)}
                 isEditing={true}

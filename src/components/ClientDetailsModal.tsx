@@ -206,6 +206,9 @@ export default function ClientDetailsModal({
 
   const handleSaveDevice = async (deviceData: DeviceType) => {
     try {
+      // تسجيل البيانات قبل الحفظ للتحقق من وجود البريد الإلكتروني
+      console.log('بيانات الجهاز قبل الحفظ في ClientDetailsModal:', deviceData);
+      
       if (selectedDevice?.id) {
         // تحديث جهاز موجود
         const { error } = await supabase
