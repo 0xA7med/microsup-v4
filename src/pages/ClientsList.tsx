@@ -1489,7 +1489,7 @@ export const ClientsList: React.FC = () => {
                   <SkeletonRow key={`skeleton-${index}`} />
                 ))
               ) : stableClients.length > 0 ? (
-                stableClients.map((client) => (
+                stableClients.map(client => (
                   <tr key={client.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150">
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-[20%] md:w-[25%]">
   <div className="flex items-center justify-between">
@@ -1543,7 +1543,7 @@ export const ClientsList: React.FC = () => {
                                     (!activeFilter || !filteredDevicesByClient[client.id] || 
                                      filteredDevicesByClient[client.id]?.includes(device.id))
                                   )
-                                  .map((device: any, index: number) => (
+                                  .map(device => (
                                   <div key={`mobile-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
@@ -1607,7 +1607,7 @@ export const ClientsList: React.FC = () => {
                                     (!activeFilter || !filteredDevicesByClient[client.id] || 
                                      filteredDevicesByClient[client.id]?.includes(device.id))
                                   )
-                                  .map((device: any, index: number) => (
+                                  .map(device => (
                                   <div key={`computer-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
                                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
