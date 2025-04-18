@@ -63,6 +63,7 @@ export interface DashboardData {
   noDevicesCount?: number;
 }
 
+
 export interface CacheData {
   data: DashboardData;
   timestamp: number;
