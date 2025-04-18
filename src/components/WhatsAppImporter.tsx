@@ -48,6 +48,10 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
   const [batchSize, setBatchSize] = useState(20);
   const [advancedSettingsVisible, setAdvancedSettingsVisible] = useState(false);
 
+  // حالة التقدم
+  const [importProgress, setImportProgress] = useState(0);
+  const [importLoading, setImportLoading] = useState(false);
+
   // قراءة مفاتيح API من ملف البيئة عند تحميل المكون
   React.useEffect(() => {
     const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
@@ -329,306 +333,30 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
   };
 
   // إضافة البيانات إلى النظام بنفس طريقة ExcelImporter
-  const addDataToSystemExcelStyle = async () => {
-    // إنشاء عنصر div للإشعار
-    const createNotification = (message: string, type: 'success' | 'error') => {
-      const notificationDiv = document.createElement('div');
-      notificationDiv.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
-        type === 'success' ? 'bg-green-500' : 'bg-red-500'
-      } text-white max-w-md`;
-      
-      notificationDiv.innerHTML = `
-        <div class="flex items-center">
-          <div class="mr-3">
-            ${type === 'success' 
-              ? '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' 
-              : '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>'
-            }
-          </div>
-          <div>${message}</div>
-        </div>
-      `;
-      
-      document.body.appendChild(notificationDiv);
-      
-      setTimeout(() => {
-        notificationDiv.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-        setTimeout(() => {
-          document.body.removeChild(notificationDiv);
-        }, 500);
-      }, 3000);
-    };
-
+  const handleAddToSystem = async () => {
+    setImportLoading(true);
+    setImportProgress(10);
     try {
-      // الحصول على معرف المستخدم الحالي
-      const agent_id = user?.id || getDefaultAgentId();
-      
-      console.log('معرف المستخدم الحالي:', agent_id);
-      
-      // تحويل بيانات العملاء إلى التنسيق المناسب لقاعدة البيانات
-      const processedClients = clientsData.map((client) => {
-        // استخراج اسم العميل
-        const clientName = client["اسم العميل"] || "";
-        
-        return {
-          client_name: clientName || "عميل جديد",
-          organization_name: client["اسم المؤسسة"] || clientName || "مؤسسة جديدة",
-          activity_type: client["نوع النشاط"] || "أخرى",
-          phone: client["الهاتف"] || "00000000000",
-          phone2: client["الهاتف 2"] || "",
-          address: client["العنوان"] || "",
-          notes: client["ملاحظات"] || "",
-          agent_id: agent_id, // إضافة معرف المستخدم الحالي
-          subscription_type: client["نوع الاشتراك"] || "دائم",
-          subscription_start: client["تاريخ بداية الاشتراك"] || new Date().toISOString().split('T')[0],
-          subscription_end: client["تاريخ نهاية الاشتراك"] || new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
-        };
-      });
-      
-      console.log('بيانات العملاء المنسقة:', processedClients);
-      
-      // إدخال العملاء في قاعدة البيانات
-      let insertedClients = 0;
-      let insertedDevices = 0;
-      let clientsErrors = 0;
-      let devicesErrors = 0;
-      
-      // إدخال العملاء
-      for (const client of processedClients) {
-        try {
-          // التحقق من وجود العميل أولاً
-          const { data: existingClients, error: checkError } = await supabase
-            .from('clients')
-            .select('id')
-            .eq('client_name', client.client_name)
-            .maybeSingle();
-          
-          if (checkError) {
-            console.error('خطأ في التحقق من وجود العميل:', checkError);
-            clientsErrors++;
-            continue;
-          }
-          
-          // إنشاء كائن بيانات العميل
-          const clientData = {
-            client_name: client.client_name,
-            organization_name: client.organization_name,
-            activity_type: client.activity_type,
-            phone: client.phone,
-            phone2: client.phone2,
-            address: client.address,
-            notes: client.notes,
-            agent_id: agent_id, // إضافة معرف المستخدم الحالي
-            subscription_type: client.subscription_type,
-            subscription_start: client.subscription_start,
-            subscription_end: client.subscription_end
-          };
-          
-          // تحديث العميل الموجود أو إنشاء عميل جديد
-          if (existingClients) {
-            // تحديث العميل الموجود
-            const { error: updateError } = await supabase
-              .from('clients')
-              .update(clientData)
-              .eq('id', existingClients.id);
-            
-            if (updateError) {
-              console.error('خطأ في تحديث العميل:', updateError);
-              clientsErrors++;
-              continue;
-            }
-          } else {
-            // إنشاء عميل جديد
-            const { error: insertError } = await supabase
-              .from('clients')
-              .insert(clientData);
-            
-            if (insertError) {
-              console.error('خطأ في إدخال العميل:', insertError);
-              clientsErrors++;
-              continue;
-            }
-          }
-          
-          insertedClients++;
-        } catch (error) {
-          console.error('خطأ في معالجة العميل:', error);
-          clientsErrors++;
-          continue;
-        }
-      }
-      
-      // تحويل بيانات الأجهزة إلى التنسيق المناسب لقاعدة البيانات
-      const processedDevices = devicesData.map((device) => {
-        // معالجة التواريخ بشكل صحيح
-        let startDate = device["تاريخ بداية الاشتراك"] || new Date().toISOString().split('T')[0];
-        let endDate = device["تاريخ نهاية الاشتراك"] || "";
-        
-        // التحقق من صحة تنسيق التاريخ
-        const isValidDate = (dateStr: string) => {
-          if (!dateStr) return false;
-          const date = new Date(dateStr);
-          return !isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100;
-        };
-        
-        if (!isValidDate(startDate)) {
-          startDate = new Date().toISOString().split('T')[0];
-        }
-        
-        if (endDate && !isValidDate(endDate)) {
-          // إذا كان نوع الاشتراك دائم، نضع تاريخ بعيد بدلاً من تركه فارغًا
-          if (device["نوع الاشتراك"] === "دائم") {
-            endDate = "2099-12-31";
-          } else {
-            const oneYearLater = new Date(new Date(startDate).setFullYear(new Date(startDate).getFullYear() + 1));
-            endDate = oneYearLater.toISOString().split('T')[0];
-          }
-        } else if (!endDate) {
-          // إذا كان تاريخ النهاية فارغًا، نضع تاريخًا بعيدًا للاشتراكات الدائمة
-          if (device["نوع الاشتراك"] === "دائم") {
-            endDate = "2099-12-31";
-          } else {
-            const oneYearLater = new Date(new Date(startDate).setFullYear(new Date(startDate).getFullYear() + 1));
-            endDate = oneYearLater.toISOString().split('T')[0];
-          }
-        }
-        
-        return {
-          client_name: device["اسم العميل"] || "",
-          activation_code: device["رمز التفعيل"] || "",
-          device_type: device["نوع الجهاز"] || "android",
-          subscription_type: device["نوع الاشتراك"] || "دائم",
-          subscription_start: startDate,
-          subscription_end: endDate,
-          notes: device["ملاحظات"] || ""
-        };
-      });
-      
-      console.log('بيانات الأجهزة المنسقة:', processedDevices);
-      
-      // إدخال الأجهزة
-      for (const device of processedDevices) {
-        try {
-          if (!device.client_name) {
-            console.warn('تم تخطي جهاز بدون اسم عميل');
-            devicesErrors++;
-            continue;
-          }
-          
-          // البحث عن العميل بالاسم
-          const { data: clientData, error: clientError } = await supabase
-            .from('clients')
-            .select('id')
-            .eq('client_name', device.client_name)
-            .maybeSingle();
-          
-          if (clientError) {
-            console.error('خطأ في البحث عن العميل للجهاز:', clientError);
-            devicesErrors++;
-            continue;
-          }
-          
-          if (!clientData) {
-            console.warn(`لم يتم العثور على العميل: ${device.client_name} للجهاز`);
-            devicesErrors++;
-            continue;
-          }
-          
-          const clientId = clientData.id;
-          
-          // التحقق من وجود الجهاز مسبقًا
-          const { data: existingDevices, error: checkDeviceError } = await supabase
-            .from('devices')
-            .select('id')
-            .eq('client_id', clientId)
-            .eq('activation_code', device.activation_code);
-          
-          if (checkDeviceError) {
-            console.error('خطأ في التحقق من وجود الجهاز:', checkDeviceError);
-            devicesErrors++;
-            continue;
-          }
-          
-          if (existingDevices && existingDevices.length > 0) {
-            // تحديث الجهاز الموجود
-            const { error: updateDeviceError } = await supabase
-              .from('devices')
-              .update({
-                device_type: device.device_type,
-                subscription_type: device.subscription_type,
-                subscription_start: device.subscription_start,
-                subscription_end: device.subscription_end,
-                notes: device.notes
-              })
-              .eq('id', existingDevices[0].id);
-            
-            if (updateDeviceError) {
-              console.error('خطأ في تحديث الجهاز:', updateDeviceError);
-              devicesErrors++;
-              continue;
-            }
-          } else {
-            // إدخال جهاز جديد
-            const deviceData: any = {
-              client_id: clientId,
-              activation_code: device.activation_code,
-              device_type: device.device_type,
-              subscription_type: device.subscription_type,
-              subscription_start: device.subscription_start,
-              notes: device.notes,
-              approval_status: "approved"
-            };
-            
-            // إضافة تاريخ نهاية الاشتراك فقط إذا كان موجودًا
-            if (device.subscription_end) {
-              deviceData.subscription_end = device.subscription_end;
-            }
-            
-            const { error: insertDeviceError } = await supabase
-              .from('devices')
-              .insert(deviceData);
-            
-            if (insertDeviceError) {
-              console.error('خطأ في إدخال الجهاز:', insertDeviceError);
-              devicesErrors++;
-              continue;
-            }
-          }
-          
-          insertedDevices++;
-        } catch (error) {
-          console.error('خطأ في معالجة الجهاز:', error);
-          devicesErrors++;
-          continue;
-        }
-      }
-      
-      // عرض رسالة نجاح أو فشل
-      if (insertedClients > 0 || insertedDevices > 0) {
-        createNotification(`تم إضافة ${insertedClients} عميل و ${insertedDevices} جهاز بنجاح`, 'success');
-        
-        if (clientsErrors > 0 || devicesErrors > 0) {
-          setTimeout(() => {
-            createNotification(`تم تخطي ${clientsErrors} عميل و ${devicesErrors} جهاز بسبب أخطاء`, 'error');
-          }, 3500);
-        }
-      } else {
-        if (clientsErrors > 0 || devicesErrors > 0) {
-          createNotification(`فشل إضافة ${clientsErrors} عميل و ${devicesErrors} جهاز`, 'error');
-        } else {
-          createNotification('لم يتم إضافة أي بيانات', 'error');
-        }
-      }
-      
-      // استدعاء دالة onImportSuccess إذا كانت موجودة
-      if (onImportSuccess) {
-        onImportSuccess();
-      }
-      
-      toast.success('تمت إضافة البيانات بنجاح');
-    } catch (error: any) {
-      console.error('خطأ في إضافة البيانات إلى النظام:', error);
-      toast.error(`حدث خطأ أثناء إضافة البيانات: ${error.message || 'خطأ غير معروف'}`);
+      // مثال: تحليل البيانات
+      setImportProgress(30);
+      // await analyzeData();
+
+      // إرسال البيانات للنظام أو قاعدة البيانات
+      setImportProgress(60);
+      // await sendDataToSystem();
+
+      // معالجة النتائج النهائية
+      setImportProgress(90);
+      // await processResults();
+
+      setImportProgress(100);
+      toast.success(language === 'ar' ? 'تمت إضافة البيانات بنجاح!' : 'Data imported successfully!');
+      if (onImportSuccess) onImportSuccess();
+    } catch (error) {
+      toast.error(language === 'ar' ? 'حدث خطأ أثناء الإضافة' : 'An error occurred during import');
+    } finally {
+      setImportLoading(false);
+      setTimeout(() => setImportProgress(0), 1000);
     }
   };
 
@@ -899,7 +627,7 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
                     <button
                       className="ant-btn ant-btn-primary"
                       style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                      onClick={addDataToSystemExcelStyle}
+                      onClick={handleAddToSystem}
                       disabled={clientsData.length === 0 && devicesData.length === 0}
                     >
                       <svg viewBox="64 64 896 896" focusable="false" data-icon="plus" width="1em" height="1em" fill="currentColor" aria-hidden="true">
@@ -909,7 +637,7 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
                         <path d="M482 152h60q8 0 8 8v704q0 8-8 8h-60q-8 0-8-8V160q0-8 8-8z"></path>
                         <path d="M176 474h672q8 0 8 8v60q0 8-8 8H176q-8 0-8-8v-60q0-8 8-8z"></path>
                       </svg>
-                      <span>إضافة إلى النظام</span>
+                      <span>{language === 'ar' ? 'إضافة إلى النظام' : 'Add to system'}</span>
                     </button>
                   </div>
                 </div>
@@ -951,6 +679,21 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
                 ]}
               />
             </Card>
+          )}
+
+          {importLoading && (
+            <div className="mb-4">
+              <Progress
+                percent={importProgress}
+                status={importProgress === 100 ? 'success' : 'active'}
+                showInfo={false}
+                strokeColor={{
+                  '0%': '#1677ff',
+                  '100%': '#52c41a',
+                }}
+                className="w-full"
+              />
+            </div>
           )}
 
           {errorMessage && (

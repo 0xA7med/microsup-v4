@@ -1497,15 +1497,15 @@ export const ClientsList: React.FC = () => {
       className={`
         text-sm font-medium text-gray-900 dark:text-white
         max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap
-        ${typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'text-left' : 'text-right') : 'text-right'}
+        text-right
       `}
       style={{
-        direction: typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'ltr' : 'rtl') : 'rtl',
+        direction: 'rtl',
         unicodeBidi: 'plaintext'
       }}
-      title={typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'} // لعرض الاسم الكامل عند hover
+      title={client.client_name || '-'}
     >
-      {typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
+      {client.client_name || '-'}
     </div>
     <button 
       onClick={() => toggleShowDevices(client.id)}
