@@ -56,6 +56,11 @@ export interface DashboardData {
   totalDevices: number;
   mobileDevices: number;
   computerDevices: number;
+  // حقول إضافية للإحصائيات
+  expiringCount?: number;
+  expiredCount?: number;
+  activeCount?: number;
+  noDevicesCount?: number;
 }
 
 export interface CacheData {

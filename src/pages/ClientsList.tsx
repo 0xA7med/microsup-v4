@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -103,7 +103,6 @@ export const ClientsList: React.FC = () => {
   const isFetchingRef = useRef(false); // مرجع جديد لتتبع حالة الجلب
   const pendingFetchRef = useRef<{filter: string | null, page: number | null} | null>(null); // مرجع لتخزين طلب معلق
   
-  const [clients, setClients] = useState<DisplayClientType[]>([]);
   const [stableClients, setStableClients] = useState<DisplayClientType[]>([]); // حالة مستقرة للعملاء
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -136,7 +135,6 @@ export const ClientsList: React.FC = () => {
     // هذا يمنع React من إعادة الرسم عدة مرات
     setTimeout(() => {
       ReactDOM.flushSync(() => {
-        setClients(newClients);
         setTotalPages(newTotalPages);
       });
     }, 50);
@@ -926,16 +924,7 @@ export const ClientsList: React.FC = () => {
 
   // دالة لتبديل حالة إظهار الاشتراكات لعميل معين
   const toggleShowDevices = useCallback((clientId: string) => {
-    // تحديث حالة clients
-    setClients(prevClients => 
-      prevClients.map(client => 
-        client.id === clientId 
-          ? { ...client, showDevices: !client.showDevices } 
-          : client
-      )
-    );
-    
-    // تحديث حالة stableClients أيضاً
+    // تحديث حالة stableClients
     setStableClients(prevClients => 
       prevClients.map(client => 
         client.id === clientId 
@@ -1057,7 +1046,6 @@ export const ClientsList: React.FC = () => {
                 variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
                 size="sm"
                 className="flex items-center gap-1"
-                data-key="allDevices"
               >
                 <Eye className="w-3 h-3" />
                 <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
@@ -1078,7 +1066,6 @@ export const ClientsList: React.FC = () => {
                 variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
                 size="sm"
                 className="flex items-center gap-1"
-                data-key="mobile"
               >
                 <Smartphone className="w-3 h-3" />
                 <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
@@ -1100,7 +1087,6 @@ export const ClientsList: React.FC = () => {
                 variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
                 size="sm"
                 className="flex items-center gap-1"
-                data-key="computer"
               >
                 <Laptop className="w-3 h-3" />
                 <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
@@ -1129,28 +1115,28 @@ export const ClientsList: React.FC = () => {
               ].map((filter) => {
                 const FilterIcon = filter.icon;
                 return (
-                  <Button
-                    key={`filter-${filter.value}`}
-                    onClick={() => {
-                      setActiveFilter(activeFilter === filter.value ? null : filter.value);
-                      setDeviceFilter(null);
-                      setCurrentPage(1);
-                      setIsLoadingMore(true);
-                      fetchClients(filter.value, 1);
-                    }}
-                    variant={activeFilter === filter.value ? 'primary' : 'secondary'}
-                    size="sm"
-                    className="flex items-center gap-1"
-                    data-key={filter.value}
-                  >
-                    <FilterIcon className="w-3 h-3" />
-                    <span>{filter.label}</span>
-                    {activeFilter === filter.value && (
-                      <span className="mr-1 bg-white/20 px-1.5 py-0.5 rounded-full text-xs">
-                        ✓
-                      </span>
-                    )}
-                  </Button>
+                  <div key={`filter-${filter.value}`}>
+                    <Button
+                      onClick={() => {
+                        setActiveFilter(activeFilter === filter.value ? null : filter.value);
+                        setDeviceFilter(null);
+                        setCurrentPage(1);
+                        setIsLoadingMore(true);
+                        fetchClients(filter.value, 1);
+                      }}
+                      variant={activeFilter === filter.value ? 'primary' : 'secondary'}
+                      size="sm"
+                      className="flex items-center gap-1"
+                    >
+                      <FilterIcon className="w-3 h-3" />
+                      <span>{filter.label}</span>
+                      {activeFilter === filter.value && (
+                        <span className="mr-1 bg-white/20 px-1.5 py-0.5 rounded-full text-xs">
+                          ✓
+                        </span>
+                      )}
+                    </Button>
+                  </div>
                 );
               })}
             </div>
@@ -1511,15 +1497,15 @@ export const ClientsList: React.FC = () => {
       className={`
         text-sm font-medium text-gray-900 dark:text-white
         max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap
-        ${/^[A-Za-z]/.test(client.client_name || '') ? 'text-left' : 'text-right'}
+        ${typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'text-left' : 'text-right') : 'text-right'}
       `}
       style={{
-        direction: /^[A-Za-z]/.test(client.client_name || '') ? 'ltr' : 'rtl',
+        direction: typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'ltr' : 'rtl') : 'rtl',
         unicodeBidi: 'plaintext'
       }}
-      title={client.client_name || '-'} // لعرض الاسم الكامل عند hover
+      title={typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'} // لعرض الاسم الكامل عند hover
     >
-      {client.client_name || '-'}
+      {typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
     </div>
     <button 
       onClick={() => toggleShowDevices(client.id)}
@@ -1560,7 +1546,7 @@ export const ClientsList: React.FC = () => {
                                   .map((device: any, index: number) => (
                                   <div key={`mobile-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
                                         {device.device_type || 'غير محدد'}
                                       </span>
                                       <div className="flex items-center">
@@ -1624,7 +1610,7 @@ export const ClientsList: React.FC = () => {
                                   .map((device: any, index: number) => (
                                   <div key={`computer-${device.id}`} className={`flex items-center justify-between p-1 rounded ${device.approval_status === 'approved' ? 'bg-green-50 dark:bg-green-900/20' : device.approval_status === 'rejected' ? 'bg-red-50 dark:bg-red-900/20' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
                                     <div className="flex items-center">
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 ml-1">
                                         {device.device_type || 'غير محدد'}
                                       </span>
                                       <div className="flex items-center">
@@ -1674,15 +1660,15 @@ export const ClientsList: React.FC = () => {
   <div
     className={`
       max-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap
-      ${/^[A-Za-z]/.test(client.agent?.name || '') ? 'text-left' : 'text-right'}
+      ${typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'text-left' : 'text-right') : 'text-right'}
     `}
     style={{
-      direction: /^[A-Za-z]/.test(client.agent?.name || '') ? 'ltr' : 'rtl',
+      direction: typeof client.agent === 'object' && client.agent && 'name' in client.agent ? (/^[A-Za-z]/.test(client.agent.name || '') ? 'ltr' : 'rtl') : 'rtl',
       unicodeBidi: 'plaintext'
     }}
-    title={client.agent?.name || '-'} // لعرض الاسم الكامل عند hover
+    title={typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'} // لعرض الاسم الكامل عند hover
   >
-    {client.agent?.name || '-'}
+    {typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
   </div>
 </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
@@ -1898,7 +1884,7 @@ export const ClientsList: React.FC = () => {
 
       {selectedClient && (
         <ClientDetailsModal
-          client={selectedClient}
+          client={selectedClient as any}
           agents={agents}
           versionTypes={VERSION_TYPES}
           subscriptionTypes={SUBSCRIPTION_TYPES}

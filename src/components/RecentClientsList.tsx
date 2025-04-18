@@ -4,12 +4,10 @@ import {
   Copy, 
   Smartphone, 
   Laptop, 
-  AlertCircle, 
   RefreshCw, 
   Calendar, 
-  CheckCircle, 
-  XCircle,
-  Search
+  Search,
+  AlertTriangle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Client } from '../types/dashboard.types';
@@ -23,15 +21,13 @@ type RecentClientsListProps = {
   handleShowDetails: (client: Client) => void;
   navigateToClientsList?: (filter?: string) => void;
   refreshTrigger?: boolean;
-  subscriptionTypes?: { value: string; label: string; labelEn: string }[];
 }
 
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   navigateToClientsList,
-  refreshTrigger,
-  subscriptionTypes
+  refreshTrigger
 }: RecentClientsListProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -141,87 +137,34 @@ const RecentClientsList = ({
         return t('device.computer', 'كمبيوتر');
       case 'android':
       default:
-        return t('device.mobile', 'موبايل');
+        return t('device.android', 'هاتف');
     }
   };
   
-  const isSubscriptionExpired = (endDate: string) => {
-    if (!endDate) return false;
-    
-    try {
-      const end = new Date(endDate);
-      const now = new Date();
-      return end < now;
-    } catch (error) {
-      console.warn('Error checking subscription expiry:', error);
-      return false;
-    }
-  };
-
-  const getApprovalStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-            <CheckCircle className="h-3 w-3" />
-            {t('device.approved', 'مقبول')}
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-            <XCircle className="h-3 w-3" />
-            {t('device.rejected', 'مرفوض')}
-          </span>
-        );
-      case 'pending':
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-            <AlertCircle className="h-3 w-3" />
-            {t('device.pending', 'معلق')}
-          </span>
-        );
-    }
-  };
-
   const getSubscriptionTypeLabel = (subscriptionType: string) => {
     switch (subscriptionType) {
       case 'monthly':
-        return t('client.monthly', 'شهري');
+        return t('subscription.monthly', 'شهري');
       case 'semi_annual':
-        return t('client.semiAnnual', 'نصف سنوي');
+        return t('subscription.semiAnnual', 'نصف سنوي');
       case 'annual':
-        return t('client.annual', 'سنوي');
+        return t('subscription.annual', 'سنوي');
       case 'permanent':
-        return t('client.permanent', 'دائم');
+        return t('subscription.permanent', 'دائم');
       default:
-        return subscriptionType || '-';
+        return subscriptionType;
     }
   };
-  const truncateName = (name: string) => {
-    if (!name || name.trim() === '') return '-';
-    
-    const maxLength = 10; // يمكنك تعديل الرقم حسب احتياجك
-    
-    // تحقق إذا كان النص عربي (باستخدام نطاق Unicode للعربية)
-    const isArabic = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(name);
-    
-    if (name.length <= maxLength) return name;
-    
-    if (isArabic) {
-      // للعربية: نأخذ آخر maxLength حرف ونضيف ... في البداية
-      return `...${name.slice(-maxLength)}`;
-    } else {
-      // للإنجليزية: نأخذ أول maxLength حرف ونضيف ... في النهاية
-      return `${name.slice(0, maxLength)}...`;
-    }
-  };
+
   const filteredDevices = recentDevices.filter(device => 
     device.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     device.agent_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     device.activation_code?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-md rounded-lg overflow-hidden mb-8">
@@ -244,7 +187,7 @@ const RecentClientsList = ({
                 className="block w-full p-2 pr-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
                 placeholder={t('device.searchPlaceholder', 'بحث...') as string}
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
               />
             </div>
             
@@ -277,8 +220,8 @@ const RecentClientsList = ({
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
             </div>
           ) : recentDevices.length === 0 ? (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-8 text-center">
-              <AlertCircle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <AlertTriangle className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
                 {t('clientsList.noDevicesFound', 'لا توجد أجهزة')}
               </h3>
@@ -332,21 +275,21 @@ const RecentClientsList = ({
                         </td>
                         
                         <td className="px-3 py-4 whitespace-nowrap">
-  <div
-    className={`
-      text-sm font-medium text-gray-900 dark:text-white
-      max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
-      ${/^[A-Za-z]/.test(device.client_name || '') ? 'text-left' : 'text-right'}
-    `}
-    style={{
-      direction: /^[A-Za-z]/.test(device.client_name || '') ? 'ltr' : 'rtl',
-      unicodeBidi: 'plaintext'
-    }}
-    title={device.client_name || '-'} // لعرض الاسم الكامل عند hover
-  >
-    {device.client_name || '-'}
-  </div>
-</td>
+                          <div 
+                            className={`
+                              text-sm font-medium text-gray-900 dark:text-white
+                              max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
+                              ${/^[A-Za-z]/.test(device.client_name || '') ? 'text-left' : 'text-right'}
+                            `}
+                            style={{
+                              direction: /^[A-Za-z]/.test(device.client_name || '') ? 'ltr' : 'rtl',
+                              unicodeBidi: 'plaintext'
+                            }}
+                            title={device.client_name || '-'} // لعرض الاسم الكامل عند hover
+                          >
+                            {device.client_name || '-'}
+                          </div>
+                        </td>
                         
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 w-32">
                           <div className={`flex items-center justify-between p-1 rounded ${
@@ -383,20 +326,19 @@ const RecentClientsList = ({
                           </div>
                         </td>
                         
-{/* عمود اسم المندوب */}
-<td className="px-3 py-4 whitespace-nowrap">
-  <div 
-    className={`
-      text-sm text-gray-500 dark:text-gray-400 
-      max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
-      ${/^[A-Za-z]/.test(device.agent_name) ? 'text-left' : 'text-right rtl'}
-    `}
-    style={{ direction: /^[A-Za-z]/.test(device.agent_name) ? 'ltr' : 'rtl', unicodeBidi: 'plaintext' }}
-    title={device.agent_name || '-'}
-  >
-    {device.agent_name || '-'}
-  </div>
-</td>
+                        <td className="px-3 py-4 whitespace-nowrap">
+                          <div 
+                            className={`
+                              text-sm text-gray-500 dark:text-gray-400 
+                              max-w-[6rem] overflow-hidden text-ellipsis whitespace-nowrap
+                              ${/^[A-Za-z]/.test(device.agent_name) ? 'text-left' : 'text-right rtl'}
+                            `}
+                            style={{ direction: /^[A-Za-z]/.test(device.agent_name) ? 'ltr' : 'rtl', unicodeBidi: 'plaintext' }}
+                            title={device.agent_name || '-'}
+                          >
+                            {device.agent_name || '-'}
+                          </div>
+                        </td>
                         
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">

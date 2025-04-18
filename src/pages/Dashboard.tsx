@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 import { 
   Users, UserPlus, Phone, 
   Clock, AlertCircle, Zap, Package, RefreshCw,
-  ChevronDown, ChevronUp, Check, X, Smartphone, Laptop, Infinity
+  ChevronDown, ChevronUp, Check, X, Smartphone, Laptop
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/Button';
@@ -107,29 +107,23 @@ export const Dashboard: React.FC = () => {
   
   // استخراج البيانات من كائن لوحة المعلومات
   const {
-    totalClients,
-    totalAgents,
-    activeSubscriptions,
-    expiredSubscriptions,
-    averageDevices,
-    renewalRate,
-    permanentClients,
-    expiringThisMonth,
-    lastUpdated,
-    // المستحقات المالية
+    totalClients = 0,
+    totalDevices = 0,
+    mobileDevices = 0,
+    computerDevices = 0,
+    pendingDevices = 0,
+    rejectedDevices = 0,
     totalValue = 0,
     mobileValue = 0,
     computerValue = 0,
-    // حالة الاشتراكات
-    pendingDevices,
-    rejectedDevices,
-    approvedDevices = 0, // إضافة مستحقاتة افتراضية
-    // عدد الاشتراكات حسب النوع
-    totalDevices,
-    // إضافة الحقول المفقودة
-    activeDevices: activeDevicesCount,
-    mobileDevices,
-    computerDevices
+    expiringCount = 0,
+    expiredCount = 0,
+    activeCount = 0,
+    noDevicesCount = 0,
+    lastUpdated = null,
+    totalAgents = 0,
+    activeDevices = 0,
+    approvedDevices = 0
   } = dashboardData || {};
   
   // طباعة البيانات للتحقق من صحتها
@@ -137,13 +131,22 @@ export const Dashboard: React.FC = () => {
     if (dashboardData) {
       console.log('Dashboard Data:', { 
         totalClients, 
-        totalAgents, 
-        activeSubscriptions, 
-        expiredSubscriptions,
-        averageDevices,
-        renewalRate,
-        permanentClients,
-        expiringThisMonth
+        totalDevices, 
+        mobileDevices, 
+        computerDevices, 
+        pendingDevices, 
+        rejectedDevices, 
+        totalValue, 
+        mobileValue, 
+        computerValue, 
+        expiringCount, 
+        expiredCount, 
+        activeCount, 
+        noDevicesCount,
+        lastUpdated,
+        totalAgents,
+        activeDevices,
+        approvedDevices
       });
     }
   }, [dashboardData]);
@@ -245,7 +248,6 @@ export const Dashboard: React.FC = () => {
       let totalDevices = 0;
       let pendingDevices = 0;
       let rejectedDevices = 0;
-      let approvedDevices = 0;
       
       // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
       let activeSubscriptionsCount = 0;
@@ -326,8 +328,6 @@ export const Dashboard: React.FC = () => {
             pendingDevices++;
           } else if (device.approval_status === 'rejected') {
             rejectedDevices++;
-          } else if (device.approval_status === 'approved') {
-            approvedDevices++;
           }
         });
       }
@@ -352,7 +352,7 @@ export const Dashboard: React.FC = () => {
         // حالة الاشتراكات
         pendingDevices,
         rejectedDevices,
-        approvedDevices,
+        approvedDevices: totalDevices - pendingDevices - rejectedDevices,
         // عدد الاشتراكات حسب النوع
         totalDevices,
         // إضافة الحقول المفقودة
@@ -463,7 +463,6 @@ export const Dashboard: React.FC = () => {
       let totalDevices = 0;
       let pendingDevices = 0;
       let rejectedDevices = 0;
-      let approvedDevices = 0;
       
       // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
       let activeSubscriptionsCount = 0;
@@ -544,8 +543,6 @@ export const Dashboard: React.FC = () => {
             pendingDevices++;
           } else if (device.approval_status === 'rejected') {
             rejectedDevices++;
-          } else if (device.approval_status === 'approved') {
-            approvedDevices++;
           }
         });
       }
@@ -570,7 +567,7 @@ export const Dashboard: React.FC = () => {
         // حالة الاشتراكات
         pendingDevices,
         rejectedDevices,
-        approvedDevices,
+        approvedDevices: totalDevices - pendingDevices - rejectedDevices,
         // عدد الاشتراكات حسب النوع
         totalDevices,
         // إضافة الحقول المفقودة
@@ -773,11 +770,14 @@ export const Dashboard: React.FC = () => {
   const fifteenDaysLater = new Date();
   fifteenDaysLater.setDate(now.getDate() + 15);
 
-  const permanentCount = devicesData.filter(device => device.subscription_type === 'permanent').length;
-  const expiredCount = devicesData.filter(device => {
+  const expiredDevicesCount = devicesData.filter(device => {
     if (device.subscription_type === 'permanent') return false;
     if (!device.subscription_end) return false;
-    return new Date(device.subscription_end) < now;
+    try {
+      return new Date(device.subscription_end) < now;
+    } catch (e) {
+      return false;
+    }
   }).length;
   const expiringSoonCount = devicesData.filter(device => {
     if (device.subscription_type === 'permanent') return false;
@@ -811,7 +811,7 @@ export const Dashboard: React.FC = () => {
       
       {lastUpdated && (
         <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
-          {t('dashboard.lastUpdated', 'آخر تحديث')}: {formatDateForDisplay(lastUpdated)} {format(new Date(lastUpdated), 'HH:mm:ss')}
+          {t('dashboard.lastUpdated', 'آخر تحديث')}: {formatDateForDisplay(lastUpdated)} {format(new Date(lastUpdated), 'HH:mm')}
         </div>
       )}
  
@@ -856,7 +856,7 @@ export const Dashboard: React.FC = () => {
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.agents', 'المندوبين')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalAgents}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalAgents || 0}</span>
                 </div>
                 <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
                   <UserPlus className="h-6 w-6 text-purple-600 dark:text-purple-300" />
@@ -942,7 +942,7 @@ export const Dashboard: React.FC = () => {
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الاشتراكات النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeDevicesCount || 0}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeCount || 0}</span>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
                 <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
@@ -1007,7 +1007,7 @@ export const Dashboard: React.FC = () => {
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
                 <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredCount}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredDevicesCount}</span>
               </div>
               <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
                 <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
@@ -1104,7 +1104,6 @@ export const Dashboard: React.FC = () => {
         formatDateForDisplay={formatDateForDisplay}
         handleShowDetails={handleShowDetails}
         navigateToClientsList={navigateToClientsList}
-        subscriptionTypes={SUBSCRIPTION_TYPES}
         refreshTrigger={refreshTrigger} // إضافة مؤشر التحديث
       />
 

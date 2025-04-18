@@ -11,13 +11,11 @@ interface ClientDevicesSectionProps {
     id: string;
     role: string;
   } | null;
-  versionTypes: { value: string; label: string; labelEn: string }[];
 }
 
 export default function ClientDevicesSection({
   clientId,
-  currentUser,
-  versionTypes
+  currentUser
 }: ClientDevicesSectionProps) {
   const { t } = useTranslation();
   const [devices, setDevices] = useState<DeviceType[]>([]);
@@ -79,7 +77,6 @@ export default function ClientDevicesSection({
               devices={devices}
               clientId={clientId}
               onDeviceUpdated={fetchDevices}
-              versionTypes={versionTypes}
               currentUser={currentUser}
             />
           )}
