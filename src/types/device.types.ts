@@ -21,7 +21,7 @@ export interface DeviceType {
 // أنواع الأجهزة
 export const DEVICE_TYPES = [
   { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer' },
-  { value: 'android', label: 'موبايل', labelEn: 'Mobile' }
+  { value: 'android', label: 'اندرويد', labelEn: 'Mobile' }
 ];
 
 // حالات الموافقة

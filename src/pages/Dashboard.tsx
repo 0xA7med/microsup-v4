@@ -29,7 +29,7 @@ const SUBSCRIPTION_TYPES = [
 
 const VERSION_TYPES = [
   { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer' },
-  { value: 'android', label: 'موبايل', labelEn: 'Mobile' }
+  { value: 'android', label: 'اندرويد', labelEn: 'Mobile' }
 ];
 
 export const Dashboard: React.FC = () => {

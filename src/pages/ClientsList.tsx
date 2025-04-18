@@ -61,7 +61,7 @@ const SUBSCRIPTION_TYPES = [
 
 const VERSION_TYPES = [
   { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer' },
-  { value: 'android', label: 'موبايل', labelEn: 'Mobile' }
+  { value: 'android', label: 'اندرويد', labelEn: 'Mobile' }
 ];
 
 export const ClientsList: React.FC = () => {
@@ -1142,54 +1142,54 @@ export const ClientsList: React.FC = () => {
             </div>
           </div>
 
-          {/* فلترة الوكلاء */}
-          {agents.length > 0 && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                {t('clientsList.agents', 'المندوبين')}:
-              </h3>
-              <div className="mb-2">
-                <select
-                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
-                  value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                    const selectedValue = e.target.value;
-                    
-                    // تحديث الحالة المستقرة فوراً قبل تغيير الفلتر
-                    setStableClients([]);
-                    
-                    // تأخير قصير قبل تنفيذ الاستعلام
-                    setTimeout(() => {
-                      // إعادة ضبط حالة الجلب قبل التنفيذ
-                      isFetchingRef.current = false;
-                      pendingFetchRef.current = null;
-                      
-                      if (selectedValue) {
-                        setActiveFilter(selectedValue);
-                        setDeviceFilter(null);
-                        setCurrentPage(1);
-                        setIsLoadingMore(true);
-                        fetchClients(selectedValue, 1);
-                      } else {
-                        setActiveFilter(null);
-                        setDeviceFilter(null);
-                        setCurrentPage(1);
-                        setIsLoadingMore(true);
-                        fetchClients(null, 1);
-                      }
-                    }, 50);
-                  }}
-                >
-                  <option value="">{t('clientsList.selectAgent', 'اختر المندوب...')}</option>
-                  {agents.map(agent => (
-                    <option key={`agent-${agent.id}`} value={`agent_${agent.id}`}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
+       {/* فلترة الوكلاء - تظهر للمديرين فقط */}
+       {agents.length > 0 && (user?.role === 'admin' || user?.role === 'super_admin') && (
+         <div>
+           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+             {t('clientsList.agents', 'المندوبين')}:
+           </h3>
+           <div className="mb-2">
+             <select
+               className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
+               value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
+               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                 const selectedValue = e.target.value;
+                 
+                 // تحديث الحالة المستقرة فوراً قبل تغيير الفلتر
+                 setStableClients([]);
+                 
+                 // تأخير قصير قبل تنفيذ الاستعلام
+                 setTimeout(() => {
+                   // إعادة ضبط حالة الجلب قبل التنفيذ
+                   isFetchingRef.current = false;
+                   pendingFetchRef.current = null;
+                   
+                   if (selectedValue) {
+                     setActiveFilter(selectedValue);
+                     setDeviceFilter(null);
+                     setCurrentPage(1);
+                     setIsLoadingMore(true);
+                     fetchClients(selectedValue, 1);
+                   } else {
+                     setActiveFilter(null);
+                     setDeviceFilter(null);
+                     setCurrentPage(1);
+                     setIsLoadingMore(true);
+                     fetchClients(null, 1);
+                   }
+                 }, 50);
+               }}
+             >
+               <option value="">{t('clientsList.selectAgent', 'اختر المندوب...')}</option>
+               {agents.map(agent => (
+                 <option key={`agent-${agent.id}`} value={`agent_${agent.id}`}>
+                   {agent.name}
+                 </option>
+               ))}
+             </select>
+           </div>
+         </div>
+       )}
 
           {/* إلغاء الفلاتر */}
           {(activeFilter || deviceFilter) && (

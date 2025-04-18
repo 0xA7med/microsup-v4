@@ -64,7 +64,8 @@
   "dialogs": {
     "deleteAgent": "حذف المندوب",
     "deleteAgentConfirm": "هل أنت متأكد من حذف هذا المندوب؟",
-    "agentHasClients": "هذا المندوب لديه عملاء مسجلين. ماذا تريد أن تفعل بهم؟",
+    "agentHasClients": "هذا المندوب لديه عملاء مرتبطين به. ماذا تريد أن تفعل بهم؟",
+    "agentHasClientsDetailed": "المندوب {{name}} لديه {{count}} عميل مرتبط. ماذا تريد أن تفعل بهم؟",
     "transferClients": "نقل العملاء إلى مندوب آخر",
     "deleteClients": "حذف العملاء المرتبطين",
     "selectAgent": "اختر المندوب",
@@ -73,9 +74,11 @@
   "messages": {
     "noAgentsFound": "لا يوجد مندوبين متطابقين مع البحث",
     "agentDeletedSuccess": "تم حذف المندوب بنجاح",
+    "agentUpdated": "تم تحديث بيانات المندوب بنجاح",
+    "errorUpdatingAgent": "حدث خطأ أثناء تحديث بيانات المندوب",
+    "errorOccurred": "حدث خطأ ما، يرجى المحاولة لاحقاً",
     "clientsTransferredSuccess": "تم نقل العملاء بنجاح",
     "clientsDeletedSuccess": "تم حذف العملاء بنجاح",
-    "errorOccurred": "حدث خطأ، يرجى المحاولة مرة أخرى",
     "futureDateNotAllowed": "لا يمكن إدخال تاريخ مستقبلي",
     "requiredFieldsMissing": "يرجى ملء جميع الحقول المطلوبة",
     "invalidSubscriptionType": "نوع الاشتراك غير صالح",
@@ -94,6 +97,6 @@
   },
   "software": {
     "computer": "كمبيوتر",
-    "mobile": "موبايل"
+    "mobile": "اندرويد"
   }
 }

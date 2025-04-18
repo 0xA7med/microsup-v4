@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import {
   X, Edit, Save, Trash2, Ban, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle
+  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -55,6 +55,7 @@ export default function ClientDetailsModal({
   const [agentName, setAgentName] = useState<string | null>(null);
   const [localAgents, setLocalAgents] = useState<Agent[]>([]);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+  const [deviceModalMode, setDeviceModalMode] = useState<'edit' | 'view'>('edit');
 
   useEffect(() => {
     if (client && isOpen) {
@@ -414,6 +415,13 @@ export default function ClientDetailsModal({
     }
   };
 
+  // دالة لعرض تفاصيل الجهاز (للمندوبين فقط - عرض بدون تعديل)
+  const handleViewDevice = (device: DeviceType) => {
+    setSelectedDevice(device);
+    setShowDeviceModal(true);
+    setDeviceModalMode('view'); // وضع العرض فقط
+  };
+
   // هذه الوظائف غير مستخدمة حالياً ويمكن إعادة تفعيلها عند الحاجة
 
   if (!isOpen && !formData) return null; 
@@ -666,19 +674,33 @@ export default function ClientDetailsModal({
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
                               <div className="flex justify-center space-x-2 rtl:space-x-reverse">
-                                {currentUser?.role === 'admin' && (
+                                {/* زر عرض التفاصيل للمندوبين فقط */}
+                                {currentUser?.role === 'agent' && (
+                                  <button
+                                    onClick={() => handleViewDevice(device)}
+                                    className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                                    title={t('device.viewDetails', 'عرض التفاصيل')}
+                                  >
+                                    <Eye className="w-5 h-5" />
+                                  </button>
+                                )}
+                                
+                                {/* أزرار التعديل والحذف للمديرين فقط */}
+                                {currentUser?.role !== 'agent' && (
                                   <>
                                     <button
                                       onClick={() => handleEditDevice(device)}
-                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                                      className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                                      title={t('actions.edit', 'تعديل')}
                                     >
-                                      <Edit className="h-5 w-5" />
+                                      <Edit className="w-5 h-5" />
                                     </button>
                                     <button
-                                      onClick={() => handleDeleteDevice(device.id!)}
+                                      onClick={() => handleDeleteDevice(device.id || '')}
                                       className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                      title={t('actions.delete', 'حذف')}
                                     >
-                                      <Trash2 className="h-5 w-5" />
+                                      <Trash2 className="w-5 h-5" />
                                     </button>
                                   </>
                                 )}
@@ -866,6 +888,7 @@ export default function ClientDetailsModal({
               device={selectedDevice}
               clientId={client?.id || ''}
               subscriptionTypes={subscriptionTypes}
+              mode={deviceModalMode}
             />
           )}
         </div>

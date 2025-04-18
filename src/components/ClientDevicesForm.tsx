@@ -33,9 +33,9 @@ export default function ClientDevicesForm({
         client_id: clientId || '',
         activation_code: '',
         subscription_start: format(new Date(), 'yyyy-MM-dd'),
-        subscription_end: format(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), 'yyyy-MM-dd'),
-        subscription_type: 'monthly',
-        device_type: 'computer',
+        subscription_end: format(new Date(2099, 11, 31), 'yyyy-MM-dd'), // تاريخ بعيد للاشتراك الدائم
+        subscription_type: 'permanent', // تعيين نوع الاشتراك الافتراضي كـ "دائم"
+        device_type: 'android', // تعيين نوع الجهاز الافتراضي كـ "اندرويد"
         approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
         notes: '',
         email: '', // إضافة حقل البريد الإلكتروني الافتراضي
@@ -119,7 +119,7 @@ export default function ClientDevicesForm({
     }
     // إذا كان الحقل هو نوع الجهاز
     else if (field === 'device_type') {
-      // إذا كان نوع الجهاز هو موبايل، نجعل نوع الاشتراك دائم افتراضيًا
+      // إذا كان نوع الجهاز هو اندرويد، نجعل نوع الاشتراك دائم افتراضيًا
       if (value === 'android') {
         const startDate = updatedDevices[index].subscription_start;
         const endDate = calculateEndDate(startDate, 'permanent');
@@ -156,23 +156,22 @@ export default function ClientDevicesForm({
   };
 
   const handleAddDevice = () => {
-    // إنشاء رمز تفعيل عشوائي
-    const randomCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-    
-    setDevices([...devices, {
-      client_id: clientId || '',
-      activation_code: randomCode, // إضافة رمز تفعيل عشوائي
-      subscription_start: format(new Date(), 'yyyy-MM-dd'),
-      subscription_end: format(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), 'yyyy-MM-dd'),
-      subscription_type: 'monthly',
-      device_type: 'computer',
-      approval_status: 'pending', // إضافة حالة الموافقة الافتراضية
-      notes: '',
-      email: '', // إضافة حقل البريد الإلكتروني الافتراضي
-      price: 0 // إضافة حقل القيمة الافتراضية
-    }]);
-    
-    // إظهار رسالة توضح أن الجهاز سيكون قيد المراجعة
+    // إضافة جهاز جديد بالقيم الافتراضية
+    setDevices([
+      ...devices,
+      {
+        client_id: clientId || '',
+        activation_code: '',
+        subscription_start: format(new Date(), 'yyyy-MM-dd'),
+        subscription_end: format(new Date(2099, 11, 31), 'yyyy-MM-dd'), // تاريخ بعيد للاشتراك الدائم
+        subscription_type: 'permanent', // تعيين نوع الاشتراك الافتراضي كـ "دائم"
+        device_type: 'android', // تعيين نوع الجهاز الافتراضي كـ "اندرويد"
+        approval_status: 'pending',
+        notes: '',
+        email: '',
+        price: 0
+      }
+    ]);
     toast.success(t('device.pendingApproval', 'تمت إضافة الجهاز وسيكون قيد المراجعة من قبل المدير'));
   };
 

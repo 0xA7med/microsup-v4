@@ -278,7 +278,7 @@ export default function PendingDevicesPage() {
 
   const getDeviceTypeLabel = (deviceType: string) => {
     return deviceType === 'android' ? 
-      t('device.mobile', 'موبايل') : 
+      t('device.mobile', 'اندرويد') : 
       t('device.computer', 'كمبيوتر');
   };
 

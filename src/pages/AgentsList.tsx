@@ -196,13 +196,13 @@ export const AgentsList = () => {
       
       // تحديث قائمة المندوبين
       setAgents(agents.filter((a: AgentWithClients) => a.id !== agentToDelete.id));
-      setSuccessMessage(t('messages.agentDeletedSuccess'));
+      setSuccessMessage(t('messages.agentDeletedSuccess', 'تم حذف المندوب بنجاح'));
       
       // إغلاق النافذة المنبثقة
       closeModal();
     } catch (error) {
       console.error('Error deleting agent:', error);
-      setError(t('messages.errorOccurred'));
+      setError(t('messages.errorOccurred', 'حدث خطأ ما، يرجى المحاولة لاحقاً'));
     } finally {
       setIsProcessing(false);
     }
@@ -233,18 +233,18 @@ export const AgentsList = () => {
     <div className="container mx-auto p-4 md:p-6 lg:p-8 bg-white dark:bg-gray-900 rounded-2xl shadow-lg">
       {successMessage && (
         <div className="mb-6 bg-green-100 dark:bg-green-900/20 border border-green-400 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg relative" role="alert">
-          <span className="block sm:inline">{successMessage}</span>
-          <button 
-            onClick={() => setSuccessMessage(null)} 
-            className="absolute top-0 bottom-0 left-0 px-4 py-3"
-          >
-            <X className="h-5 w-5 text-green-700 dark:text-green-400" />
-          </button>
-        </div>
+        <span className="block sm:inline">{successMessage}</span>
+        <button 
+          onClick={() => setSuccessMessage(null)} 
+          className="absolute top-0 bottom-0 left-0 px-4 py-3"
+        >
+          <X className="h-5 w-5 text-green-700 dark:text-green-400" />
+        </button>
+      </div>
       )}
       
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('nav.agents', 'قائمة المناديب')}</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">{t('agents.agentsList', 'قائمة المندوبين')}</h1>
         
         <div className="flex items-center">
           <button 
@@ -489,13 +489,17 @@ export const AgentsList = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-              {t('dialogs.deleteAgent')}
+              {t('dialogs.deleteAgent', 'حذف المندوب')}
             </h3>
             
             {agentToDelete.clients_count > 0 ? (
               <>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                  {t('dialogs.agentHasClients')}
+                  {t('dialogs.agentHasClientsDetailed', {
+                    name: agentToDelete?.name,
+                    count: agentToDelete?.clients_count,
+                    defaultValue: `المندوب ${agentToDelete?.name} لديه ${agentToDelete?.clients_count} عميل مرتبط. ماذا تريد أن تفعل بهم؟`
+                  })}
                 </p>
                 
                 <div className="mb-4">
@@ -510,7 +514,7 @@ export const AgentsList = () => {
                       className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300"
                     />
                     <label htmlFor="transfer" className="mr-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {t('dialogs.transferClients')}
+                      {t('dialogs.transferClients', 'نقل العملاء إلى مندوب آخر')}
                     </label>
                   </div>
                   

@@ -17,6 +17,7 @@ interface DeviceModalProps {
   device?: DeviceType | null;
   clientId: string;
   subscriptionTypes?: { value: string; label: string; labelEn: string }[];
+  mode?: 'edit' | 'view';
 }
 
 export default function DeviceModal({
@@ -30,7 +31,8 @@ export default function DeviceModal({
     { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Biannual' },
     { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
     { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
-  ]
+  ],
+  mode = 'edit'
 }: DeviceModalProps) {
   const { t, i18n } = useTranslation();
   const [formData, setFormData] = useState<DeviceType>({
@@ -45,6 +47,7 @@ export default function DeviceModal({
     email: '' // إضافة حقل البريد الإلكتروني
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [activationCodeError, setActivationCodeError] = useState<string | null>(null);
 
   // حساب تاريخ نهاية الاشتراك بناءً على تاريخ البداية ونوع الاشتراك
   const calculateEndDate = (startDate: string, subscriptionType: string): string => {
@@ -142,8 +145,27 @@ export default function DeviceModal({
 
   const handleSaveClick = async () => {
     setIsSaving(true);
+    if (!formData.activation_code || formData.activation_code.trim() === '') {
+      setActivationCodeError(t('device.activationCodeRequired', 'يرجى إدخال رمز التفعيل للجهاز'));
+      toast.error(t('device.activationCodeRequired', 'يرجى إدخال رمز التفعيل للجهاز'));
+      setIsSaving(false);
+      return;
+    } else {
+      setActivationCodeError(null);
+    }
+    
+    // تسجيل البيانات للتأكد من وجود البريد الإلكتروني
+    console.log('بيانات الجهاز قبل الحفظ:', formData);
+    
+    // التأكد من أن البريد الإلكتروني موجود في البيانات المرسلة
+    const dataToSave = {
+      ...formData,
+      // التأكد من وجود البريد الإلكتروني (undefined بدلاً من null للتوافق مع نوع DeviceType)
+      email: formData.email || ''
+    };
+    
     try {
-      await onSave(formData);
+      await onSave(dataToSave);
       onClose();
     } catch (error) {
       console.error('Error saving device:', error);
@@ -176,7 +198,11 @@ export default function DeviceModal({
           {/* رأس النافذة */}
           <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {device ? t('device.editDevice', 'تعديل جهاز') : t('device.addDevice', 'إضافة جهاز جديد')}
+              {device ? 
+                mode === 'view' ? 
+                  t('device.viewDevice', 'عرض تفاصيل الجهاز') : 
+                  t('device.editDevice', 'تعديل جهاز') : 
+                t('device.addDevice', 'إضافة جهاز جديد')}
             </h3>
             <button
               onClick={onClose}
@@ -190,21 +216,40 @@ export default function DeviceModal({
           {/* محتوى النافذة */}
           <div className="flex-1 overflow-y-auto p-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* رمز التفعيل - جعله عريضاً بالأعلى */}
+              {/* رمز التفعيل */}
               <div className="md:col-span-2">
                 <CustomerField label={t('device.activationCode', 'رمز التفعيل')} children={
                   <div className="relative">
                     <CustomerInput
                       type="text"
                       name="activation_code"
-                      placeholder={t('device.enterActivationCode', 'أدخل رمز التفعيل')}
-                      value={formData.activation_code}
+                      placeholder={t('device.activationCodePlaceholder', 'أدخل رمز التفعيل')}
+                      value={formData.activation_code || ''}
                       onChange={handleInputChange}
-                      isEditing={true}
+                      isEditing={mode === 'edit'}
                       required
-                      className="h-12 text-lg border-gray-300 dark:border-gray-600 pl-10"
+                      className={`h-12 text-lg border-gray-300 dark:border-gray-600 pl-10 ${activationCodeError ? 'border-red-500 focus:border-red-500' : ''}`}
                     />
-                    <Clipboard className="absolute top-3 left-3 h-6 w-6 text-gray-400 pointer-events-none" />
+                    {/* زر اللصق */}
+                    <button
+                      type="button"
+                      className="absolute top-3 left-3 h-6 w-6 text-gray-400 hover:text-primary-600 focus:outline-none"
+                      onClick={async () => {
+                        try {
+                          const text = await navigator.clipboard.readText();
+                          setFormData(prev => ({ ...prev, activation_code: text }));
+                          setActivationCodeError(null);
+                        } catch (err) {
+                          toast.error(t('device.pasteFailed', 'تعذر قراءة الحافظة. يرجى السماح للصلاحيات أو اللصق يدويًا.'));
+                        }
+                      }}
+                      title={t('common.paste', 'لصق')}
+                    >
+                      <Clipboard className="h-6 w-6" />
+                    </button>
+                    {activationCodeError && (
+                      <p className="text-red-500 text-xs mt-1">{activationCodeError}</p>
+                    )}
                   </div>
                 } />
               </div>
@@ -216,7 +261,7 @@ export default function DeviceModal({
                     name="device_type"
                     value={formData.device_type}
                     onChange={handleInputChange}
-                    isEditing={true}
+                    isEditing={mode === 'edit'}
                     required
                     options={DEVICE_TYPES.map(type => ({
                       value: type.value,
@@ -237,7 +282,7 @@ export default function DeviceModal({
                       placeholder={t('device.enterEmail', 'أدخل البريد الإلكتروني')}
                       value={formData.email || ''}
                       onChange={handleInputChange}
-                      isEditing={true}
+                      isEditing={mode === 'edit'}
                       className="h-12 text-lg border-gray-300 dark:border-gray-600"
                     />
                   </div>
@@ -250,7 +295,7 @@ export default function DeviceModal({
                   name="subscription_type"
                   value={formData.subscription_type || ''}
                   onChange={(e) => handleSubscriptionTypeChange(e.target.value)}
-                  isEditing={true}
+                  isEditing={mode === 'edit'}
                   required
                   options={subscriptionTypes.map(type => ({
                     value: type.value,
@@ -268,7 +313,7 @@ export default function DeviceModal({
                     name="subscription_start"
                     value={formData.subscription_start}
                     onChange={handleDateChange}
-                    isEditing={true}
+                    isEditing={mode === 'edit'}
                     required
                     max={format(new Date(), 'yyyy-MM-dd')} // لا يسمح بتواريخ في المستقبل
                     className="h-12 text-lg border-gray-300 dark:border-gray-600 pr-10"
@@ -285,7 +330,7 @@ export default function DeviceModal({
                     name="subscription_end"
                     value={formData.subscription_end}
                     readOnly // جعل الحقل للقراءة فقط لأنه يتم حسابه تلقائياً
-                    isEditing={true}
+                    isEditing={false}
                     required
                     className="h-12 text-lg border-gray-300 dark:border-gray-600 pr-10 bg-gray-50 dark:bg-gray-600"
                   />
@@ -301,7 +346,7 @@ export default function DeviceModal({
                     name="price"
                     value={formData.price?.toString() || '0'}
                     onChange={handleInputChange}
-                    isEditing={true}
+                    isEditing={mode === 'edit'}
                     min="0"
                     step="0.01"
                     required
@@ -317,7 +362,7 @@ export default function DeviceModal({
                   name="notes"
                   value={formData.notes || ''}
                   onChange={handleInputChange}
-                  isEditing={true}
+                  isEditing={mode === 'edit'}
                   rows={4}
                   className="text-base border-gray-300 dark:border-gray-600"
                 />
@@ -327,25 +372,27 @@ export default function DeviceModal({
         </div>
 
         {/* أزرار الإجراءات */}
-        <div className="flex justify-end gap-3 p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <div className="p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex justify-between">
           <Button
             variant="secondary"
             onClick={onClose}
             className="flex items-center gap-2 px-5 py-2.5"
-            disabled={isSaving}
           >
             <Ban className="w-5 h-5" />
-            <span>{t('actions.cancel', 'إلغاء')}</span>
+            <span>{t('actions.cancel', 'إغلاق')}</span>
           </Button>
-          <Button
-            variant="primary"
-            onClick={handleSaveClick}
-            className="flex items-center gap-2 px-5 py-2.5"
-            disabled={isSaving}
-          >
-            <Save className="w-5 h-5" />
-            <span>{isSaving ? t('actions.saving', 'جار الحفظ...') : t('actions.save', 'حفظ')}</span>
-          </Button>
+            
+          {mode === 'edit' && (
+            <Button
+              variant="primary"
+              onClick={handleSaveClick}
+              className="flex items-center gap-2 px-5 py-2.5"
+              disabled={isSaving}
+            >
+              <Save className="w-5 h-5" />
+              <span>{isSaving ? t('actions.saving', 'جار الحفظ...') : t('actions.save', 'حفظ')}</span>
+            </Button>
+          )}
         </div>
       </div>
     </>
