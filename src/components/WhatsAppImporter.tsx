@@ -5,6 +5,7 @@ import { extractDataFromWhatsAppChat } from '../services/aiService';
 import * as XLSX from 'xlsx';
 import { toast } from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore';
+import { addClientsAndDevicesToDb } from '../services/whatsappImportService';
 
 // تعريف أنواع البيانات
 interface ClientData {
@@ -50,6 +51,11 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
   // حالة التقدم
   const [importProgress, setImportProgress] = useState(0);
   const [importLoading, setImportLoading] = useState(false);
+
+  // حالة الإحصائيات وسجل الدفعات
+  const [stats, setStats] = useState<{ clients: number; devices: number }>({ clients: 0, devices: 0 });
+  const [showStats, setShowStats] = useState(false);
+  const [completedBatches, setCompletedBatches] = useState<{ clients: ClientData[]; devices: DeviceData[] }[]>([]);
 
   // قراءة مفاتيح API من ملف البيئة عند تحميل المكون
   React.useEffect(() => {
@@ -215,8 +221,10 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
   const handleProcessClick = async () => {
     setIsProcessing(true);
     setErrorMessage('');
-    setShowDataPreview(false);
-    
+    setShowDataPreview(true); // إظهار الجدول مباشرة
+    setCompletedBatches([]);
+    setClientsData([]);
+    setDevicesData([]);
     try {
       let text = '';
       
@@ -249,18 +257,24 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
         let batchNumber = 1;
         
         for (const batch of batches) {
-          toast.loading(`معالجة الدفعة ${batchNumber} من ${batches.length}`);
-          
+          const toastId = toast.loading(`معالجة الدفعة ${batchNumber} من ${batches.length}`);
           const result = await processWhatsAppChat(batch, aiProvider, apiKey);
           
           if (result.clients && Array.isArray(result.clients)) {
             allClientsData = [...allClientsData, ...result.clients];
+            setClientsData(prev => [...prev, ...result.clients]);
           }
           
           if (result.devices && Array.isArray(result.devices)) {
             allDevicesData = [...allDevicesData, ...result.devices];
+            setDevicesData(prev => [...prev, ...result.devices]);
           }
           
+          setCompletedBatches(prev => [...prev, {
+            clients: result.clients || [],
+            devices: result.devices || []
+          }]);
+          toast.success(`تم معالجة الدفعة ${batchNumber} من ${batches.length}`, { id: toastId });
           batchNumber++;
         }
       } else {
@@ -269,37 +283,51 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
         
         if (result.clients && Array.isArray(result.clients)) {
           allClientsData = result.clients;
+          setClientsData(result.clients);
         }
         
         if (result.devices && Array.isArray(result.devices)) {
           allDevicesData = result.devices;
+          setDevicesData(result.devices);
         }
+        
+        setCompletedBatches([{
+          clients: result.clients || [],
+          devices: result.devices || []
+        }]);
       }
       
-      // إزالة السجلات المكررة
-      const uniqueClients = allClientsData.filter((client, index, self) =>
-        index === self.findIndex((c) => c['اسم العميل'] === client['اسم العميل'])
-      );
-      
-      const uniqueDevices = allDevicesData.filter((device, index, self) =>
-        index === self.findIndex((d) => d['رمز التفعيل'] === device['رمز التفعيل'])
-      );
-      
-      // تحديث البيانات
-      setClientsData(uniqueClients);
-      setDevicesData(uniqueDevices);
-      setShowDataPreview(true);
-      
-      if (uniqueClients.length === 0 && uniqueDevices.length === 0) {
+      setShowStats(false);
+      setStats({ clients: allClientsData.length, devices: allDevicesData.length });
+      if (allClientsData.length === 0 && allDevicesData.length === 0) {
         toast.error('لم يتم العثور على بيانات للاستخراج');
       } else {
-        toast.success(`تم استخراج ${uniqueClients.length} عميل و ${uniqueDevices.length} جهاز بنجاح`);
+        toast.success(`تم استخراج ${allClientsData.length} عميل و ${allDevicesData.length} جهاز بنجاح`);
       }
     } catch (error: any) {
       console.error('Error processing WhatsApp chat:', error);
       setErrorMessage(error.message || 'حدث خطأ أثناء معالجة محادثة واتساب');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // زر إضافة إلى النظام - إضافة حقيقية إلى قاعدة البيانات
+  const handleAddToSystem = async () => {
+    setImportLoading(true);
+    setImportProgress(10);
+    try {
+      // إضافة فعلية إلى قاعدة البيانات
+      const result = await addClientsAndDevicesToDb(clientsData, devicesData);
+      setImportProgress(100);
+      setShowStats(true);
+      toast.success(language === 'ar' ? `تمت إضافة ${result.clients} عميل و${result.devices} جهاز بنجاح!` : `Added ${result.clients} clients and ${result.devices} devices successfully!`);
+      if (onImportSuccess) onImportSuccess();
+    } catch (error: any) {
+      toast.error(language === 'ar' ? `حدث خطأ أثناء الإضافة: ${error.message}` : `Error during import: ${error.message}`);
+    } finally {
+      setImportLoading(false);
+      setTimeout(() => setImportProgress(0), 1000);
     }
   };
 
@@ -328,34 +356,6 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       toast.error('حدث خطأ أثناء تصدير البيانات');
-    }
-  };
-
-  // إضافة البيانات إلى النظام بنفس طريقة ExcelImporter
-  const handleAddToSystem = async () => {
-    setImportLoading(true);
-    setImportProgress(10);
-    try {
-      // مثال: تحليل البيانات
-      setImportProgress(30);
-      // await analyzeData();
-
-      // إرسال البيانات للنظام أو قاعدة البيانات
-      setImportProgress(60);
-      // await sendDataToSystem();
-
-      // معالجة النتائج النهائية
-      setImportProgress(90);
-      // await processResults();
-
-      setImportProgress(100);
-      toast.success(language === 'ar' ? 'تمت إضافة البيانات بنجاح!' : 'Data imported successfully!');
-      if (onImportSuccess) onImportSuccess();
-    } catch (error) {
-      toast.error(language === 'ar' ? 'حدث خطأ أثناء الإضافة' : 'An error occurred during import');
-    } finally {
-      setImportLoading(false);
-      setTimeout(() => setImportProgress(0), 1000);
     }
   };
 
@@ -617,6 +617,18 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
                     >
                       تصدير Excel
                     </Button>
+                    <Button
+                      danger
+                      onClick={() => {
+                        setClientsData([]);
+                        setDevicesData([]);
+                        setShowStats(false);
+                        setCompletedBatches([]);
+                      }}
+                      disabled={clientsData.length === 0 && devicesData.length === 0}
+                    >
+                      مسح الجدول
+                    </Button>
                     <button
                       className="ant-btn ant-btn-primary"
                       style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -671,9 +683,44 @@ const WhatsAppImporter: React.FC<WhatsAppImporterProps> = ({ onImportSuccess }) 
                   }
                 ]}
               />
+              {/* عرض الإحصائيات بعد الإضافة */}
+              {showStats && (
+                <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/30 rounded-xl">
+                  <h3 className="font-medium text-green-800 dark:text-green-200 mb-2">تسجيل مندوب جديد</h3>
+                  <div className="flex gap-3">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                      {stats.clients} عميل
+                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                      {stats.devices} جهاز
+                    </span>
+                  </div>
+                </div>
+              )}
+              {/* عرض الدفعات المكتملة */}
+              {completedBatches.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="font-medium mb-2">سجل المعالجة</h3>
+                  {completedBatches.map((batch, index) => (
+                    <div key={index} className="mb-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex justify-between">
+                        <span>الدفعة {index + 1}</span>
+                        <div className="flex gap-2">
+                          <span className="text-blue-600 dark:text-blue-300">
+                            {batch.clients.length} عميل
+                          </span>
+                          <span className="text-purple-600 dark:text-purple-300">
+                            {batch.devices.length} جهاز
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
           )}
-
+          
           {importLoading && (
             <div className="mb-4">
               <Progress

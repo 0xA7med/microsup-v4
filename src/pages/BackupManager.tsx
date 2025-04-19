@@ -221,7 +221,8 @@ const BackupManager: React.FC = () => {
             clientsCount++;
           }
 
-          console.log('تم استعادة العملاء:', clientsCount);
+          // إشعار بعدد العملاء المستعادين
+          toast.success(`تم استعادة ${clientsCount} عميل بنجاح`);
           
           // استعادة الأجهزة بعد الانتهاء من استعادة جميع العملاء
           if (allDevices.length > 0) {
@@ -235,10 +236,13 @@ const BackupManager: React.FC = () => {
             }
             
             devicesCount = allDevices.length;
+            // إشعار بعدد الأجهزة المستعادين
+            toast.success(`تم استعادة ${devicesCount} جهاز بنجاح`);
           }
 
-          console.log(`تم استعادة ${clientsCount} عميل و ${devicesCount} جهاز`);
-          toast.success(`تم استعادة النسخة الاحتياطية بنجاح: ${clientsCount} عميل و ${devicesCount} جهاز`);
+          // حوار نهائي يلخص عملية الاستعادة
+          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${devicesCount} جهاز`;
+          window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
           console.error('خطأ في استعادة النسخة الاحتياطية:', error);

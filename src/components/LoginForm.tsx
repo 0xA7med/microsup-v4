@@ -291,7 +291,7 @@ export const LoginForm: React.FC = () => {
           {t('app.name')}
         </h1>
         <h2 className="text-center text-gray-600 dark:text-gray-400 mb-6">
-          {showRegister ? t('app.register', 'تسجيل حساب جديد') : t('app.login', 'تسجيل الدخول')}
+          {showRegister ? t('app.register', 'تسجيل مندوب جديد') : t('app.login', 'تسجيل الدخول')}
         </h2>
         
         {registerSuccess ? (
