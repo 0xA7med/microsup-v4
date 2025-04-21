@@ -94,7 +94,7 @@ export const ClientsList: React.FC = () => {
         }, 2000);
         toast.success(t('clientsList.copySuccess', 'تم نسخ رمز التفعيل'));
       })
-      .catch(() => {
+      .catch((e: Error) => {
         toast.error(t('clientsList.copyError', 'فشل نسخ رمز التفعيل'));
       });
   }, [t]);
@@ -386,9 +386,9 @@ export const ClientsList: React.FC = () => {
           if (finalClientIds.length > 200) {
               const batches = chunkArray(finalClientIds.filter(id => !!id), 200);
               let allClientsData: any[] = [];
-              for (const batch of batches) {
+              for (const [batchIdx, batch] of batches.entries()) {
                   if (!batch || batch.length === 0) continue;
-                  console.log(`Fetching client data batch ${batches.indexOf(batch) + 1}/${batches.length}`);
+                  console.log(`Fetching client data batch ${batchIdx + 1}/${batches.length}`);
                   const batchQuery = supabase.from('clients').select(`*, devices (*), agent:agents (id, name)`)
                                         .in('id', batch)
                                         // Re-apply agent filter if needed for correctness with chunking
@@ -399,7 +399,7 @@ export const ClientsList: React.FC = () => {
                   const { data: batchData, error: batchError } = await batchQuery;
                   if (signal.aborted) throw new Error('Aborted');
                   if (batchError) {
-                      console.error(`Error fetching client batch ${batches.indexOf(batch) + 1}:`, batchError);
+                      console.error(`Error fetching client batch ${batchIdx + 1}:`, batchError);
                       throw batchError; // Propagate error
                   }
                   if (batchData) allClientsData.push(...batchData);
@@ -690,8 +690,8 @@ export const ClientsList: React.FC = () => {
 
    // --- Real-time Subscriptions ---
     useEffect(() => {
-        const handleDbChange = () => {
-            console.log('Database change detected:');
+        const handleDbChange = (payload: any) => {
+            console.log('Database change detected:', payload.eventType, payload.table);
             // Re-fetch data with current filters/search
             // Add a small delay to potentially batch multiple rapid changes
             const debounceTimeout = setTimeout(() => {
@@ -752,7 +752,7 @@ export const ClientsList: React.FC = () => {
         client.id === clientId
           ? { ...client, showDevices: !client.showDevices }
           : client
-      ).map(normalizeClient)
+      )
     );
     // Note: This change will automatically reflect in stableClients via the processing pipeline
   }, []);
@@ -811,7 +811,7 @@ export const ClientsList: React.FC = () => {
       toast.success(t('clientsList.deleteSuccess', 'تم حذف العميل بنجاح'));
       handleCloseModal();
       // No need to fetch here, let real-time update handle it, or remove locally:
-       setAllFetchedClients(prev => prev.filter(c => c.id !== clientId).map(normalizeClient));
+       setAllFetchedClients(prev => prev.filter(c => c.id !== clientId));
 
     } catch (error: any) {
       console.error('Error deleting client:', error);
@@ -847,7 +847,7 @@ export const ClientsList: React.FC = () => {
       // Option 2: Update local state immediately for responsiveness
        setAllFetchedClients(prev => prev.map(c =>
            c.id === updatedClient.id ? { ...c, ...updateData, agent: agents.find(ag => ag.id === updatedClient.agent_id) } : c
-       ).map(normalizeClient));
+       ));
        // Option 3: Re-fetch (simplest if real-time isn't reliable or immediate update is complex)
        // fetchClients(activeFilter, deviceFilter, searchTerm);
 
@@ -913,42 +913,36 @@ export const ClientsList: React.FC = () => {
                            {t('clientsList.deviceType', 'نوع الجهاز')}:
                        </h3>
                        <div className="flex flex-wrap gap-2">
-                           <span>
-                               <Button
-                                   onClick={() => handleFilterChange('allDevices', null)}
-                                   variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
-                                   size="sm"
-                                   className="flex items-center gap-1"
-                               >
-                                   <Eye className="w-3 h-3" />
-                                   <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
-                                   {activeFilter === 'allDevices' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                               </Button>
-                           </span>
-                           <span>
-                               <Button
-                                   onClick={() => handleFilterChange(null, deviceFilter === 'mobile' ? null : 'mobile')}
-                                   variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
-                                   size="sm"
-                                   className="flex items-center gap-1"
-                               >
-                                   <Smartphone className="w-3 h-3" />
-                                   <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
-                                   {deviceFilter === 'mobile' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                               </Button>
-                           </span>
-                           <span>
-                               <Button
-                                   onClick={() => handleFilterChange(null, deviceFilter === 'computer' ? null : 'computer')}
-                                   variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
-                                   size="sm"
-                                   className="flex items-center gap-1"
-                               >
-                                   <Laptop className="w-3 h-3" />
-                                   <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
-                                   {deviceFilter === 'computer' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                               </Button>
-                           </span>
+                           <Button
+                               onClick={() => handleFilterChange('allDevices', null)}
+                               variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
+                               size="sm"
+                               className="flex items-center gap-1"
+                           >
+                               <Eye className="w-3 h-3" />
+                               <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
+                               {activeFilter === 'allDevices' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                           </Button>
+                           <Button
+                               onClick={() => handleFilterChange(null, deviceFilter === 'mobile' ? null : 'mobile')}
+                               variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
+                               size="sm"
+                               className="flex items-center gap-1"
+                           >
+                               <Smartphone className="w-3 h-3" />
+                               <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
+                               {deviceFilter === 'mobile' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                           </Button>
+                           <Button
+                               onClick={() => handleFilterChange(null, deviceFilter === 'computer' ? null : 'computer')}
+                               variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
+                               size="sm"
+                               className="flex items-center gap-1"
+                           >
+                               <Laptop className="w-3 h-3" />
+                               <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
+                               {deviceFilter === 'computer' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                           </Button>
                        </div>
                    </div>
 
@@ -963,19 +957,18 @@ export const ClientsList: React.FC = () => {
                                { value: 'expired', icon: AlertCircle, label: t('clientsList.expiredFilter', 'منتهي') },
                                { value: 'expiring', icon: Clock, label: t('clientsList.expiringFilter', 'قريب الانتهاء') },
                                { value: 'noDevices', icon: X, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') }
-                           ].map(filter => (
-                               <span>
-                                   <Button
-                                       onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, null)}
-                                       variant={activeFilter === filter.value ? 'primary' : 'secondary'}
-                                       size="sm"
-                                       className="flex items-center gap-1"
-                                   >
-                                       <filter.icon className="w-3 h-3" />
-                                       <span>{filter.label}</span>
-                                       {activeFilter === filter.value && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                                   </Button>
-                               </span>
+                           ].map((filter) => (
+                               <Button
+                                   key={filter.value}
+                                   onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, null)}
+                                   variant={activeFilter === filter.value ? 'primary' : 'secondary'}
+                                   size="sm"
+                                   className="flex items-center gap-1"
+                               >
+                                   <filter.icon className="w-3 h-3" />
+                                   <span>{filter.label}</span>
+                                   {activeFilter === filter.value && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                               </Button>
                            ))}
                        </div>
                    </div>
@@ -989,7 +982,7 @@ export const ClientsList: React.FC = () => {
                            <select
                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white"
                                value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
-                               onChange={(e) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
+                               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
                            >
                                <option value="">{t('clientsList.selectAgent', 'الكل / اختر المندوب...')}</option>
                                {agents.map(agent => (
@@ -1040,7 +1033,7 @@ export const ClientsList: React.FC = () => {
         placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')}
         className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
       />
       {searchTerm && (
         <button
@@ -1272,7 +1265,7 @@ export const ClientsList: React.FC = () => {
                                                       <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
                                                           <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
                                                           <button
-                                                              onClick={() => copyActivationCode(device.activation_code, device.id)}
+                                                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
                                                               className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
                                                               title={t('clientsList.copyCode', 'نسخ الرمز') as string}
                                                            >
@@ -1351,7 +1344,7 @@ export const ClientsList: React.FC = () => {
                    {/* أرقام الصفحات: 1 على اليمين، الأخيرة على اليسار */}
                    {(() => {
                        const pageButtons = [];
-                       for (const page of Array.from({ length: totalPages }, (_, i) => i + 1)) {
+                       for (let page = 1; page <= totalPages; page++) {
                            // إظهار أول وآخر صفحتين وحول الصفحة الحالية
                            if (
                              page === 1 ||
@@ -1359,7 +1352,7 @@ export const ClientsList: React.FC = () => {
                              (page >= currentPage - 1 && page <= currentPage + 1)
                            ) {
                              pageButtons.push(
-                               <span>
+                               <span key={`page-${page}`} className="inline-block">
                                  <Button
                                    onClick={() => setCurrentPage(page)}
                                    variant={currentPage === page ? 'primary' : 'secondary'}
@@ -1375,7 +1368,7 @@ export const ClientsList: React.FC = () => {
                              page === currentPage + 2
                            ) {
                              pageButtons.push(
-                               <span className="px-1 text-gray-500">...</span>
+                               <span key={`ellipsis-${page}`} className="px-1 text-gray-500">...</span>
                              );
                            }
                          }

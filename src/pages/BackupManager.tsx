@@ -193,6 +193,8 @@ const BackupManager: React.FC = () => {
 
           // إعداد مصفوفة لتخزين الأجهزة
           let allDevices: any[] = [];
+          let clientsCount = 0;
+          let devicesCount = 0;
 
           // معالجة بيانات العملاء والأجهزة
           for (const client of backupData.clients) {
@@ -219,8 +221,13 @@ const BackupManager: React.FC = () => {
               });
               throw new Error(`فشل في استعادة العميل ${clientData.id}: ${clientError.message}`);
             }
+            
+            clientsCount++;
           }
 
+          // إشعار بعدد العملاء المستعادين
+          toast.success(`تم استعادة ${clientsCount} عميل بنجاح`);
+          
           // استعادة الأجهزة بعد الانتهاء من استعادة جميع العملاء
           if (allDevices.length > 0) {
             const { error: devicesError } = await supabase
@@ -230,20 +237,26 @@ const BackupManager: React.FC = () => {
             if (devicesError) {
               console.error('خطأ في استعادة الأجهزة:', {
                 error: devicesError,
-                devicesCount: allDevices.length,
+                devicesCount: devicesCount,
                 devices: allDevices
               });
               throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
+            
+            devicesCount = allDevices.length;
+            // إشعار بعدد الأجهزة المستعادين
+            toast.success(`تم استعادة ${devicesCount} جهاز بنجاح`);
           }
 
           // حوار نهائي يلخص عملية الاستعادة
-          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${backupData.clients.length} عميل\n${allDevices.length} جهاز`;
+          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${devicesCount} جهاز`;
           window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
           console.error('خطأ في استعادة النسخة الاحتياطية:', {
             error: error,
+            clientsCount: clientsCount,
+            devicesCount: devicesCount
           });
           toast.error(`حدث خطأ أثناء استعادة النسخة الاحتياطية:\n${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
         } finally {
