@@ -35,7 +35,7 @@ interface DisplayClientType {
   address?: string;
   phone?: string;
   phone2?: string;
-  notes?: string | undefined;
+  notes?: string | null | undefined;
   subscription_type?: string; // Note: This might be less relevant at the client level now
   subscription_start?: string | null; // Note: This might be less relevant at the client level now
   subscription_end?: string | null; // Note: This might be less relevant at the client level now
@@ -1035,7 +1035,7 @@ export const ClientsList: React.FC = () => {
         placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')}
         className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
         value={searchTerm}
-        onChange={() => setSearchTerm('')} // Removed e from here
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
       />
       {searchTerm && (
         <button
@@ -1133,100 +1133,102 @@ export const ClientsList: React.FC = () => {
             {isLoadingData ? (
               // Show skeleton rows covering the table width
               Array.from({ length: 10 }).map((_, index) => (
-  <React.Fragment key={`skeleton-${index}`}>
-    <SkeletonRow />
-  </React.Fragment>
-))
+                <tr key={`skeleton-${index}`}>
+                  <td colSpan={7}>
+                    <SkeletonRow />
+                  </td>
+                </tr>
+              ))
             ) : stableClients.length > 0 ? (
                 stableClients.map(client => (
-                <React.Fragment key={client.id}>
-                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 group">
-                     {/* Client Name Cell */}
-                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white align-top w-[25%]">
-                       <div className="flex items-center justify-between">
+                  <React.Fragment key={client.id}>
+                    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 group">
+                      {/* Client Name Cell */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white align-top w-[25%]">
+                        <div className="flex items-center justify-between">
                           <span
                             className="truncate max-w-[150px] md:max-w-[200px]"
                             title={client.client_name || client.organization_name || '-'}
                           >
                             {client.client_name || client.organization_name || '-'}
                           </span>
-                         <button
-                           onClick={() => toggleShowDevices(client.id)}
-                           className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                           title={client.showDevices ? t('actions.hideDevices', 'إخفاء الاشتراكات') : t('actions.showDevices', 'عرض الاشتراكات') as string}
-                         >
-                           {client.showDevices ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                         </button>
-                       </div>
-                     </td>
-                     {/* Phone */}
-                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top dir-ltr w-[15%]">
-                        {client.phone || '-'}
-                     </td>
-                     {/* Agent */}
-                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[15%]">
-                       <div
-                            className="truncate max-w-[100px] mx-auto"
-                            title={typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
-                        >
-                            {typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
+                          <button
+                            onClick={() => toggleShowDevices(client.id)}
+                            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title={client.showDevices ? t('actions.hideDevices', 'إخفاء الاشتراكات') : t('actions.showDevices', 'عرض الاشتراكات') as string}
+                          >
+                            {client.showDevices ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
                         </div>
-                     </td>
-                     {/* Subscriptions */}
-                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[12%]">
+                      </td>
+                      {/* Phone */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top dir-ltr w-[15%]">
+                        {client.phone || '-'}
+                      </td>
+                      {/* Agent */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[15%]">
+                        <div
+                          className="truncate max-w-[100px] mx-auto"
+                          title={typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
+                        >
+                          {typeof client.agent === 'object' && client.agent && 'name' in client.agent ? client.agent.name || '-' : '-'}
+                        </div>
+                      </td>
+                      {/* Subscriptions */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[12%]">
                         {client.deviceCount && client.deviceCount > 0 ? (
-                           <div className="flex flex-col items-center space-y-1">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    {client.deviceCount} {t('clientsList.deviceCount', 'اشتراك', { count: client.deviceCount })}
-                                </span>
-                                {/* Status Indicators */}
-                                <div className="flex items-center justify-center gap-1.5 mt-1">
-                                   {(() => {
-                                        const approved = client.devices?.filter(d => d.approval_status === 'approved').length || 0;
-                                        const pending = client.devices?.filter(d => d.approval_status !== 'approved' && d.approval_status !== 'rejected').length || 0;
-                                        const rejected = client.devices?.filter(d => d.approval_status === 'rejected').length || 0;
-                                        return (
-                                            <>
-                                            {approved > 0 && <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400" title={`${approved} ${t('devices.approved','مقبول')}`}><Check size={12} /><span className="text-xs">{approved}</span></span>}
-                                            {pending > 0 && <span className="flex items-center gap-0.5 text-yellow-600 dark:text-yellow-400" title={`${pending} ${t('devices.pending','معلق')}`}><Clock size={12} /><span className="text-xs">{pending}</span></span>}
-                                            {rejected > 0 && <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400" title={`${rejected} ${t('devices.rejected','مرفوض')}`}><X size={12} /><span className="text-xs">{rejected}</span></span>}
-                                            </>
-                                        );
-                                   })()}
-                                </div>
-                            </div>
-                        ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                                {t('clientsList.noSubscriptions', 'لا يوجد')}
+                          <div className="flex flex-col items-center space-y-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {client.deviceCount} {t('clientsList.deviceCount', 'اشتراك', { count: client.deviceCount })}
                             </span>
+                            {/* Status Indicators */}
+                            <div className="flex items-center justify-center gap-1.5 mt-1">
+                              {(() => {
+                                const approved = client.devices?.filter(d => d.approval_status === 'approved').length || 0;
+                                const pending = client.devices?.filter(d => d.approval_status !== 'approved' && d.approval_status !== 'rejected').length || 0;
+                                const rejected = client.devices?.filter(d => d.approval_status === 'rejected').length || 0;
+                                return (
+                                  <>
+                                    {approved > 0 && <span className="flex items-center gap-0.5 text-green-600 dark:text-green-400" title={`${approved} ${t('devices.approved','مقبول')}`}><Check size={12} /><span className="text-xs">{approved}</span></span>}
+                                    {pending > 0 && <span className="flex items-center gap-0.5 text-yellow-600 dark:text-yellow-400" title={`${pending} ${t('devices.pending','معلق')}`}><Clock size={12} /><span className="text-xs">{pending}</span></span>}
+                                    {rejected > 0 && <span className="flex items-center gap-0.5 text-red-600 dark:text-red-400" title={`${rejected} ${t('devices.rejected','مرفوض')}`}><X size={12} /><span className="text-xs">{rejected}</span></span>}
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                            {t('clientsList.noSubscriptions', 'لا يوجد')}
+                          </span>
                         )}
                       </td>
                       {/* Dues */}
-                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top font-mono w-[12%]">
-                         {client.totalPrice != null && client.totalPrice > 0 ? (
-                           <span className={`font-semibold ${client.totalPrice > 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
-                               {client.totalPrice.toLocaleString()} {t('common.currency', 'جنيه')}
-                           </span>
-                         ) : (
-                             <span>0 {t('common.currency', 'جنيه')}</span>
-                         )}
-                     </td>
-                     {/* Expiry Date */}
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[15%]">
-                        {client.earliestEndDate ? (
-                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${new Date(client.earliestEndDate) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
-                               {formatDateForDisplay(client.earliestEndDate)}
-                           </span>
-                        ) : client.subscriptionTypes?.includes('permanent') ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                                {t('client.permanent', 'دائم')}
-                            </span>
-                        ) : client.deviceCount && client.deviceCount > 0 ? (
-                             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                {t('clientsList.noExpiryDate', 'غير محدد')}
-                            </span>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top font-mono w-[12%]">
+                        {client.totalPrice != null && client.totalPrice > 0 ? (
+                          <span className={`font-semibold ${client.totalPrice > 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
+                            {client.totalPrice.toLocaleString()} {t('common.currency', 'جنيه')}
+                          </span>
                         ) : (
-                            <span>-</span>
+                          <span>0 {t('common.currency', 'جنيه')}</span>
+                        )}
+                      </td>
+                      {/* Expiry Date */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top w-[15%]">
+                        {client.earliestEndDate ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${new Date(client.earliestEndDate) < new Date() ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}`}>
+                            {formatDateForDisplay(client.earliestEndDate)}
+                          </span>
+                        ) : client.subscriptionTypes?.includes('permanent') ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            {t('client.permanent', 'دائم')}
+                          </span>
+                        ) : client.deviceCount && client.deviceCount > 0 ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            {t('clientsList.noExpiryDate', 'غير محدد')}
+                          </span>
+                        ) : (
+                          <span>-</span>
                         )}
                       </td>
                       {/* Actions */}
@@ -1246,181 +1248,181 @@ export const ClientsList: React.FC = () => {
                       </td>
                     </tr>
                     {/* Device Details Row (Conditional) */}
-                     {client.showDevices && (
-                         <tr className="bg-gray-50 dark:bg-gray-800/50">
-                             <td colSpan={7} className="px-4 py-3">
-                                 <div className="space-y-2">
-                                     {client.devices && client.devices.length > 0 ? (
-                                          client.devices
-                                           // Optionally filter devices based on matchingDeviceIds if searchTerm is active
-                                            .filter(device => !searchTerm || matchingDeviceIds.includes(device.id))
-                                            // Optionally filter devices based on deviceFilter if active
-                                             .filter(device => !deviceFilter || (deviceFilter === 'mobile' && device.device_type === 'android') || (deviceFilter === 'computer' && device.device_type === 'computer'))
-                                            .map((device, index) => (
-                                             <div key={index} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
-                                                 device.approval_status === 'approved' ? 'border-green-200 dark:border-green-700 bg-green-50/30 dark:bg-green-900/10' :
-                                                 device.approval_status === 'rejected' ? 'border-red-200 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10' :
-                                                 'border-yellow-200 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/10'
-                                             }`}>
-                                                 {/* Left Side: Type, Code, Status */}
-                                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${device.device_type === 'android' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300'}`}>
-                                                          {device.device_type === 'android' ? <Smartphone size={12} className="ltr:mr-1 rtl:ml-1"/> : <Laptop size={12} className="ltr:mr-1 rtl:ml-1"/>}
-                                                          {device.device_type === 'android' ? t('devices.mobile','هاتف') : t('devices.computer','كمبيوتر')}
-                                                      </span>
-                                                      <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
-                                                          <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
-                                                          <button
-                                                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
-                                                              className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-                                                              title={t('clientsList.copyCode', 'نسخ الرمز') as string}
-                                                           >
-                                                               {copiedCodes[device.id] ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                                                           </button>
-                                                      </div>
-                                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                                                          device.approval_status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
-                                                          device.approval_status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
-                                                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-                                                      }`}>
-                                                          {device.approval_status === 'approved' ? t('devices.approved','مقبول') :
-                                                           device.approval_status === 'rejected' ? t('devices.rejected','مرفوض') :
-                                                           t('devices.pending','معلق')}
-                                                      </span>
-                                                      {device.email && <span className="text-gray-500 dark:text-gray-400 truncate max-w-[150px]" title={device.email}>{device.email}</span>}
-                                                 </div>
-                                                 {/* Right Side: Subscription, Price, Expiry */}
-                                                 <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs self-end sm:self-center">
-                                                     {device.subscription_type && (
-                                                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                                                             {getSubscriptionTypeLabel(device.subscription_type)}
-                                                         </span>
-                                                     )}
-                                                      <span className="font-medium text-gray-800 dark:text-gray-200">
-                                                         {(device.price || 0).toLocaleString()} {t('common.currency', 'جنيه')}
-                                                     </span>
-                                                     <span className={`font-medium ${device.subscription_end && new Date(device.subscription_end) < new Date() && device.subscription_type !== 'permanent' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
-                                                          {device.subscription_type === 'permanent' ? t('client.permanent', 'دائم') : formatDateForDisplay(device.subscription_end)}
-                                                      </span>
-                                                 </div>
-                                             </div>
-                                         ))
-                                     ) : (
-                                        <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">{t('clientsList.noDevicesForClient', 'لا توجد اشتراكات مسجلة لهذا العميل.')}</p>
-                                     )}
-                                 </div>
-                             </td>
-                         </tr>
-                     )}
-                   </React.Fragment>
-                 ))
-            ) : (
-              // No results row
-              <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
-                  {searchTerm || activeFilter || deviceFilter
-                    ? t('clientsList.noClientsMatch', 'لا يوجد عملاء يطابقون معايير البحث أو الفلترة الحالية.')
-                    : t('clientsList.noClientsYet', 'لم يتم إضافة عملاء بعد.')
-                  }
-                </td>
-              </tr>
-            )}
+                    {client.showDevices && (
+                      <tr className="bg-gray-50 dark:bg-gray-800/50">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="space-y-2">
+                            {client.devices && client.devices.length > 0 ? (
+                              client.devices
+                                // Optionally filter devices based on matchingDeviceIds if searchTerm is active
+                                .filter(device => !searchTerm || matchingDeviceIds.includes(device.id))
+                                // Optionally filter devices based on deviceFilter if active
+                                .filter(device => !deviceFilter || (deviceFilter === 'mobile' && device.device_type === 'android') || (deviceFilter === 'computer' && device.device_type === 'computer'))
+                                .map((device, index) => (
+                                  <div key={index} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
+                                    device.approval_status === 'approved' ? 'border-green-200 dark:border-green-700 bg-green-50/30 dark:bg-green-900/10' :
+                                    device.approval_status === 'rejected' ? 'border-red-200 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10' :
+                                    'border-yellow-200 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/10'
+                                  }`}>
+                                    {/* Left Side: Type, Code, Status */}
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${device.device_type === 'android' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-300'}`}>
+                                        {device.device_type === 'android' ? <Smartphone size={12} className="ltr:mr-1 rtl:ml-1"/> : <Laptop size={12} className="ltr:mr-1 rtl:ml-1"/>}
+                                        {device.device_type === 'android' ? t('devices.mobile','هاتف') : t('devices.computer','كمبيوتر')}
+                                      </span>
+                                      <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
+                                        <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
+                                        <button
+                                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
+                                          className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
+                                          title={t('clientsList.copyCode', 'نسخ الرمز') as string}
+                                        >
+                                          {copiedCodes[device.id] ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                                        </button>
+                                      </div>
+                                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                        device.approval_status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                                        device.approval_status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                                      }`}>
+                                        {device.approval_status === 'approved' ? t('devices.approved','مقبول') :
+                                         device.approval_status === 'rejected' ? t('devices.rejected','مرفوض') :
+                                         t('devices.pending','معلق')}
+                                      </span>
+                                      {device.email && <span className="text-gray-500 dark:text-gray-400 truncate max-w-[150px]" title={device.email}>{device.email}</span>}
+                                    </div>
+                                    {/* Right Side: Subscription, Price, Expiry */}
+                                    <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs self-end sm:self-center">
+                                      {device.subscription_type && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                          {getSubscriptionTypeLabel(device.subscription_type)}
+                                        </span>
+                                      )}
+                                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                                        {(device.price || 0).toLocaleString()} {t('common.currency', 'جنيه')}
+                                      </span>
+                                      <span className={`font-medium ${device.subscription_end && new Date(device.subscription_end) < new Date() && device.subscription_type !== 'permanent' ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                                        {device.subscription_type === 'permanent' ? t('client.permanent', 'دائم') : formatDateForDisplay(device.subscription_end)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">{t('clientsList.noDevicesForClient', 'لا توجد اشتراكات مسجلة لهذا العميل.')}</p>
+                              )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              ) : (
+                // No results row
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                    {searchTerm || activeFilter || deviceFilter
+                      ? t('clientsList.noClientsMatch', 'لا يوجد عملاء يطابقون معايير البحث أو الفلترة الحالية.')
+                      : t('clientsList.noClientsYet', 'لم يتم إضافة عملاء بعد.')
+                    }
+                  </td>
+                </tr>
+              )}
           </tbody>
         </table>
       </div>
 
       {/* Pagination Controls */}
-       {!isLoadingData && totalPages > 1 && (
-           <div
-             dir="rtl"
-             className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4 w-full"
-             data-component-name="ClientsList"
-           >
-               <div className="flex items-center gap-2">
-                   {/* زر الصفحة السابقة (يسار في RTL) */}
-                   <Button
-                       onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                       disabled={currentPage === 1}
-                       variant="secondary"
-                       size="sm"
-                       aria-label={t('pagination.prev', 'الصفحة السابقة') as string}
-                   >
-                       <ChevronRight className="h-4 w-4" />
-                   </Button>
-                   {/* أرقام الصفحات: 1 على اليمين، الأخيرة على اليسار */}
-                   {(() => {
-                       const pageButtons = [];
-                       for (let page = 1; page <= totalPages; page++) {
-                           // إظهار أول وآخر صفحتين وحول الصفحة الحالية
-                           if (
-                             page === 1 ||
-                             page === totalPages ||
-                             (page >= currentPage - 1 && page <= currentPage + 1)
-                           ) {
-                             pageButtons.push(
-                               <span key={`page-${page}`} className="inline-block">
-                                 <Button
-                                   onClick={() => setCurrentPage(page)}
-                                   variant={currentPage === page ? 'primary' : 'secondary'}
-                                   size="sm"
-                                   className="w-8 h-8 text-xs"
-                                 >
-                                   {page}
-                                 </Button>
-                               </span>
-                             );
-                           } else if (
-                             page === currentPage - 2 ||
-                             page === currentPage + 2
-                           ) {
-                             pageButtons.push(
-                               <span key={`ellipsis-${page}`} className="px-1 text-gray-500">...</span>
-                             );
-                           }
-                         }
-                         return pageButtons;
-                       })()}
-                   {/* زر الصفحة التالية (يمين في RTL) */}
-                   <Button
-                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                       disabled={currentPage === totalPages}
-                       variant="secondary"
-                       size="sm"
-                       aria-label={t('pagination.next', 'الصفحة التالية') as string}
-                   >
-                       <ChevronLeft className="h-4 w-4" />
-                   </Button>
-               </div>
-               {/* إدخال رقم الصفحة مباشرة */}
-               <form
-                 onSubmit={handlePageInput}
-                 className="flex items-center gap-2"
-                 style={{ minWidth: 0 }}
-               >
-                 <label htmlFor="pageNumInput" className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                   {t('pagination.goto', 'اذهب إلى صفحة:')}
-                 </label>
-                 <input
-                   id="pageNumInput"
-                   name="pageNum"
-                   type="number"
-                   min={1}
-                   max={totalPages}
-                   defaultValue={currentPage}
-                   className="w-16 p-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-center text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                   dir="ltr"
-                 />
-                 <Button type="submit" size="sm" variant="secondary" className="px-2 py-1 text-xs">
-                   {t('pagination.go', 'اذهب')}
-                 </Button>
-               </form>
-               <span className="text-sm text-gray-600 dark:text-gray-400 mt-2 sm:mt-0">
-                 {t('pagination.pageInfo', 'صفحة {{currentPage}} من {{totalPages}}', { currentPage, totalPages })}
-                 {' - '}
-                 {t('pagination.totalItems', 'إجمالي {{count}} عميل', { count: allFetchedClients.length })}
-               </span>
-           </div>
-       )}
+      {!isLoadingData && totalPages > 1 && (
+        <div
+          dir="rtl"
+          className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4 w-full"
+          data-component-name="ClientsList"
+        >
+          <div className="flex items-center gap-2">
+            {/* زر الصفحة السابقة (يسار في RTL) */}
+            <Button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              variant="secondary"
+              size="sm"
+              aria-label={t('pagination.prev', 'الصفحة السابقة') as string}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            {/* أرقام الصفحات: 1 على اليمين، الأخيرة على اليسار */}
+            {(() => {
+              const pageButtons = [];
+              for (let page = 1; page <= totalPages; page++) {
+                // إظهار أول وآخر صفحتين وحول الصفحة الحالية
+                if (
+                  page === 1 ||
+                  page === totalPages ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  pageButtons.push(
+                    <span key={`page-${page}`} className="inline-block">
+                      <Button
+                        onClick={() => setCurrentPage(page)}
+                        variant={currentPage === page ? 'primary' : 'secondary'}
+                        size="sm"
+                        className="w-8 h-8 text-xs"
+                      >
+                        {page}
+                      </Button>
+                    </span>
+                  );
+                } else if (
+                  page === currentPage - 2 ||
+                  page === currentPage + 2
+                ) {
+                  pageButtons.push(
+                    <span key={`ellipsis-${page}`} className="px-1 text-gray-500">...</span>
+                  );
+                }
+              }
+              return pageButtons;
+            })()}
+            {/* زر الصفحة التالية (يمين في RTL) */}
+            <Button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              variant="secondary"
+              size="sm"
+              aria-label={t('pagination.next', 'الصفحة التالية') as string}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </div>
+          {/* إدخال رقم الصفحة مباشرة */}
+          <form
+            onSubmit={handlePageInput}
+            className="flex items-center gap-2"
+            style={{ minWidth: 0 }}
+          >
+            <label htmlFor="pageNumInput" className="text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              {t('pagination.goto', 'اذهب إلى صفحة:')}
+            </label>
+            <input
+              id="pageNumInput"
+              name="pageNum"
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={currentPage}
+              className="w-16 p-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-center text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+              dir="ltr"
+            />
+            <Button type="submit" size="sm" variant="secondary" className="px-2 py-1 text-xs">
+              {t('pagination.go', 'اذهب')}
+            </Button>
+          </form>
+          <span className="text-sm text-gray-600 dark:text-gray-400 mt-2 sm:mt-0">
+            {t('pagination.pageInfo', 'صفحة {{currentPage}} من {{totalPages}}', { currentPage, totalPages })}
+            {' - '}
+            {t('pagination.totalItems', 'إجمالي {{count}} عميل', { count: allFetchedClients.length })}
+          </span>
+        </div>
+      )}
 
       {/* Client Details Modal */}
       {selectedClient && (
@@ -1435,7 +1437,7 @@ export const ClientsList: React.FC = () => {
           onDelete={handleDeleteClient}
           currentUser={user}
           // Pass refresh function if modal needs to trigger data reload independently
-           // onRefreshNeeded={() => fetchClients(activeFilter, deviceFilter, searchTerm)}
+          // onRefreshNeeded={() => fetchClients(activeFilter, deviceFilter, searchTerm)}
         />
       )}
     </div>

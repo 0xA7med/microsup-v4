@@ -195,9 +195,6 @@ const BackupManager: React.FC = () => {
 
           // معالجة بيانات العملاء والأجهزة
           for (const client of backupData.clients) {
-            // استخراج الأجهزة من العميل
-            const clientDevices = client.devices || [];
-            
             // إدراج العميل
             const { error: clientError } = await supabase
               .from('clients')
