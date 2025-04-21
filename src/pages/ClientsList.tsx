@@ -1235,7 +1235,7 @@ export const ClientsList: React.FC = () => {
                         <div className="flex items-center justify-center gap-1">
                           <Button
                             onClick={() => handleShowDetails(client)}
-                            variant="ghost" // Subtle button
+                            variant="secondary"
                             size="sm"
                             className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
                             aria-label={t('actions.viewDetails', 'عرض التفاصيل') as string}

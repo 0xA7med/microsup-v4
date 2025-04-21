@@ -89,7 +89,7 @@ export const Dashboard: React.FC = () => {
     }
     navigate(path);
   }, [navigate]);
-  
+
   // دالة للانتقال إلى قائمة الأجهزة المعلقة مع تطبيق فلتر
   const navigateToPendingDevices = useCallback((status?: string) => {
     // تحديد المسار الأساسي
@@ -103,7 +103,7 @@ export const Dashboard: React.FC = () => {
     // الانتقال إلى المسار المحدد
     navigate(path);
   }, [navigate]);
-  
+
   // استخراج البيانات من كائن لوحة المعلومات
   const {
     totalClients = 0,
@@ -963,7 +963,7 @@ export const Dashboard: React.FC = () => {
           {/* إجمالي الاشتراكات */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ deviceFilter: 'all' })}
+            onClick={() => navigateToClientsList({ filter: 'all' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -979,7 +979,7 @@ export const Dashboard: React.FC = () => {
           {/* أجهزة الهاتف */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList({ deviceFilter: 'android' })}
+            onClick={() => navigateToClientsList({ filter: 'android' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -997,7 +997,7 @@ export const Dashboard: React.FC = () => {
           {/* أجهزة الكمبيوتر */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
+            onClick={() => navigateToClientsList({ filter: 'computer' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -1145,7 +1145,7 @@ export const Dashboard: React.FC = () => {
             {/* مستحقات أجهزة الهاتف */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList({ deviceFilter: 'android' })}
+              onClick={() => navigateToClientsList({ filter: 'android' })}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
@@ -1160,7 +1160,7 @@ export const Dashboard: React.FC = () => {
             {/* مستحقات أجهزة الكمبيوتر */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
+              onClick={() => navigateToClientsList({ filter: 'computer' })}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
