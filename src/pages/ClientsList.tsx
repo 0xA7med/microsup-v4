@@ -594,7 +594,6 @@ export const ClientsList: React.FC = () => {
              const params = new URLSearchParams(location.search);
              const agentIdParam = params.get('agent_id');
              const filterParam = params.get('filter');
-             const statusParam = params.get('status'); // Keep if needed
 
              let initialFilter: string | null = null;
              let initialDeviceFilter: 'mobile' | 'computer' | null = null;
@@ -615,7 +614,6 @@ export const ClientsList: React.FC = () => {
                     case 'allDevices': // Added filter
                          initialFilter = filterParam;
                          break;
-                     // Add statusParam handling if it maps to a specific filter state
                      default:
                          break; // Keep filters null
                  }
@@ -657,8 +655,6 @@ export const ClientsList: React.FC = () => {
     // دعم جميع الفلاتر الممكنة
     const filterParam = params.get('filter'); // active, expired, expiring, all, ...
     const deviceFilterParam = params.get('deviceFilter'); // android, computer, ...
-    const subscriptionTypeParam = params.get('subscriptionType'); // permanent, monthly, ...
-    // يمكن التوسع لاحقًا لأي فلاتر أخرى
 
     // فلتر حالة الاشتراك
     if (filterParam && filterParam !== activeFilter) setActiveFilter(filterParam);
@@ -672,9 +668,6 @@ export const ClientsList: React.FC = () => {
     }
     if (!deviceFilterParam && deviceFilter) setDeviceFilter(null);
 
-    // فلتر نوع الاشتراك (يمكنك ربطه بفلاتر إضافية أو تخصيصه لاحقًا)
-    // ...
-    // إذا أردت تطبيق فلتر نوع الاشتراك مباشرة، أضف هنا
   }, [location.search]);
 
   // --- Search Debounce ---
@@ -759,7 +752,7 @@ export const ClientsList: React.FC = () => {
         client.id === clientId
           ? { ...client, showDevices: !client.showDevices }
           : client
-      )
+      ).map(normalizeClient)
     );
     // Note: This change will automatically reflect in stableClients via the processing pipeline
   }, []);
@@ -818,7 +811,7 @@ export const ClientsList: React.FC = () => {
       toast.success(t('clientsList.deleteSuccess', 'تم حذف العميل بنجاح'));
       handleCloseModal();
       // No need to fetch here, let real-time update handle it, or remove locally:
-       setAllFetchedClients(prev => prev.filter(c => c.id !== clientId));
+       setAllFetchedClients(prev => prev.filter(c => c.id !== clientId).map(normalizeClient));
 
     } catch (error: any) {
       console.error('Error deleting client:', error);
@@ -854,7 +847,7 @@ export const ClientsList: React.FC = () => {
       // Option 2: Update local state immediately for responsiveness
        setAllFetchedClients(prev => prev.map(c =>
            c.id === updatedClient.id ? { ...c, ...updateData, agent: agents.find(ag => ag.id === updatedClient.agent_id) } : c
-       ));
+       ).map(normalizeClient));
        // Option 3: Re-fetch (simplest if real-time isn't reliable or immediate update is complex)
        // fetchClients(activeFilter, deviceFilter, searchTerm);
 
