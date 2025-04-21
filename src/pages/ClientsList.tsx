@@ -18,6 +18,14 @@ import { useAuthStore } from '../store/authStore';
 
 import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types';
 
+// --- دالة تطبيع بيانات العميل ---
+function normalizeClient(client: any): DisplayClientType {
+  return {
+    ...client,
+    notes: client.notes ?? undefined,
+  };
+}
+
 // Interface remains the same
 interface DisplayClientType {
   id: string;
@@ -42,10 +50,7 @@ interface DisplayClientType {
   mobilePrice?: number;
   computerPrice?: number;
   showDevices?: boolean;
-  agent?: {
-    id?: string;
-    name?: string;
-  } | null | any[];
+  agent?: ImportedAgent | null | undefined;
   agents?: ImportedAgent[];
   created_by?: string;
   created_at?: string;
@@ -846,7 +851,7 @@ export const ClientsList: React.FC = () => {
       // Option 1: Let real-time handle the update (may have delay)
       // Option 2: Update local state immediately for responsiveness
        setAllFetchedClients(prev => prev.map(c =>
-           c.id === updatedClient.id ? { ...c, ...updateData, agent: agents.find(ag => ag.id === updatedClient.agent_id) } : c
+           c.id === updatedClient.id ? { ...c, ...updateData, agent: agents.find(ag => ag.id === updatedClient.agent_id) ?? null } : c
        ));
        // Option 3: Re-fetch (simplest if real-time isn't reliable or immediate update is complex)
        // fetchClients(activeFilter, deviceFilter, searchTerm);
@@ -959,7 +964,7 @@ export const ClientsList: React.FC = () => {
                                { value: 'noDevices', icon: X, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') }
                            ].map((filter) => (
                                <Button
-                                   key={filter.value}
+                                   
                                    onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, null)}
                                    variant={activeFilter === filter.value ? 'primary' : 'secondary'}
                                    size="sm"
@@ -1130,7 +1135,11 @@ export const ClientsList: React.FC = () => {
            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
             {isLoadingData ? (
               // Show skeleton rows covering the table width
-              Array.from({ length: 10 }).map((_, index) => <SkeletonRow key={`skeleton-${index}`} />)
+              Array.from({ length: 10 }).map((_, index) => (
+  <React.Fragment key={`skeleton-${index}`}>
+    <SkeletonRow />
+  </React.Fragment>
+))
             ) : stableClients.length > 0 ? (
                 stableClients.map(client => (
                 <React.Fragment key={client.id}>

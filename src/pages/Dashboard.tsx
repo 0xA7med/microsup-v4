@@ -78,15 +78,22 @@ export const Dashboard: React.FC = () => {
   const user = useAuthStore(state => state.user);
   
   // تحديث دالة الانتقال لصفحة العملاء لتقبل معايير متعددة
-  const navigateToClientsList = useCallback((filters: Record<string, string> = {}) => {
+  const navigateToClientsList = useCallback((filters: string | Record<string, string> = {}) => {
     let path = '/clients';
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) params.append(key, value);
-    });
+    
+    if (typeof filters === 'string') {
+      params.append('filter', filters);
+    } else {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+    }
+    
     if ([...params].length > 0) {
       path += `?${params.toString()}`;
     }
+    
     navigate(path);
   }, [navigate]);
 

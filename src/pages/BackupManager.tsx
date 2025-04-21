@@ -26,6 +26,9 @@ const BackupManager: React.FC = () => {
     devices: 0,
     agents: 0
   });
+  const [clientsCount, setClientsCount] = useState(0);
+  const [devicesCount, setDevicesCount] = useState(0);
+  const [allDevices, setAllDevices] = useState<any[]>([]);
   const { sessionError, refreshSession } = useAuthStore();
 
   // تهيئة التكوين
@@ -115,6 +118,7 @@ const BackupManager: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, wsClients, 'العملاء');
     
     // إضافة ورقة الأجهزة
+    setAllDevices([]); // Initialize empty array for devicesData
     const wsDevices = XLSX.utils.aoa_to_sheet(devicesData);
     XLSX.utils.book_append_sheet(wb, wsDevices, 'الأجهزة');
     
@@ -202,7 +206,7 @@ const BackupManager: React.FC = () => {
             const clientDevices = client.devices || [];
             
             // حفظ نسخة من الأجهزة قبل حذفها من كائن العميل
-            allDevices = [...allDevices, ...clientDevices];
+            setAllDevices(prev => [...prev, ...clientDevices]);
             
             // حذف الأجهزة من كائن العميل لتجنب الخطأ عند الإدراج
             const clientData = { ...client };
@@ -222,7 +226,7 @@ const BackupManager: React.FC = () => {
               throw new Error(`فشل في استعادة العميل ${clientData.id}: ${clientError.message}`);
             }
             
-            clientsCount++;
+            setClientsCount(prev => prev + 1);
           }
 
           // إشعار بعدد العملاء المستعادين
@@ -237,26 +241,26 @@ const BackupManager: React.FC = () => {
             if (devicesError) {
               console.error('خطأ في استعادة الأجهزة:', {
                 error: devicesError,
-                devicesCount: devicesCount,
+                devicesCount: allDevices.length,
                 devices: allDevices
               });
               throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
             
-            devicesCount = allDevices.length;
+            setDevicesCount(allDevices.length);
             // إشعار بعدد الأجهزة المستعادين
-            toast.success(`تم استعادة ${devicesCount} جهاز بنجاح`);
+            toast.success(`تم استعادة ${allDevices.length} جهاز بنجاح`);
           }
 
           // حوار نهائي يلخص عملية الاستعادة
-          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${devicesCount} جهاز`;
+          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${allDevices.length} جهاز`;
           window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
           console.error('خطأ في استعادة النسخة الاحتياطية:', {
             error: error,
             clientsCount: clientsCount,
-            devicesCount: devicesCount
+            devicesCount: allDevices.length
           });
           toast.error(`حدث خطأ أثناء استعادة النسخة الاحتياطية:\n${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
         } finally {
