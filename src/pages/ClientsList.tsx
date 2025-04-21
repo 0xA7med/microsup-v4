@@ -18,6 +18,15 @@ import { useAuthStore } from '../store/authStore';
 
 import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types';
 
+// --- دالة تطبيع بيانات العميل ---
+function normalizeClient(client: any): DisplayClientType {
+  return {
+    ...client,
+    notes: client.notes ?? undefined,
+  };
+}
+
+// Interface remains the same
 interface DisplayClientType {
   id: string;
   client_name?: string;
@@ -541,7 +550,7 @@ export const ClientsList: React.FC = () => {
       // 8. Update State
       // Use ReactDOM.flushSync for potentially smoother UI updates when resetting data
        ReactDOM.flushSync(() => {
-            setAllFetchedClients(processedClients.map(c => ({ ...c, notes: c.notes ?? undefined }))); // Update the full list
+            setAllFetchedClients(processedClients.map(normalizeClient)); // Update the full list
             setCurrentPage(1); // Reset to page 1 for new data/filters
         });
        // The useEffect watching processedAndSortedClients will handle setting stableClients
@@ -566,7 +575,13 @@ export const ClientsList: React.FC = () => {
      // Remove currentPage, sortConfig - they don't trigger a fetch, only local processing
    ]);
 
-  // --- Initial Load ---
+  // إصلاح خطأ notes: التأكد من أن جميع الكائنات من نوع DisplayClientType لا تحتوي على null في notes
+  const normalizeClient = (client: any): DisplayClientType => ({
+    ...client,
+    notes: client.notes ?? undefined, // null أو undefined تصبح undefined
+  });
+
+   // --- Initial Load ---
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -1121,13 +1136,13 @@ export const ClientsList: React.FC = () => {
             {isLoadingData ? (
               // Show skeleton rows covering the table width
               Array.from({ length: 10 }).map((_, index) => (
-  <React.Fragment>
+  <React.Fragment key={`skeleton-${index}`}>
     <SkeletonRow />
   </React.Fragment>
 ))
             ) : stableClients.length > 0 ? (
                 stableClients.map(client => (
-                <React.Fragment>
+                <React.Fragment key={client.id}>
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 group">
                      {/* Client Name Cell */}
                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white align-top w-[25%]">
@@ -1346,7 +1361,7 @@ export const ClientsList: React.FC = () => {
                              (page >= currentPage - 1 && page <= currentPage + 1)
                            ) {
                              pageButtons.push(
-                               <span>
+                               <span key={`page-${page}`} className="inline-block">
                                  <Button
                                    onClick={() => setCurrentPage(page)}
                                    variant={currentPage === page ? 'primary' : 'secondary'}
@@ -1362,7 +1377,7 @@ export const ClientsList: React.FC = () => {
                              page === currentPage + 2
                            ) {
                              pageButtons.push(
-                               <span className="px-1 text-gray-500">...</span>
+                               <span key={`ellipsis-${page}`} className="px-1 text-gray-500">...</span>
                              );
                            }
                          }

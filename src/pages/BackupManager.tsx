@@ -27,6 +27,7 @@ const BackupManager: React.FC = () => {
     agents: 0
   });
   const [clientsCount, setClientsCount] = useState(0);
+  const [devicesCount, setDevicesCount] = useState(0);
   const [allDevices, setAllDevices] = useState<any[]>([]);
   const { sessionError, refreshSession } = useAuthStore();
 
@@ -246,7 +247,7 @@ const BackupManager: React.FC = () => {
               throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
             
-            devicesCount = allDevices.length;
+            setDevicesCount(allDevices.length);
             // إشعار بعدد الأجهزة المستعادين
             toast.success(`تم استعادة ${allDevices.length} جهاز بنجاح`);
           }
