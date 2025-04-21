@@ -221,13 +221,6 @@ export const Dashboard: React.FC = () => {
         }
       }
 
-      // جلب بيانات المندوبين
-      const { data: agentsData, error: agentsError } = await supabase
-        .from('agents')
-        .select('id, name, email');
-      
-      if (agentsError) throw agentsError;
-      
       // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
       let filteredClientsData = allClientsData || [];
       
@@ -475,13 +468,6 @@ export const Dashboard: React.FC = () => {
         }
       }
 
-      // جلب بيانات المندوبين
-      const { data: agentsData, error: agentsError } = await supabase
-        .from('agents')
-        .select('id, name, email');
-      
-      if (agentsError) throw agentsError;
-      
       // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
       let filteredClientsData = allClientsData || [];
       

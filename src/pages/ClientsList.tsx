@@ -94,7 +94,7 @@ export const ClientsList: React.FC = () => {
         }, 2000);
         toast.success(t('clientsList.copySuccess', 'تم نسخ رمز التفعيل'));
       })
-      .catch(() => {
+      .catch((e: Error) => {
         toast.error(t('clientsList.copyError', 'فشل نسخ رمز التفعيل'));
       });
   }, [t]);
@@ -820,7 +820,7 @@ export const ClientsList: React.FC = () => {
       // No need to fetch here, let real-time update handle it, or remove locally:
        setAllFetchedClients(prev => prev.filter(c => c.id !== clientId));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting client:', error);
       toast.error(t('clientsList.deleteError', 'حدث خطأ أثناء حذف العميل'));
     }
@@ -859,7 +859,7 @@ export const ClientsList: React.FC = () => {
        // fetchClients(activeFilter, deviceFilter, searchTerm);
 
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating client:', error);
       toast.error(t('clientsList.updateError', 'حدث خطأ أثناء تحديث بيانات العميل'));
     }
@@ -878,7 +878,7 @@ export const ClientsList: React.FC = () => {
       const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
       if (isNaN(date.getTime())) return '-';
       return format(date, 'yyyy/MM/dd');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error formatting date:', error);
       return '-';
     }
@@ -989,7 +989,7 @@ export const ClientsList: React.FC = () => {
                            <select
                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white"
                                value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
-                               onChange={(e) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
+                               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
                            >
                                <option value="">{t('clientsList.selectAgent', 'الكل / اختر المندوب...')}</option>
                                {agents.map(agent => (
@@ -1040,7 +1040,7 @@ export const ClientsList: React.FC = () => {
         placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')}
         className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
         value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
       />
       {searchTerm && (
         <button
@@ -1272,7 +1272,7 @@ export const ClientsList: React.FC = () => {
                                                       <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
                                                           <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
                                                           <button
-                                                              onClick={(e) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
+                                                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
                                                               className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
                                                               title={t('clientsList.copyCode', 'نسخ الرمز') as string}
                                                            >
