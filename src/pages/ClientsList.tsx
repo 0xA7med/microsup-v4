@@ -94,7 +94,7 @@ export const ClientsList: React.FC = () => {
         }, 2000);
         toast.success(t('clientsList.copySuccess', 'تم نسخ رمز التفعيل'));
       })
-      .catch((e: Error) => {
+      .catch(() => {
         toast.error(t('clientsList.copyError', 'فشل نسخ رمز التفعيل'));
       });
   }, [t]);
@@ -386,9 +386,9 @@ export const ClientsList: React.FC = () => {
           if (finalClientIds.length > 200) {
               const batches = chunkArray(finalClientIds.filter(id => !!id), 200);
               let allClientsData: any[] = [];
-              for (const [batchIdx, batch] of batches.entries()) {
+              for (const batch of batches) {
                   if (!batch || batch.length === 0) continue;
-                  console.log(`Fetching client data batch ${batchIdx + 1}/${batches.length}`);
+                  console.log(`Fetching client data batch ${batches.indexOf(batch) + 1}/${batches.length}`);
                   const batchQuery = supabase.from('clients').select(`*, devices (*), agent:agents (id, name)`)
                                         .in('id', batch)
                                         // Re-apply agent filter if needed for correctness with chunking
@@ -399,7 +399,7 @@ export const ClientsList: React.FC = () => {
                   const { data: batchData, error: batchError } = await batchQuery;
                   if (signal.aborted) throw new Error('Aborted');
                   if (batchError) {
-                      console.error(`Error fetching client batch ${batchIdx + 1}:`, batchError);
+                      console.error(`Error fetching client batch ${batches.indexOf(batch) + 1}:`, batchError);
                       throw batchError; // Propagate error
                   }
                   if (batchData) allClientsData.push(...batchData);
@@ -913,36 +913,42 @@ export const ClientsList: React.FC = () => {
                            {t('clientsList.deviceType', 'نوع الجهاز')}:
                        </h3>
                        <div className="flex flex-wrap gap-2">
-                           <Button
-                               onClick={() => handleFilterChange('allDevices', null)}
-                               variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
-                               size="sm"
-                               className="flex items-center gap-1"
-                           >
-                               <Eye className="w-3 h-3" />
-                               <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
-                               {activeFilter === 'allDevices' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                           </Button>
-                           <Button
-                               onClick={() => handleFilterChange(null, deviceFilter === 'mobile' ? null : 'mobile')}
-                               variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
-                               size="sm"
-                               className="flex items-center gap-1"
-                           >
-                               <Smartphone className="w-3 h-3" />
-                               <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
-                               {deviceFilter === 'mobile' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                           </Button>
-                           <Button
-                               onClick={() => handleFilterChange(null, deviceFilter === 'computer' ? null : 'computer')}
-                               variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
-                               size="sm"
-                               className="flex items-center gap-1"
-                           >
-                               <Laptop className="w-3 h-3" />
-                               <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
-                               {deviceFilter === 'computer' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                           </Button>
+                           <span>
+                               <Button
+                                   onClick={() => handleFilterChange('allDevices', null)}
+                                   variant={activeFilter === 'allDevices' ? 'primary' : 'secondary'}
+                                   size="sm"
+                                   className="flex items-center gap-1"
+                               >
+                                   <Eye className="w-3 h-3" />
+                                   <span>{t('clientsList.allDevicesFilter', 'جميع الاشتراكات')}</span>
+                                   {activeFilter === 'allDevices' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                               </Button>
+                           </span>
+                           <span>
+                               <Button
+                                   onClick={() => handleFilterChange(null, deviceFilter === 'mobile' ? null : 'mobile')}
+                                   variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'}
+                                   size="sm"
+                                   className="flex items-center gap-1"
+                               >
+                                   <Smartphone className="w-3 h-3" />
+                                   <span>{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
+                                   {deviceFilter === 'mobile' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                               </Button>
+                           </span>
+                           <span>
+                               <Button
+                                   onClick={() => handleFilterChange(null, deviceFilter === 'computer' ? null : 'computer')}
+                                   variant={deviceFilter === 'computer' ? 'primary' : 'secondary'}
+                                   size="sm"
+                                   className="flex items-center gap-1"
+                               >
+                                   <Laptop className="w-3 h-3" />
+                                   <span>{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
+                                   {deviceFilter === 'computer' && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                               </Button>
+                           </span>
                        </div>
                    </div>
 
@@ -957,18 +963,19 @@ export const ClientsList: React.FC = () => {
                                { value: 'expired', icon: AlertCircle, label: t('clientsList.expiredFilter', 'منتهي') },
                                { value: 'expiring', icon: Clock, label: t('clientsList.expiringFilter', 'قريب الانتهاء') },
                                { value: 'noDevices', icon: X, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') }
-                           ].map((filter) => (
-                               <Button
-                                   key={filter.value}
-                                   onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, null)}
-                                   variant={activeFilter === filter.value ? 'primary' : 'secondary'}
-                                   size="sm"
-                                   className="flex items-center gap-1"
-                               >
-                                   <filter.icon className="w-3 h-3" />
-                                   <span>{filter.label}</span>
-                                   {activeFilter === filter.value && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
-                               </Button>
+                           ].map(filter => (
+                               <span>
+                                   <Button
+                                       onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, null)}
+                                       variant={activeFilter === filter.value ? 'primary' : 'secondary'}
+                                       size="sm"
+                                       className="flex items-center gap-1"
+                                   >
+                                       <filter.icon className="w-3 h-3" />
+                                       <span>{filter.label}</span>
+                                       {activeFilter === filter.value && <Check className="w-3 h-3 ltr:ml-1 rtl:mr-1 text-white" />}
+                                   </Button>
+                               </span>
                            ))}
                        </div>
                    </div>
@@ -1344,7 +1351,7 @@ export const ClientsList: React.FC = () => {
                    {/* أرقام الصفحات: 1 على اليمين، الأخيرة على اليسار */}
                    {(() => {
                        const pageButtons = [];
-                       for (let page = 1; page <= totalPages; page++) {
+                       for (const page of Array.from({ length: totalPages }, (_, i) => i + 1)) {
                            // إظهار أول وآخر صفحتين وحول الصفحة الحالية
                            if (
                              page === 1 ||
