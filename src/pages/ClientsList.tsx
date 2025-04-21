@@ -1141,9 +1141,8 @@ export const ClientsList: React.FC = () => {
               ))
             ) : stableClients.length > 0 ? (
                 stableClients.map(client => (
-                  <React.Fragment key={client.id}>
+                  <React.Fragment>
                     <tr
-                      key={client.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 group"
                     >
                       {/* Client Name Cell */}
