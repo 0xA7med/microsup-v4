@@ -690,8 +690,8 @@ export const ClientsList: React.FC = () => {
 
    // --- Real-time Subscriptions ---
     useEffect(() => {
-        const handleDbChange = (payload: any) => {
-            console.log('Database change detected:', payload.eventType, payload.table);
+        const handleDbChange = () => {
+            console.log('Database change detected:');
             // Re-fetch data with current filters/search
             // Add a small delay to potentially batch multiple rapid changes
             const debounceTimeout = setTimeout(() => {
@@ -982,7 +982,7 @@ export const ClientsList: React.FC = () => {
                            <select
                                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white"
                                value={activeFilter?.startsWith('agent_') ? activeFilter : ''}
-                               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
+                               onChange={(e) => handleFilterChange(e.target.value || null, null)} // Pass null if empty string
                            >
                                <option value="">{t('clientsList.selectAgent', 'الكل / اختر المندوب...')}</option>
                                {agents.map(agent => (
@@ -1033,7 +1033,7 @@ export const ClientsList: React.FC = () => {
         placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')}
         className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
         value={searchTerm}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+        onChange={(e) => setSearchTerm(e.target.value)}
       />
       {searchTerm && (
         <button
@@ -1265,7 +1265,7 @@ export const ClientsList: React.FC = () => {
                                                       <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
                                                           <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
                                                           <button
-                                                              onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
+                                                              onClick={() => copyActivationCode(device.activation_code, device.id)}
                                                               className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
                                                               title={t('clientsList.copyCode', 'نسخ الرمز') as string}
                                                            >
@@ -1352,7 +1352,7 @@ export const ClientsList: React.FC = () => {
                              (page >= currentPage - 1 && page <= currentPage + 1)
                            ) {
                              pageButtons.push(
-                               <span key={`page-${page}`} className="inline-block">
+                               <span>
                                  <Button
                                    onClick={() => setCurrentPage(page)}
                                    variant={currentPage === page ? 'primary' : 'secondary'}
@@ -1368,7 +1368,7 @@ export const ClientsList: React.FC = () => {
                              page === currentPage + 2
                            ) {
                              pageButtons.push(
-                               <span key={`ellipsis-${page}`} className="px-1 text-gray-500">...</span>
+                               <span className="px-1 text-gray-500">...</span>
                              );
                            }
                          }
