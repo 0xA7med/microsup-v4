@@ -197,7 +197,6 @@ const BackupManager: React.FC = () => {
           // إعداد مصفوفة لتخزين الأجهزة
           let allDevices: any[] = [];
           let clientsCount = 0;
-          let devicesCount = 0;
 
           // معالجة بيانات العملاء والأجهزة
           for (const client of backupData.clients) {
@@ -246,7 +245,6 @@ const BackupManager: React.FC = () => {
               throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
             
-            setDevicesCount(allDevices.length);
             // إشعار بعدد الأجهزة المستعادين
             toast.success(`تم استعادة ${allDevices.length} جهاز بنجاح`);
           }
@@ -259,7 +257,6 @@ const BackupManager: React.FC = () => {
           console.error('خطأ في استعادة النسخة الاحتياطية:', {
             error: error,
             clientsCount: clientsCount,
-            devicesCount: allDevices.length
           });
           toast.error(`حدث خطأ أثناء استعادة النسخة الاحتياطية:\n${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
         } finally {
