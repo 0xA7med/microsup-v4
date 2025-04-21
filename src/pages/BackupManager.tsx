@@ -26,7 +26,8 @@ const BackupManager: React.FC = () => {
     devices: 0,
     agents: 0
   });
-  const [clientsCount, setClientsCount] = useState(0);
+  // تم استبدال useState بمتغير عادي
+  let clientsCount = 0;
   const { sessionError, refreshSession } = useAuthStore();
 
   // تهيئة التكوين
@@ -192,8 +193,6 @@ const BackupManager: React.FC = () => {
             toast.success('تم حذف البيانات الحالية بنجاح');
           }
 
-          let clientsCount = 0;
-
           // معالجة بيانات العملاء والأجهزة
           for (const client of backupData.clients) {
             // استخراج الأجهزة من العميل
@@ -218,7 +217,7 @@ const BackupManager: React.FC = () => {
 
           // استعادة الأجهزة بعد الانتهاء من استعادة جميع العملاء
           if (backupData.clients.length > 0) {
-            const devices = backupData.clients.reduce((acc, client) => acc.concat(client.devices || []), []);
+            const devices = backupData.clients.reduce((acc: any[], client: any) => acc.concat(client.devices || []), []);
             const { error: devicesError } = await supabase
               .from('devices')
               .upsert(devices);
@@ -237,7 +236,7 @@ const BackupManager: React.FC = () => {
           }
 
           // حوار نهائي يلخص عملية الاستعادة
-          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${backupData.clients.reduce((acc, client) => acc + (client.devices || []).length, 0)} جهاز`;
+          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${backupData.clients.reduce((acc: any[], client: any) => acc + (client.devices || []).length, 0)} جهاز`;
           window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
