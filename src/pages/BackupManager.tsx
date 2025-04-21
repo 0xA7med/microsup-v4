@@ -214,8 +214,12 @@ const BackupManager: React.FC = () => {
               .upsert(clientData);
             
             if (clientError) {
-              console.error('خطأ في استعادة العميل:', clientData.id, clientError);
-              throw clientError;
+              console.error('خطأ في استعادة العميل:', {
+                clientId: clientData.id,
+                error: clientError,
+                clientData: clientData
+              });
+              throw new Error(`فشل في استعادة العميل ${clientData.id}: ${clientError.message}`);
             }
             
             clientsCount++;
@@ -231,8 +235,12 @@ const BackupManager: React.FC = () => {
               .upsert(allDevices);
             
             if (devicesError) {
-              console.error('خطأ في استعادة الأجهزة:', devicesError);
-              throw devicesError;
+              console.error('خطأ في استعادة الأجهزة:', {
+                error: devicesError,
+                devicesCount: devicesCount,
+                devices: allDevices
+              });
+              throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
             
             devicesCount = allDevices.length;
@@ -245,8 +253,12 @@ const BackupManager: React.FC = () => {
           window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
-          console.error('خطأ في استعادة النسخة الاحتياطية:', error);
-          toast.error('حدث خطأ أثناء استعادة النسخة الاحتياطية');
+          console.error('خطأ في استعادة النسخة الاحتياطية:', {
+            error: error,
+            clientsCount: clientsCount,
+            devicesCount: devicesCount
+          });
+          toast.error(`حدث خطأ أثناء استعادة النسخة الاحتياطية:\n${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
         } finally {
           setIsRestoring(false);
         }

@@ -8,14 +8,20 @@ function mapClientToDb(client: ClientData) {
   // الحصول على معرف المستخدم الحالي من المتجر
   const user = useAuthStore.getState().user;
   
+  // التحقق من وجود البيانات الأساسية
+  if (!client['اسم العميل'] || !client['الهاتف']) {
+    return null; // إرجاع null إذا كانت البيانات الأساسية غير موجودة
+  }
+  
   // التاريخ الحالي بتنسيق ISO
   const now = new Date().toISOString();
   
-  return {
-    client_name: client['اسم العميل'] || '',
-    organization_name: client['اسم المؤسسة'] || '',
+  // تهيئة البيانات مع التحقق من وجود كل حقل
+  const dbClient = {
+    client_name: client['اسم العميل'],
+    organization_name: client['اسم المؤسسة'] || client['اسم العميل'],
     activity_type: client['نوع النشاط'] || '',
-    phone: client['الهاتف'] || '',
+    phone: client['الهاتف'],
     phone2: client['الهاتف 2'] || '',
     address: client['العنوان'] || '',
     notes: client['ملاحظات'] || '',
@@ -26,6 +32,30 @@ function mapClientToDb(client: ClientData) {
     subscription_start: now.split('T')[0], // تاريخ بداية الاشتراك (اليوم)
     subscription_end: '2099-12-31' // تاريخ نهاية الاشتراك (بعيد)
   };
+
+  // التحقق من صحة الأرقام
+  if (dbClient.phone && typeof dbClient.phone === 'string') {
+    // إزالة أي أحرف غير رقمية
+    dbClient.phone = dbClient.phone.replace(/\D/g, '');
+    // التحقق من أن الرقم يبدأ بـ 01 أو 00966
+    if (!dbClient.phone.startsWith('01') && !dbClient.phone.startsWith('00966')) {
+      dbClient.phone = '';
+    }
+  }
+
+  if (dbClient.phone2 && typeof dbClient.phone2 === 'string') {
+    dbClient.phone2 = dbClient.phone2.replace(/\D/g, '');
+    if (!dbClient.phone2.startsWith('01') && !dbClient.phone2.startsWith('00966')) {
+      dbClient.phone2 = '';
+    }
+  }
+
+  // التحقق من وجود رقم هاتف صالح
+  if (!dbClient.phone && !dbClient.phone2) {
+    return null;
+  }
+
+  return dbClient;
 }
 
 // إنشاء رمز تفعيل عشوائي
@@ -106,10 +136,10 @@ export async function addClientsAndDevicesToDb(clients: ClientData[], devices: D
     for (const client of clients) {
       const dbClient = mapClientToDb(client);
       
-      // التحقق من البيانات المطلوبة
-      if (!dbClient.client_name || !dbClient.phone || !dbClient.agent_id) {
-        console.error('بيانات العميل غير مكتملة:', dbClient);
-        continue; // تخطي هذا العميل
+      // تخطي العميل إذا كانت البيانات غير صالحة
+      if (!dbClient) {
+        console.log('تم تخطي عميل غير صالح');
+        continue;
       }
       
       // طباعة بيانات العميل للتصحيح

@@ -195,13 +195,33 @@ export const Dashboard: React.FC = () => {
         return;
       }
       
-      // جلب بيانات العملاء
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .select('id, client_name, subscription_end, subscription_type, agent_id');
-      
-      if (clientsError) throw clientsError;
-      
+      // جلب جميع بيانات العملاء باستخدام التجزئة
+      let allClientsData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('clients')
+          .select('id, client_name, subscription_end, subscription_type, agent_id')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (pageError) throw pageError;
+
+        if (pageData && pageData.length > 0) {
+          allClientsData = [...allClientsData, ...pageData];
+          page++;
+          console.log(`Fetched page ${page} of clients: ${pageData.length} records. Total: ${allClientsData.length}`);
+          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
       // جلب بيانات المندوبين
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
@@ -210,7 +230,7 @@ export const Dashboard: React.FC = () => {
       if (agentsError) throw agentsError;
       
       // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
-      let filteredClientsData = clientsData || [];
+      let filteredClientsData = allClientsData || [];
       
       // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
       if (user?.role === 'agent') {
@@ -219,13 +239,32 @@ export const Dashboard: React.FC = () => {
         console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
       }
       
-      // جلب بيانات الاشتراكات
-      const { data: allDevicesData = [], error: devicesError } = await supabase
-        .from('devices')
-        .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status');
-      
-      if (devicesError) throw devicesError;
-      
+      // جلب بيانات الاشتراكات باستخدام التجزئة
+      let allDevicesData: any[] = [];
+      page = 0;
+      hasMore = true;
+
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('devices')
+          .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (pageError) throw pageError;
+
+        if (pageData && pageData.length > 0) {
+          allDevicesData = [...allDevicesData, ...pageData];
+          page++;
+          console.log(`Fetched page ${page} of devices: ${pageData.length} records. Total: ${allDevicesData.length}`);
+          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
       // تصفية الاشتراكات حسب العملاء المصفاة
       let filteredDevicesData = allDevicesData || [];
       
@@ -335,7 +374,7 @@ export const Dashboard: React.FC = () => {
       // إنشاء كائن البيانات
       const newDashboardData: DashboardData = {
         totalClients: filteredClientsData?.length || 0,
-        totalAgents: agentsData?.length || 0,
+        totalAgents: 0,
         activeSubscriptions: activeSubscriptionsCount,
         recentClients: [],
         expiredSubscriptions: expiredSubscriptionsCount,
@@ -410,13 +449,33 @@ export const Dashboard: React.FC = () => {
     setLoading(true);
     
     try {
-      // جلب بيانات العملاء
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('clients')
-        .select('id, client_name, subscription_end, subscription_type, agent_id');
-      
-      if (clientsError) throw clientsError;
-      
+      // جلب جميع بيانات العملاء باستخدام التجزئة
+      let allClientsData: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('clients')
+          .select('id, client_name, subscription_end, subscription_type, agent_id')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (pageError) throw pageError;
+
+        if (pageData && pageData.length > 0) {
+          allClientsData = [...allClientsData, ...pageData];
+          page++;
+          console.log(`Fetched page ${page} of clients: ${pageData.length} records. Total: ${allClientsData.length}`);
+          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
       // جلب بيانات المندوبين
       const { data: agentsData, error: agentsError } = await supabase
         .from('agents')
@@ -425,7 +484,7 @@ export const Dashboard: React.FC = () => {
       if (agentsError) throw agentsError;
       
       // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
-      let filteredClientsData = clientsData || [];
+      let filteredClientsData = allClientsData || [];
       
       // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
       if (user?.role === 'agent') {
@@ -434,13 +493,32 @@ export const Dashboard: React.FC = () => {
         console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
       }
       
-      // جلب بيانات الاشتراكات
-      const { data: allDevicesData = [], error: devicesError } = await supabase
-        .from('devices')
-        .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status');
-      
-      if (devicesError) throw devicesError;
-      
+      // جلب بيانات الاشتراكات باستخدام التجزئة
+      let allDevicesData: any[] = [];
+      page = 0;
+      hasMore = true;
+
+      while (hasMore) {
+        const { data: pageData, error: pageError } = await supabase
+          .from('devices')
+          .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status')
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
+        if (pageError) throw pageError;
+
+        if (pageData && pageData.length > 0) {
+          allDevicesData = [...allDevicesData, ...pageData];
+          page++;
+          console.log(`Fetched page ${page} of devices: ${pageData.length} records. Total: ${allDevicesData.length}`);
+          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
       // تصفية الاشتراكات حسب العملاء المصفاة
       let filteredDevicesData = allDevicesData || [];
       
@@ -550,7 +628,7 @@ export const Dashboard: React.FC = () => {
       // إنشاء كائن البيانات
       const newDashboardData: DashboardData = {
         totalClients: filteredClientsData?.length || 0,
-        totalAgents: agentsData?.length || 0,
+        totalAgents: 0,
         activeSubscriptions: activeSubscriptionsCount,
         recentClients: [],
         expiredSubscriptions: expiredSubscriptionsCount,
