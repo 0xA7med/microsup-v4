@@ -27,7 +27,6 @@ const BackupManager: React.FC = () => {
     agents: 0
   });
   const [clientsCount, setClientsCount] = useState(0);
-  const [devicesCount, setDevicesCount] = useState(0);
   const [allDevices, setAllDevices] = useState<any[]>([]);
   const { sessionError, refreshSession } = useAuthStore();
 

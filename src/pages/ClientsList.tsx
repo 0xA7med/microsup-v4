@@ -576,10 +576,7 @@ export const ClientsList: React.FC = () => {
    ]);
 
   // إصلاح خطأ notes: التأكد من أن جميع الكائنات من نوع DisplayClientType لا تحتوي على null في notes
-  const normalizeClient = (client: any): DisplayClientType => ({
-    ...client,
-    notes: client.notes ?? undefined, // null أو undefined تصبح undefined
-  });
+  // --- تمت إزالة الدالة غير المستخدمة ---
 
    // --- Initial Load ---
   useEffect(() => {
