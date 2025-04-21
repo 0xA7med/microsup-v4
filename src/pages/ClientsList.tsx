@@ -1138,7 +1138,7 @@ export const ClientsList: React.FC = () => {
   </React.Fragment>
 ))
             ) : stableClients.length > 0 ? (
-                stableClients.map(client => (
+                stableClients.map((client, index) => (
                 <React.Fragment key={client.id}>
                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-150 group">
                      {/* Client Name Cell */}
@@ -1256,8 +1256,8 @@ export const ClientsList: React.FC = () => {
                                             .filter(device => !searchTerm || matchingDeviceIds.includes(device.id))
                                             // Optionally filter devices based on deviceFilter if active
                                              .filter(device => !deviceFilter || (deviceFilter === 'mobile' && device.device_type === 'android') || (deviceFilter === 'computer' && device.device_type === 'computer'))
-                                            .map(device => (
-                                             <div key={device.id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
+                                            .map((device, index) => (
+                                             <div key={index} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
                                                  device.approval_status === 'approved' ? 'border-green-200 dark:border-green-700 bg-green-50/30 dark:bg-green-900/10' :
                                                  device.approval_status === 'rejected' ? 'border-red-200 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10' :
                                                  'border-yellow-200 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/10'

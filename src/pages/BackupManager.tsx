@@ -27,7 +27,6 @@ const BackupManager: React.FC = () => {
     agents: 0
   });
   const [clientsCount, setClientsCount] = useState(0);
-  const [allDevices, setAllDevices] = useState<any[]>([]);
   const { sessionError, refreshSession } = useAuthStore();
 
   // تهيئة التكوين
@@ -117,7 +116,6 @@ const BackupManager: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, wsClients, 'العملاء');
     
     // إضافة ورقة الأجهزة
-    setAllDevices([]); // Initialize empty array for devicesData
     const wsDevices = XLSX.utils.aoa_to_sheet(devicesData);
     XLSX.utils.book_append_sheet(wb, wsDevices, 'الأجهزة');
     
@@ -194,8 +192,6 @@ const BackupManager: React.FC = () => {
             toast.success('تم حذف البيانات الحالية بنجاح');
           }
 
-          // إعداد مصفوفة لتخزين الأجهزة
-          let allDevices: any[] = [];
           let clientsCount = 0;
 
           // معالجة بيانات العملاء والأجهزة
@@ -203,54 +199,45 @@ const BackupManager: React.FC = () => {
             // استخراج الأجهزة من العميل
             const clientDevices = client.devices || [];
             
-            // حفظ نسخة من الأجهزة قبل حذفها من كائن العميل
-            setAllDevices(prev => [...prev, ...clientDevices]);
-            
-            // حذف الأجهزة من كائن العميل لتجنب الخطأ عند الإدراج
-            const clientData = { ...client };
-            delete clientData.devices;
-            
             // إدراج العميل
             const { error: clientError } = await supabase
               .from('clients')
-              .upsert(clientData);
+              .upsert(client);
             
             if (clientError) {
               console.error('خطأ في استعادة العميل:', {
-                clientId: clientData.id,
+                clientId: client.id,
                 error: clientError,
-                clientData: clientData
+                clientData: client
               });
-              throw new Error(`فشل في استعادة العميل ${clientData.id}: ${clientError.message}`);
+              throw new Error(`فشل في استعادة العميل ${client.id}: ${clientError.message}`);
             }
             
-            setClientsCount(prev => prev + 1);
+            clientsCount++;
           }
 
-          // إشعار بعدد العملاء المستعادين
-          toast.success(`تم استعادة ${clientsCount} عميل بنجاح`);
-          
           // استعادة الأجهزة بعد الانتهاء من استعادة جميع العملاء
-          if (allDevices.length > 0) {
+          if (backupData.clients.length > 0) {
+            const devices = backupData.clients.reduce((acc, client) => acc.concat(client.devices || []), []);
             const { error: devicesError } = await supabase
               .from('devices')
-              .upsert(allDevices);
+              .upsert(devices);
             
             if (devicesError) {
               console.error('خطأ في استعادة الأجهزة:', {
                 error: devicesError,
-                devicesCount: allDevices.length,
-                devices: allDevices
+                devicesCount: devices.length,
+                devices: devices
               });
               throw new Error(`فشل في استعادة الأجهزة: ${devicesError.message}`);
             }
             
             // إشعار بعدد الأجهزة المستعادين
-            toast.success(`تم استعادة ${allDevices.length} جهاز بنجاح`);
+            toast.success(`تم استعادة ${devices.length} جهاز بنجاح`);
           }
 
           // حوار نهائي يلخص عملية الاستعادة
-          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${allDevices.length} جهاز`;
+          const message = `تم استعادة النسخة الاحتياطية بنجاح 🎉\n\nتم استعادة:\n${clientsCount} عميل\n${backupData.clients.reduce((acc, client) => acc + (client.devices || []).length, 0)} جهاز`;
           window.alert(message);
           fetchLastBackupInfo();
         } catch (error) {
