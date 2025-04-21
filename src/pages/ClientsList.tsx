@@ -99,7 +99,7 @@ export const ClientsList: React.FC = () => {
         }, 2000);
         toast.success(t('clientsList.copySuccess', 'تم نسخ رمز التفعيل'));
       })
-      .catch((e: Error) => {
+      .catch(() => {
         toast.error(t('clientsList.copyError', 'فشل نسخ رمز التفعيل'));
       });
   }, [t]);
@@ -1015,10 +1015,6 @@ export const ClientsList: React.FC = () => {
        </div>
    ), [filtersOpen, t, activeFilter, deviceFilter, user, agents, handleFilterChange]);
 
-  const handleSearchChange = useCallback(() => {
-    setSearchTerm('');
-  }, []);
-
   const handlePageInput = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const input = (e.currentTarget.elements.namedItem('pageNum') as HTMLInputElement).value;
@@ -1039,7 +1035,7 @@ export const ClientsList: React.FC = () => {
         placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')}
         className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white"
         value={searchTerm}
-        onChange={() => setSearchTerm('')}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
       />
       {searchTerm && (
         <button
@@ -1253,7 +1249,7 @@ export const ClientsList: React.FC = () => {
                     </tr>
                     {/* Device Details Row (Conditional) */}
                     {client.showDevices && (
-                      <tr key={`devices-${client.id}`} className="bg-gray-50 dark:bg-gray-800/50">
+                      <tr className="bg-gray-50 dark:bg-gray-800/50">
                         <td colSpan={7} className="px-4 py-3">
                           <div className="space-y-2">
                             {client.devices && client.devices.length > 0 ? (
@@ -1263,7 +1259,7 @@ export const ClientsList: React.FC = () => {
                                 // Optionally filter devices based on deviceFilter if active
                                 .filter(device => !deviceFilter || (deviceFilter === 'mobile' && device.device_type === 'android') || (deviceFilter === 'computer' && device.device_type === 'computer'))
                                 .map((device, index) => (
-                                  <div key={`device-${index}`} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
+                                  <div key={index} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 rounded border ${
                                     device.approval_status === 'approved' ? 'border-green-200 dark:border-green-700 bg-green-50/30 dark:bg-green-900/10' :
                                     device.approval_status === 'rejected' ? 'border-red-200 dark:border-red-700 bg-red-50/30 dark:bg-red-900/10' :
                                     'border-yellow-200 dark:border-yellow-700 bg-yellow-50/30 dark:bg-yellow-900/10'
@@ -1277,7 +1273,7 @@ export const ClientsList: React.FC = () => {
                                       <div className="flex items-center font-mono text-gray-700 dark:text-gray-300" title={device.activation_code}>
                                         <span className="truncate max-w-[100px] sm:max-w-[120px]">{device.activation_code}</span>
                                         <button
-                                          onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); copyActivationCode(device.activation_code, device.id); }}
+                                          onClick={() => copyActivationCode(device.activation_code, device.id)}
                                           className="ml-1 p-0.5 text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
                                           title={t('clientsList.copyCode', 'نسخ الرمز') as string}
                                         >
