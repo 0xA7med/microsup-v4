@@ -27,7 +27,7 @@ interface DisplayClientType {
   address?: string;
   phone?: string;
   phone2?: string;
-  notes?: string;
+  notes?: string | undefined;
   subscription_type?: string; // Note: This might be less relevant at the client level now
   subscription_start?: string | null; // Note: This might be less relevant at the client level now
   subscription_end?: string | null; // Note: This might be less relevant at the client level now
@@ -122,8 +122,6 @@ export const ClientsList: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoadingData, setIsLoadingData] = useState(false); // Renamed from isLoadingMore for clarity
   const [matchingDeviceIds, setMatchingDeviceIds] = useState<string[]>([]);
-  const [filteredDevicesByClient, setFilteredDevicesByClient] = useState<Record<string, string[]>>({}); // Keep this if filter logic needs it
-
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -172,8 +170,23 @@ export const ClientsList: React.FC = () => {
       });
     }
 
+    // --- فلترة العملاء "قريب الانتهاء" (أقل من أو يساوي 15 يوم) ---
+    const now = new Date();
+    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+
+    if (activeFilter === 'expiring') {
+      clientsToProcess = clientsToProcess.filter(client => {
+        // دعم الأجهزة الدائمة (لا تُعرض)
+        if (client.subscription_type === 'permanent' || client.subscription_end === null) return false;
+        if (!client.subscription_end) return false;
+        const endDate = new Date(client.subscription_end);
+        const diff = endDate.getTime() - now.getTime();
+        return diff > 0 && diff <= FIFTEEN_DAYS_MS;
+      });
+    }
+
     return clientsToProcess;
-  }, [allFetchedClients, sortConfig]);
+  }, [allFetchedClients, sortConfig, activeFilter]);
 
   // Effect to update stableClients (current page) when data, page, or sorting changes
   useEffect(() => {
@@ -195,8 +208,8 @@ export const ClientsList: React.FC = () => {
 
 
   // --- Data Fetching ---
-  const fetchAllClientsBatched = async (baseQuery, signal) => {
-    let allClients = [];
+  const fetchAllClientsBatched = async (baseQuery: any, signal: AbortSignal): Promise<DisplayClientType[]> => {
+    let allClients: DisplayClientType[] = [];
     let from = 0;
     const batchSize = 1000;
     while (true) {
@@ -237,8 +250,6 @@ export const ClientsList: React.FC = () => {
 
     // Reset temporary states for new fetch
     let localMatchingDeviceIds: string[] = [];
-    let localFilteredDevicesMap: Record<string, string[]> = {};
-
 
     console.log(`Fetching clients - Filter: ${effectiveFilter}, Device Filter: ${effectiveDeviceFilter}, Search: ${effectiveSearchTerm}`);
 
@@ -288,7 +299,6 @@ export const ClientsList: React.FC = () => {
           console.log('No clients match search term.');
           setAllFetchedClients([]);
           setMatchingDeviceIds([]);
-          setFilteredDevicesByClient({});
           setIsLoadingData(false);
           isFetchingRef.current = false;
           return; // Exit early
@@ -314,15 +324,8 @@ export const ClientsList: React.FC = () => {
          if (deviceFilterError) console.error('Device filter error:', deviceFilterError);
          else {
            deviceFilteredClientIds = []; // Requires matches
-           localFilteredDevicesMap = {}; // Reset map
            if (deviceFilterData?.length) {
-                deviceFilterData.forEach(device => {
-                if (!localFilteredDevicesMap[device.client_id]) {
-                  localFilteredDevicesMap[device.client_id] = [];
-                }
-                localFilteredDevicesMap[device.client_id].push(device.id);
-              });
-              deviceFilteredClientIds = Object.keys(localFilteredDevicesMap);
+                deviceFilteredClientIds = [...new Set(deviceFilterData.map(d => d.client_id))];
               console.log(`Found ${deviceFilteredClientIds.length} clients with ${effectiveDeviceFilter} devices.`);
 
            }
@@ -330,16 +333,11 @@ export const ClientsList: React.FC = () => {
                console.log(`No clients found for device filter: ${effectiveDeviceFilter}`);
                setAllFetchedClients([]);
                setMatchingDeviceIds([]);
-               setFilteredDevicesByClient({});
                setIsLoadingData(false);
                isFetchingRef.current = false;
                return;
              }
          }
-         // Update state for device filter results
-         setFilteredDevicesByClient(localFilteredDevicesMap);
-       } else {
-         setFilteredDevicesByClient({}); // Clear if no device filter
        }
 
 
@@ -355,7 +353,6 @@ export const ClientsList: React.FC = () => {
             console.log('No clients match both search and device filter.');
              setAllFetchedClients([]);
              setMatchingDeviceIds([]); // Keep search match IDs though
-             setFilteredDevicesByClient(localFilteredDevicesMap); // Keep device filter map
              setIsLoadingData(false);
              isFetchingRef.current = false;
              return;
@@ -548,7 +545,7 @@ export const ClientsList: React.FC = () => {
       // 8. Update State
       // Use ReactDOM.flushSync for potentially smoother UI updates when resetting data
        ReactDOM.flushSync(() => {
-            setAllFetchedClients(processedClients); // Update the full list
+            setAllFetchedClients(processedClients.map(normalizeClient)); // Update the full list
             setCurrentPage(1); // Reset to page 1 for new data/filters
         });
        // The useEffect watching processedAndSortedClients will handle setting stableClients
@@ -573,6 +570,11 @@ export const ClientsList: React.FC = () => {
      // Remove currentPage, sortConfig - they don't trigger a fetch, only local processing
    ]);
 
+  // إصلاح خطأ notes: التأكد من أن جميع الكائنات من نوع DisplayClientType لا تحتوي على null في notes
+  const normalizeClient = (client: any): DisplayClientType => ({
+    ...client,
+    notes: client.notes ?? undefined, // null أو undefined تصبح undefined
+  });
 
    // --- Initial Load ---
   useEffect(() => {
@@ -648,6 +650,32 @@ export const ClientsList: React.FC = () => {
        };
    // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [location.search, t]); // Only re-run if URL search params change or language changes
+
+  // --- تحديث قراءة الفلاتر من الـ URL وتطبيقها تلقائيًا ---
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    // دعم جميع الفلاتر الممكنة
+    const filterParam = params.get('filter'); // active, expired, expiring, all, ...
+    const deviceFilterParam = params.get('deviceFilter'); // android, computer, ...
+    const subscriptionTypeParam = params.get('subscriptionType'); // permanent, monthly, ...
+    // يمكن التوسع لاحقًا لأي فلاتر أخرى
+
+    // فلتر حالة الاشتراك
+    if (filterParam && filterParam !== activeFilter) setActiveFilter(filterParam);
+    if (!filterParam && activeFilter) setActiveFilter(null);
+
+    // فلتر نوع الجهاز
+    if (deviceFilterParam && deviceFilterParam !== deviceFilter) {
+      if (deviceFilterParam === 'android') setDeviceFilter('mobile');
+      else if (deviceFilterParam === 'computer') setDeviceFilter('computer');
+      else setDeviceFilter(null);
+    }
+    if (!deviceFilterParam && deviceFilter) setDeviceFilter(null);
+
+    // فلتر نوع الاشتراك (يمكنك ربطه بفلاتر إضافية أو تخصيصه لاحقًا)
+    // ...
+    // إذا أردت تطبيق فلتر نوع الاشتراك مباشرة، أضف هنا
+  }, [location.search]);
 
   // --- Search Debounce ---
    useEffect(() => {
@@ -735,7 +763,6 @@ export const ClientsList: React.FC = () => {
     );
     // Note: This change will automatically reflect in stableClients via the processing pipeline
   }, []);
-
 
   const handleShowDetails = useCallback((client: DisplayClientType) => {
     setSelectedClient(client);
@@ -993,6 +1020,14 @@ export const ClientsList: React.FC = () => {
        </div>
    ), [filtersOpen, t, activeFilter, deviceFilter, user, agents, handleFilterChange]);
 
+  const handlePageInput = useCallback((e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const input = (e.currentTarget.elements.namedItem('pageNum') as HTMLInputElement).value;
+    const num = parseInt(input, 10);
+    if (!isNaN(num) && num >= 1 && num <= totalPages) {
+      setCurrentPage(num);
+    }
+  }, [totalPages]);
 
   // Memoize Search rendering
   const renderedSearch = useMemo(() => (
@@ -1201,7 +1236,7 @@ export const ClientsList: React.FC = () => {
                           <Button
                             onClick={() => handleShowDetails(client)}
                             variant="ghost" // Subtle button
-                            size="icon"
+                            size="sm"
                             className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300"
                             aria-label={t('actions.viewDetails', 'عرض التفاصيل') as string}
                           >
@@ -1308,7 +1343,7 @@ export const ClientsList: React.FC = () => {
                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                        disabled={currentPage === 1}
                        variant="secondary"
-                       size="icon"
+                       size="sm"
                        aria-label={t('pagination.prev', 'الصفحة السابقة') as string}
                    >
                        <ChevronRight className="h-4 w-4" />
@@ -1324,15 +1359,16 @@ export const ClientsList: React.FC = () => {
                              (page >= currentPage - 1 && page <= currentPage + 1)
                            ) {
                              pageButtons.push(
-                               <Button
-                                 key={`page-${page}`}
-                                 onClick={() => setCurrentPage(page)}
-                                 variant={currentPage === page ? 'primary' : 'secondary'}
-                                 size="icon"
-                                 className="w-8 h-8 text-xs"
-                               >
-                                 {page}
-                               </Button>
+                               <span key={`page-${page}`} className="inline-block">
+                                 <Button
+                                   onClick={() => setCurrentPage(page)}
+                                   variant={currentPage === page ? 'primary' : 'secondary'}
+                                   size="sm"
+                                   className="w-8 h-8 text-xs"
+                                 >
+                                   {page}
+                                 </Button>
+                               </span>
                              );
                            } else if (
                              page === currentPage - 2 ||
@@ -1350,7 +1386,7 @@ export const ClientsList: React.FC = () => {
                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                        disabled={currentPage === totalPages}
                        variant="secondary"
-                       size="icon"
+                       size="sm"
                        aria-label={t('pagination.next', 'الصفحة التالية') as string}
                    >
                        <ChevronLeft className="h-4 w-4" />
@@ -1358,14 +1394,7 @@ export const ClientsList: React.FC = () => {
                </div>
                {/* إدخال رقم الصفحة مباشرة */}
                <form
-                 onSubmit={e => {
-                   e.preventDefault();
-                   const input = (e.target as any).elements.pageNum.value;
-                   const num = parseInt(input, 10);
-                   if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                     setCurrentPage(num);
-                   }
-                 }}
+                 onSubmit={handlePageInput}
                  className="flex items-center gap-2"
                  style={{ minWidth: 0 }}
                >
@@ -1382,7 +1411,7 @@ export const ClientsList: React.FC = () => {
                    className="w-16 p-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-center text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
                    dir="ltr"
                  />
-                 <Button type="submit" size="sm" variant="outline" className="px-2 py-1 text-xs">
+                 <Button type="submit" size="sm" variant="secondary" className="px-2 py-1 text-xs">
                    {t('pagination.go', 'اذهب')}
                  </Button>
                </form>

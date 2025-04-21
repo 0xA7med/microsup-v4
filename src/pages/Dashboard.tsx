@@ -77,17 +77,16 @@ export const Dashboard: React.FC = () => {
   // الحصول على معلومات المستخدم الحالي
   const user = useAuthStore(state => state.user);
   
-  // دالة للانتقال إلى قائمة العملاء مع تطبيق فلتر
-  const navigateToClientsList = useCallback((filter?: string) => {
-    // تحديد المسار الأساسي
+  // تحديث دالة الانتقال لصفحة العملاء لتقبل معايير متعددة
+  const navigateToClientsList = useCallback((filters: Record<string, string> = {}) => {
     let path = '/clients';
-    
-    // إضافة معلمات الفلتر إذا تم تحديدها
-    if (filter) {
-      path += `?filter=${filter}`;
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    if ([...params].length > 0) {
+      path += `?${params.toString()}`;
     }
-    
-    // الانتقال إلى المسار المحدد
     navigate(path);
   }, [navigate]);
   
@@ -912,7 +911,7 @@ export const Dashboard: React.FC = () => {
           {/* إجمالي العملاء */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('all')}
+            onClick={() => navigateToClientsList({ filter: 'all' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -964,7 +963,7 @@ export const Dashboard: React.FC = () => {
           {/* إجمالي الاشتراكات */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('devices')}
+            onClick={() => navigateToClientsList({ deviceFilter: 'all' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -980,7 +979,7 @@ export const Dashboard: React.FC = () => {
           {/* أجهزة الهاتف */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList('mobile')}
+            onClick={() => navigateToClientsList({ deviceFilter: 'android' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -998,7 +997,7 @@ export const Dashboard: React.FC = () => {
           {/* أجهزة الكمبيوتر */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList('computer')}
+            onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -1015,7 +1014,7 @@ export const Dashboard: React.FC = () => {
           {/* الاشتراكات النشطة */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('active')}
+            onClick={() => navigateToClientsList({ filter: 'active' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -1080,7 +1079,7 @@ export const Dashboard: React.FC = () => {
           {/* الاشتراكات المنتهية */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('expired')}
+            onClick={() => navigateToClientsList({ filter: 'expired' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -1095,7 +1094,7 @@ export const Dashboard: React.FC = () => {
           {/* تنتهي خلال 15 يوم */}
           <div 
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList('expiring')}
+            onClick={() => navigateToClientsList({ filter: 'expiring' })}
           >
             <div className="p-5 flex justify-between items-center">
               <div className="flex flex-col">
@@ -1131,7 +1130,7 @@ export const Dashboard: React.FC = () => {
             {/* إجمالي المستحقات */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList('all')}
+              onClick={() => navigateToClientsList({ filter: 'all' })}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
@@ -1146,7 +1145,7 @@ export const Dashboard: React.FC = () => {
             {/* مستحقات أجهزة الهاتف */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList('mobile')}
+              onClick={() => navigateToClientsList({ deviceFilter: 'android' })}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
@@ -1161,7 +1160,7 @@ export const Dashboard: React.FC = () => {
             {/* مستحقات أجهزة الكمبيوتر */}
             <div 
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList('computer')}
+              onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
             >
               <div className="p-5 flex justify-between items-center">
                 <div className="flex flex-col">
