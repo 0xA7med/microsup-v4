@@ -36,7 +36,7 @@ export const PendingAgents: React.FC<PendingAgentsProps> = ({ refreshTrigger }) 
   const [searchTerm, setSearchTerm] = useState('');
   // Add filterStatus if you want Approved/Rejected tabs for agents too
   // const [filterStatus, setFilterStatus] = useState<string>('pending');
-  const [pendingCount, setPendingCount] = useState(0); // For consistency, though not displayed in filters here
+
 
   const isAdmin = user?.role === 'admin';
 
@@ -76,16 +76,15 @@ export const PendingAgents: React.FC<PendingAgentsProps> = ({ refreshTrigger }) 
 
     try {
       // Fetch only pending agents for this view
-      const { data, error: fetchError, count } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('agents')
-        .select('*', { count: 'exact' }) // Fetch all columns for potential future use
+        .select('*') // Fetch all columns for potential future use
         .eq('approval_status', 'pending')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
-      setAgents(data || []);
-      setPendingCount(count || 0); // Update pending count
+      setAgents(data || []); // Update agents list
 
     } catch (err: any) {
       console.error('Error fetching pending agents:', err);
@@ -190,7 +189,7 @@ export const PendingAgents: React.FC<PendingAgentsProps> = ({ refreshTrigger }) 
                       className="block w-full p-2 pr-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
                       placeholder={t('agent.searchPlaceholder', 'بحث بالاسم, الايميل, الهاتف...') as string}
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                   />
                   </div>
                   <Button

@@ -26,7 +26,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/agents" element={<AgentsList />} />
           <Route path="/agents/add" element={<AddAgent />} />
           <Route path="/pending-agents" element={<PendingAgents />} />
-          <Route path="/pending-devices" element={<PendingDevicesPage />} />
+          <Route path="/pending-devices" element={<PendingDevicesPage refreshTrigger={Date.now()} />} />
         </>
       ) : (
         <>

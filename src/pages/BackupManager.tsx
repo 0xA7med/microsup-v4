@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { toast } from 'react-hot-toast';
 import { ExcelImporter } from '../components/ExcelImporter'; // تأكد من صحة المسار
 import { WhatsAppImporter } from '../components/WhatsAppImporter'; // تأكد من صحة المسار
-import { getBackupHistory } from '@/lib/supabaseClient'; // قد تحتاج لإنشاء أو تعديل هذه الدالة
 import * as XLSX from 'xlsx';
 import { useAuthStore } from '@/store/authStore'; // تأكد من صحة المسار
 
@@ -559,8 +558,6 @@ const BackupManager: React.FC = () => {
                 toast.success('تم استيراد البيانات من Excel بنجاح.');
                 fetchCurrentStatsAndLastBackupInfo(); // تحديث الإحصائيات بعد الاستيراد
               }}
-              // يمكنك تمرير props إضافية إذا لزم الأمر
-              disabled={isLoading || isRestoring} // تعطيل أثناء العمليات الأخرى
             />
             {/* زر تحميل القالب */}
             <button
@@ -582,8 +579,6 @@ const BackupManager: React.FC = () => {
               toast.success('تم استيراد البيانات من WhatsApp بنجاح.');
               fetchCurrentStatsAndLastBackupInfo(); // تحديث الإحصائيات بعد الاستيراد
             }}
-            // يمكنك تمرير props إضافية إذا لزم الأمر
-             disabled={isLoading || isRestoring} // تعطيل أثناء العمليات الأخرى
           />
         </div>
 
