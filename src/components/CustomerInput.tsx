@@ -47,7 +47,7 @@ export default function CustomerInput({ isEditing, className = '', ...props }: C
       style={isNumberInput ? { 
         WebkitAppearance: 'none',
         MozAppearance: 'textfield',
-        appearance: 'textfield' // إضافة خاصية appearance القياسية
+        appearance: 'none' // تغيير إلى none للسماح بإدخال الأرقام على الهاتف المحمول
       } : undefined}
     />
   );

@@ -191,6 +191,17 @@ export default function DeviceModal({
     }
   };
 
+  // إعداد قائمة الاشتراكات مع الترجمة
+  const translatedSubscriptionTypes = (subscriptionTypes && subscriptionTypes.length > 0
+    ? subscriptionTypes
+    : [
+        { value: 'monthly', label: i18n.language === 'ar' ? 'شهري' : 'Monthly', labelEn: 'Monthly' },
+        { value: 'semi_annual', label: i18n.language === 'ar' ? 'نصف سنوي' : 'Biannual', labelEn: 'Biannual' },
+        { value: 'annual', label: i18n.language === 'ar' ? 'سنوي' : 'Annual', labelEn: 'Annual' },
+        { value: 'permanent', label: i18n.language === 'ar' ? 'دائم' : 'Permanent', labelEn: 'Permanent' }
+      ]
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -294,18 +305,22 @@ export default function DeviceModal({
 
               {/* نوع الاشتراك */}
               <CustomerField label={t('device.subscriptionType', 'نوع الاشتراك')} children={
-                <CustomerSelect
-                  name="subscription_type"
-                  value={formData.subscription_type || ''}
-                  onChange={(e) => handleSubscriptionTypeChange(e.target.value)}
-                  isEditing={mode === 'edit'}
-                  required
-                  options={subscriptionTypes.map(type => ({
-                    value: type.value,
-                    label: i18n.language === 'ar' ? type.label : type.labelEn
-                  }))}
-                  className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                />
+                translatedSubscriptionTypes.length > 0 ? (
+                  <CustomerSelect
+                    name="subscription_type"
+                    value={formData.subscription_type || ''}
+                    onChange={(e) => handleSubscriptionTypeChange(e.target.value)}
+                    isEditing={mode === 'edit'}
+                    required
+                    options={translatedSubscriptionTypes.map(type => ({
+                      value: type.value,
+                      label: i18n.language === 'ar' ? type.label : type.labelEn
+                    }))}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                  />
+                ) : (
+                  <div className="text-red-500 text-sm py-2">{t('device.noSubscriptionTypes', 'لا توجد أنواع اشتراك متاحة')}</div>
+                )
               } />
 
               {/* تاريخ بداية الاشتراك */}

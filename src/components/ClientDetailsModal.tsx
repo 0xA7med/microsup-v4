@@ -13,6 +13,7 @@ import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerTextArea from './CustomerTextArea';
 import DeviceModal from './DeviceModal';
+import CustomerSelect from './CustomerSelect';
 import { DeviceType, DEVICE_TYPES, APPROVAL_STATUS } from '../types/device.types';
 
 interface ClientDetailsModalProps {
@@ -549,6 +550,21 @@ export default function ClientDetailsModal({
                     isEditing={isEditing}
                     rows={4}
                     className="text-lg border-gray-300 dark:border-gray-600"
+                  />
+                } />
+                
+                {/* نوع الاشتراك */}
+                <CustomerField label={t('client.subscriptionType', 'نوع الاشتراك')} children={
+                  <CustomerSelect
+                    name="subscription_type"
+                    value={formData?.subscription_type || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    options={subscriptionTypes.map(type => ({
+                      value: type.value,
+                      label: i18n.language === 'ar' ? type.label : type.labelEn
+                    }))}
+                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
               </div>

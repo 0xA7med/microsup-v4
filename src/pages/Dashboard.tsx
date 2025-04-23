@@ -1,117 +1,123 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+// src/pages/Dashboard.tsx
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
-import { 
-  Users, UserPlus, Phone, 
+import {
+  Users, UserPlus, Phone,
   Clock, AlertCircle, Zap, Package, RefreshCw,
   ChevronDown, ChevronUp, Check, X, Smartphone, Laptop
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/Button';
-import ClientDetailsModal from '../components/ClientDetailsModal';
 import { useAuthStore } from '../store/authStore';
-import RecentClientsList from '../components/RecentClientsList';
+import RecentClientsList from '../components/RecentClientsList'; // Assuming this component now uses useDataStore if needed
+import { useDataStore, shallow } from '../store/dataStore'; // Import store hook and shallow
+import { ClientType as ImportedClientType } from '../types/client.types'; // Import ClientType
 
-import type { DashboardData, Client } from '../types/dashboard.types';
-
-// ثوابت التخزين المؤقت
-const CACHE_KEY = 'dashboard_cache_v1';
-const CACHE_DURATION = 30 * 1000; // 30 ثانية بالميلي ثانية
-
-const SUBSCRIPTION_TYPES = [
-  { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
-  { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Biannual' },
-  { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
-  { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
-];
-
-const VERSION_TYPES = [
-  { value: 'computer', label: 'كمبيوتر', labelEn: 'Computer' },
-  { value: 'android', label: 'اندرويد', labelEn: 'Mobile' }
-];
+// Remove unused types/constants if they are now handled by the store
+// import type { DashboardData, Client } from '../types/dashboard.types';
+// const CACHE_KEY = 'dashboard_cache_v1'; // No longer needed here
+// const CACHE_DURATION = 30 * 1000; // No longer needed here
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  
-  // حالة البيانات
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  
-  // حالة التحميل والتحديث
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(false); // مؤشر لتحديث مكون أحدث الاشتراكات
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
-  
-  // إضافة حالة لتخزين بيانات الاشتراكات
-  const [devicesData, setDevicesData] = useState<any[]>([]);
-  
-  // إضافة حالة لتتبع عمليات الجلب المعلقة
-  const isFetchingRef = useRef<boolean>(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  
-  // حالة طي البطاقات في وضع الهاتف
+  const user = useAuthStore(state => state.user);
+
+  // --- Subscribe to Zustand Store ---
+  const {
+    dashboardStats,
+    loading,
+    error,
+    fetchData,
+    lastUpdatedTimestamp // Get timestamp from store
+  } = useDataStore(
+    (state) => ({
+      dashboardStats: state.dashboardStats,
+      loading: state.loading,
+      error: state.error,
+      fetchData: state.fetchData,
+      lastUpdatedTimestamp: state.lastUpdatedTimestamp,
+    }),
+    shallow // Use shallow comparison
+  );
+
+  // --- Local UI State ---
+  const [refreshTrigger, setRefreshTrigger] = useState(false); // For RecentClientsList if needed
   const [collapsedSections, setCollapsedSections] = useState({
     mainStats: true,
     valueStats: true,
     deviceStats: true,
     subscriptionStats: true,
-    deviceStatusStats: true, // إضافة قسم جديد لحالة الاشتراكات
-    permanentStats: true // إضافة قسم جديد لإحصائيات الاشتراكات الدائمة والمنتهية
+    deviceStatusStats: true,
+    permanentStats: true
   });
-  
-  // دالة لتبديل حالة طي القسم
-  const toggleSection = (section: keyof typeof collapsedSections) => {
-    setCollapsedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-  
-  // مرجع لتتبع ما إذا كانت المكون مرئي
-  const isVisible = useRef<boolean>(true);
-  const isComponentMounted = useRef<boolean>(false);
-  
-  // الحصول على معلومات المستخدم الحالي
-  const user = useAuthStore(state => state.user);
-  
-  // تحديث دالة الانتقال لصفحة العملاء لتقبل معايير متعددة
-  const navigateToClientsList = useCallback((filters: string | Record<string, string> = {}) => {
-    let path = '/clients';
+
+  // --- Fetch Data on Mount/User Change ---
+  useEffect(() => {
+    // Fetch data (store handles caching logic)
+    // Pass the current user for role-based filtering/calculations in the store
+    console.log('Dashboard: Triggering fetchData from store effect.');
+    fetchData(false, user);
+  }, [fetchData, user]); // Re-fetch if fetchData function reference or user changes
+
+  // --- Error Handling ---
+  useEffect(() => {
+    if (error) {
+      toast.error(`${t('error.fetchingData', 'حدث خطأ أثناء جلب البيانات')}: ${error}`);
+      // Optionally clear the error in the store after showing it
+      // useDataStore.setState({ error: null });
+    }
+  }, [error, t]);
+
+  // --- Navigation Callbacks ---
+  const navigateToClientsList = useCallback((filters: Record<string, string> = {}) => {
     const params = new URLSearchParams();
-    
-    if (typeof filters === 'string') {
-      params.append('filter', filters);
-    } else {
-      Object.entries(filters).forEach(([key, value]) => {
+    Object.entries(filters).forEach(([key, value]) => {
         if (value) params.append(key, value);
-      });
-    }
-    
-    if ([...params].length > 0) {
-      path += `?${params.toString()}`;
-    }
-    
-    navigate(path);
+    });
+    const queryString = params.toString();
+    navigate(`/clients${queryString ? `?${queryString}` : ''}`);
   }, [navigate]);
 
-  // دالة للانتقال إلى قائمة الأجهزة المعلقة مع تطبيق فلتر
   const navigateToPendingDevices = useCallback((status?: string) => {
-    // تحديد المسار الأساسي
-    let path = '/pending-devices';
-    
-    // إضافة معلمات الفلتر إذا تم تحديدها
-    if (status) {
-      path += `?status=${status}`;
-    }
-    
-    // الانتقال إلى المسار المحدد
-    navigate(path);
+    navigate(`/pending-devices${status ? `?status=${status}` : ''}`);
   }, [navigate]);
 
-  // استخراج البيانات من كائن لوحة المعلومات
+  const navigateToAgentsList = useCallback(() => {
+    navigate('/agents');
+  }, [navigate]);
+
+  // --- UI Helpers ---
+  const toggleSection = (section: keyof typeof collapsedSections) => {
+    setCollapsedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const formatDateForDisplay = (dateStr?: string | number | Date | null): string => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        console.warn('Invalid date passed to formatDateForDisplay:', dateStr);
+        return '-';
+      }
+      return format(date, 'yyyy/MM/dd HH:mm'); // Consistent format with time
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return '-';
+    }
+  };
+
+  // --- Force Refresh ---
+  const handleRefresh = () => {
+    console.log('Dashboard: Forcing data refresh via button.');
+    fetchData(true, user); // Force refresh, bypass cache
+    setRefreshTrigger(prev => !prev); // Trigger refresh for child components if needed
+  };
+
+  // --- Destructure Stats from Store ---
+  // Use default values to prevent errors if stats are not yet available
   const {
     totalClients = 0,
     totalDevices = 0,
@@ -119,742 +125,27 @@ export const Dashboard: React.FC = () => {
     computerDevices = 0,
     pendingDevices = 0,
     rejectedDevices = 0,
+    approvedDevices = 0, // Added this stat
     totalValue = 0,
     mobileValue = 0,
     computerValue = 0,
-    expiringCount = 0,
-    expiredCount = 0,
-    activeCount = 0,
+    expiringCount = 0, // Renamed from expiringThisMonth for clarity
+    expiredCount = 0,  // Renamed from expiredSubscriptions
+    activeCount = 0,   // Renamed from activeSubscriptions / activeDevices
     noDevicesCount = 0,
-    lastUpdated = null,
     totalAgents = 0,
-    activeDevices = 0,
-    approvedDevices = 0
-  } = dashboardData || {};
-  
-  // طباعة البيانات للتحقق من صحتها
-  useEffect(() => {
-    if (dashboardData) {
-      console.log('Dashboard Data:', { 
-        totalClients, 
-        totalDevices, 
-        mobileDevices, 
-        computerDevices, 
-        pendingDevices, 
-        rejectedDevices, 
-        totalValue, 
-        mobileValue, 
-        computerValue, 
-        expiringCount, 
-        expiredCount, 
-        activeCount, 
-        noDevicesCount,
-        lastUpdated,
-        totalAgents,
-        activeDevices,
-        approvedDevices
-      });
+    // lastUpdated is now lastUpdatedTimestamp (number)
+  } = dashboardStats || {};
+
+
+    // Display loading indicator
+    if (loading && !dashboardStats.totalClients) { // Show loading only on initial load or forced refresh without data
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            </div>
+        );
     }
-  }, [dashboardData]);
-
-  // وظيفة للحصول على البيانات المخزنة مؤقتًا
-  const getCachedDashboardData = useCallback((): { data: DashboardData | null, expired: boolean } => {
-    try {
-      const cachedData = localStorage.getItem(CACHE_KEY);
-      if (!cachedData) return { data: null, expired: true };
-      
-      const { data, timestamp } = JSON.parse(cachedData);
-      const now = new Date().getTime();
-      const expired = now - timestamp > CACHE_DURATION;
-      
-      return { data, expired };
-    } catch (error) {
-      console.error('Error reading cache:', error);
-      return { data: null, expired: true };
-    }
-  }, []);
-
-  // وظيفة لتخزين البيانات مؤقتًا
-  const cacheDashboardData = useCallback((data: DashboardData) => {
-    try {
-      const cacheData = {
-        data,
-        timestamp: new Date().getTime()
-      };
-      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-    } catch (error) {
-      console.error('Error caching data:', error);
-    }
-  }, []);
-
-  // وظيفة جلب بيانات لوحة المعلومات
-  const fetchDashboardData = useCallback(async (forceRefresh = false) => {
-    setLoading(true);
-    try {
-      // التحقق من وجود بيانات مخزنة مؤقتًا
-      const { data: cachedData, expired } = getCachedDashboardData();
-      
-      // استخدام البيانات المخزنة مؤقتًا إذا كانت صالحة ولم يتم طلب تحديث إجباري
-      if (cachedData && !expired && !forceRefresh) {
-        setDashboardData(cachedData);
-        setLoading(false);
-        return;
-      }
-      
-      // جلب جميع بيانات العملاء باستخدام التجزئة
-      let allClientsData: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error: pageError } = await supabase
-          .from('clients')
-          .select('id, client_name, subscription_end, subscription_type, agent_id')
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (pageError) throw pageError;
-
-        if (pageData && pageData.length > 0) {
-          allClientsData = [...allClientsData, ...pageData];
-          page++;
-          console.log(`Fetched page ${page} of clients: ${pageData.length} records. Total: ${allClientsData.length}`);
-          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
-      let filteredClientsData = allClientsData || [];
-      
-      // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
-      if (user?.role === 'agent') {
-        const agentId = user.id;
-        filteredClientsData = filteredClientsData.filter(client => client.agent_id === agentId);
-        console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
-      }
-      
-      // جلب بيانات الاشتراكات باستخدام التجزئة
-      let allDevicesData: any[] = [];
-      page = 0;
-      hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error: pageError } = await supabase
-          .from('devices')
-          .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status')
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (pageError) throw pageError;
-
-        if (pageData && pageData.length > 0) {
-          allDevicesData = [...allDevicesData, ...pageData];
-          page++;
-          console.log(`Fetched page ${page} of devices: ${pageData.length} records. Total: ${allDevicesData.length}`);
-          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // تصفية الاشتراكات حسب العملاء المصفاة
-      let filteredDevicesData = allDevicesData || [];
-      
-      // إذا كان المستخدم مندوب، نصفي الاشتراكات لعرض أجهزة عملائه فقط
-      if (user?.role === 'agent') {
-        const filteredClientIds = filteredClientsData.map(client => client.id);
-        filteredDevicesData = filteredDevicesData.filter(device => filteredClientIds.includes(device.client_id));
-        console.log('Filtered devices for agent:', filteredDevicesData.length);
-      }
-      
-      // تخزين بيانات الاشتراكات في حالة المكون
-      setDevicesData(filteredDevicesData || []);
-      
-      // حساب المستحقات
-      let totalValue = 0;
-      let mobileValue = 0;
-      let computerValue = 0;
-      
-      // حساب عدد الاشتراكات حسب النوع والحالة
-      let totalDevices = 0;
-      let pendingDevices = 0;
-      let rejectedDevices = 0;
-      
-      // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
-      let activeSubscriptionsCount = 0;
-      let expiredSubscriptionsCount = 0;
-      let expiringThisMonthCount = 0;
-      let mobileDevicesCount = 0;
-      let computerDevicesCount = 0;
-      
-      // الحصول على التاريخ الحالي
-      const currentDate = new Date();
-      // تاريخ بعد 15 يوم من الآن
-      const futureDate = new Date();
-      futureDate.setDate(currentDate.getDate() + 15);
-      
-      // حساب المستحقات المالية والأعداد من الاشتراكات
-      if (filteredDevicesData) {
-        // ابدأ بطباعة العدد الإجمالي للأجهزة للتشخيص
-        console.log('Total devices fetched:', filteredDevicesData.length);
-        
-        // تحليل البيانات للعثور على الاشتراكات المنتهية والنشطة
-        const approvedDevicesArr = filteredDevicesData.filter(device => device.approval_status === 'approved');
-        console.log('Approved devices:', approvedDevicesArr.length);
-        
-        // الاشتراكات المنتهية هي الاشتراكات المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
-        const expiredDevicesArr = approvedDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return false;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          const isExpired = endDate < currentDate;
-          return isExpired;
-        });
-        
-        // الاشتراكات النشطة هي الاشتراكات المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
-        const activeDevicesArr = approvedDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return true;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          return endDate >= currentDate;
-        });
-        
-        // تحديث المتغيرات
-        expiredSubscriptionsCount = expiredDevicesArr.length;
-        activeSubscriptionsCount = activeDevicesArr.length;
-        
-        console.log('Expired devices count:', expiredSubscriptionsCount);
-        console.log('Active devices count:', activeSubscriptionsCount);
-        
-        // الاشتراكات التي ستنتهي خلال 15 يوم
-        const expiringDevicesArr = activeDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return false;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          return endDate <= futureDate;
-        });
-        
-        expiringThisMonthCount = expiringDevicesArr.length;
-        console.log('Expiring soon devices count:', expiringThisMonthCount);
-        
-        filteredDevicesData.forEach((device: any) => {
-          // حساب المستحقات المالية فقط للأجهزة المقبولة
-          if (device.approval_status === 'approved') {
-            const price = parseFloat(device.price) || 0;
-            totalValue += price;
-            
-            if (device.device_type === 'computer') {
-              computerValue += price;
-              computerDevicesCount++;
-            } else {
-              mobileValue += price;
-              mobileDevicesCount++;
-            }
-          }
-          
-          // حساب عدد الاشتراكات حسب النوع والحالة
-          totalDevices++;
-          
-          if (device.approval_status === 'pending') {
-            pendingDevices++;
-          } else if (device.approval_status === 'rejected') {
-            rejectedDevices++;
-          }
-        });
-      }
-      
-      // إنشاء كائن البيانات
-      const newDashboardData: DashboardData = {
-        totalClients: filteredClientsData?.length || 0,
-        totalAgents: 0,
-        activeSubscriptions: activeSubscriptionsCount,
-        recentClients: [],
-        expiredSubscriptions: expiredSubscriptionsCount,
-        averageDevices: 0,
-        renewalRate: 0,
-        agents: [],
-        permanentClients: 0,
-        expiringThisMonth: expiringThisMonthCount,
-        lastUpdated: new Date().toISOString(),
-        // المستحقات المالية
-        totalValue,
-        mobileValue,
-        computerValue,
-        // حالة الاشتراكات
-        pendingDevices,
-        rejectedDevices,
-        approvedDevices: totalDevices - pendingDevices - rejectedDevices,
-        // عدد الاشتراكات حسب النوع
-        totalDevices,
-        // إضافة الحقول المفقودة
-        activeDevices: activeSubscriptionsCount || 0,
-        mobileDevices: mobileDevicesCount,
-        computerDevices: computerDevicesCount
-      };
-      
-      // تحديث حالة المكون
-      setDashboardData(newDashboardData);
-      
-      // تخزين البيانات مؤقتًا
-      cacheDashboardData(newDashboardData);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error(t('error.fetchingData', 'حدث خطأ أثناء جلب البيانات'));
-    } finally {
-      setLoading(false);
-    }
-  }, [getCachedDashboardData, cacheDashboardData, t]);
-
-  // دالة لتحميل البيانات الأولية
-  const loadInitialData = useCallback(async () => {
-    // إذا كان هناك طلب جلب قيد التنفيذ، قم بإلغائه
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    // إنشاء وحدة تحكم جديدة للإلغاء
-    abortControllerRef.current = new AbortController();
-    
-    // تعيين حالة الجلب
-    isFetchingRef.current = true;
-    
-    // التحقق من التخزين المؤقت
-    const cachedData = localStorage.getItem(CACHE_KEY);
-    const now = new Date().getTime();
-    
-    if (cachedData) {
-      try {
-        const { data, timestamp } = JSON.parse(cachedData);
-        // استخدام البيانات المخزنة مؤقتًا إذا كانت حديثة
-        if (now - timestamp < CACHE_DURATION) {
-          setDashboardData(data);
-          setLoading(false);
-          isFetchingRef.current = false;
-          return;
-        }
-      } catch (error) {
-        console.error('Error parsing cached data:', error);
-      }
-    }
-    
-    // إذا لم تكن هناك بيانات مخزنة مؤقتًا أو كانت قديمة
-    setLoading(true);
-    
-    try {
-      // جلب جميع بيانات العملاء باستخدام التجزئة
-      let allClientsData: any[] = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error: pageError } = await supabase
-          .from('clients')
-          .select('id, client_name, subscription_end, subscription_type, agent_id')
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (pageError) throw pageError;
-
-        if (pageData && pageData.length > 0) {
-          allClientsData = [...allClientsData, ...pageData];
-          page++;
-          console.log(`Fetched page ${page} of clients: ${pageData.length} records. Total: ${allClientsData.length}`);
-          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // تصفية العملاء حسب المندوب الحالي إذا كان المستخدم مندوب
-      let filteredClientsData = allClientsData || [];
-      
-      // إذا كان المستخدم مندوب، نعرض فقط العملاء المرتبطين به
-      if (user?.role === 'agent') {
-        const agentId = user.id;
-        filteredClientsData = filteredClientsData.filter(client => client.agent_id === agentId);
-        console.log(`Filtered clients for agent ${agentId}:`, filteredClientsData.length);
-      }
-      
-      // جلب بيانات الاشتراكات باستخدام التجزئة
-      let allDevicesData: any[] = [];
-      page = 0;
-      hasMore = true;
-
-      while (hasMore) {
-        const { data: pageData, error: pageError } = await supabase
-          .from('devices')
-          .select('id, client_id, subscription_end, subscription_type, device_type, price, approval_status')
-          .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (pageError) throw pageError;
-
-        if (pageData && pageData.length > 0) {
-          allDevicesData = [...allDevicesData, ...pageData];
-          page++;
-          console.log(`Fetched page ${page} of devices: ${pageData.length} records. Total: ${allDevicesData.length}`);
-          // إذا كان عدد السجلات أقل من حجم الصفحة، فهذا يعني أننا وصلنا إلى نهاية البيانات
-          if (pageData.length < pageSize) {
-            hasMore = false;
-          }
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // تصفية الاشتراكات حسب العملاء المصفاة
-      let filteredDevicesData = allDevicesData || [];
-      
-      // إذا كان المستخدم مندوب، نصفي الاشتراكات لعرض أجهزة عملائه فقط
-      if (user?.role === 'agent') {
-        const filteredClientIds = filteredClientsData.map(client => client.id);
-        filteredDevicesData = filteredDevicesData.filter(device => filteredClientIds.includes(device.client_id));
-        console.log('Filtered devices for agent:', filteredDevicesData.length);
-      }
-      
-      // تخزين بيانات الاشتراكات في حالة المكون
-      setDevicesData(filteredDevicesData || []);
-      
-      // حساب المستحقات
-      let totalValue = 0;
-      let mobileValue = 0;
-      let computerValue = 0;
-      
-      // حساب عدد الاشتراكات حسب النوع والحالة
-      let totalDevices = 0;
-      let pendingDevices = 0;
-      let rejectedDevices = 0;
-      
-      // إضافة متغيرات لحساب الاشتراكات النشطة والمنتهية
-      let activeSubscriptionsCount = 0;
-      let expiredSubscriptionsCount = 0;
-      let expiringThisMonthCount = 0;
-      let mobileDevicesCount = 0;
-      let computerDevicesCount = 0;
-      
-      // الحصول على التاريخ الحالي
-      const currentDate = new Date();
-      // تاريخ بعد 15 يوم من الآن
-      const futureDate = new Date();
-      futureDate.setDate(currentDate.getDate() + 15);
-      
-      // حساب المستحقات المالية والأعداد من الاشتراكات
-      if (filteredDevicesData) {
-        // ابدأ بطباعة العدد الإجمالي للأجهزة للتشخيص
-        console.log('Total devices fetched:', filteredDevicesData.length);
-        
-        // تحليل البيانات للعثور على الاشتراكات المنتهية والنشطة
-        const approvedDevicesArr = filteredDevicesData.filter(device => device.approval_status === 'approved');
-        console.log('Approved devices:', approvedDevicesArr.length);
-        
-        // الاشتراكات المنتهية هي الاشتراكات المقبولة وغير الدائمة وتاريخ انتهاء صلاحيتها أقل من التاريخ الحالي
-        const expiredDevicesArr = approvedDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return false;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          const isExpired = endDate < currentDate;
-          return isExpired;
-        });
-        
-        // الاشتراكات النشطة هي الاشتراكات المقبولة إما الدائمة أو التي لم تنته صلاحيتها بعد
-        const activeDevicesArr = approvedDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return true;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          return endDate >= currentDate;
-        });
-        
-        // تحديث المتغيرات
-        expiredSubscriptionsCount = expiredDevicesArr.length;
-        activeSubscriptionsCount = activeDevicesArr.length;
-        
-        console.log('Expired devices count:', expiredSubscriptionsCount);
-        console.log('Active devices count:', activeSubscriptionsCount);
-        
-        // الاشتراكات التي ستنتهي خلال 15 يوم
-        const expiringDevicesArr = activeDevicesArr.filter(device => {
-          if (device.subscription_type === 'permanent') return false;
-          if (!device.subscription_end) return false;
-          const endDate = new Date(device.subscription_end);
-          return endDate <= futureDate;
-        });
-        
-        expiringThisMonthCount = expiringDevicesArr.length;
-        console.log('Expiring soon devices count:', expiringThisMonthCount);
-        
-        filteredDevicesData.forEach((device: any) => {
-          // حساب المستحقات المالية فقط للأجهزة المقبولة
-          if (device.approval_status === 'approved') {
-            const price = parseFloat(device.price) || 0;
-            totalValue += price;
-            
-            if (device.device_type === 'computer') {
-              computerValue += price;
-              computerDevicesCount++;
-            } else {
-              mobileValue += price;
-              mobileDevicesCount++;
-            }
-          }
-          
-          // حساب عدد الاشتراكات حسب النوع والحالة
-          totalDevices++;
-          
-          if (device.approval_status === 'pending') {
-            pendingDevices++;
-          } else if (device.approval_status === 'rejected') {
-            rejectedDevices++;
-          }
-        });
-      }
-      
-      // إنشاء كائن البيانات
-      const newDashboardData: DashboardData = {
-        totalClients: filteredClientsData?.length || 0,
-        totalAgents: 0,
-        activeSubscriptions: activeSubscriptionsCount,
-        recentClients: [],
-        expiredSubscriptions: expiredSubscriptionsCount,
-        averageDevices: 0,
-        renewalRate: 0,
-        agents: [],
-        permanentClients: 0,
-        expiringThisMonth: expiringThisMonthCount,
-        lastUpdated: new Date().toISOString(),
-        // المستحقات المالية
-        totalValue,
-        mobileValue,
-        computerValue,
-        // حالة الاشتراكات
-        pendingDevices,
-        rejectedDevices,
-        approvedDevices: totalDevices - pendingDevices - rejectedDevices,
-        // عدد الاشتراكات حسب النوع
-        totalDevices,
-        // إضافة الحقول المفقودة
-        activeDevices: activeSubscriptionsCount || 0,
-        mobileDevices: mobileDevicesCount,
-        computerDevices: computerDevicesCount
-      };
-      
-      // تحديث حالة المكون
-      setDashboardData(newDashboardData);
-      
-      // تخزين البيانات مؤقتًا
-      cacheDashboardData(newDashboardData);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      toast.error(t('error.fetchingData', 'حدث خطأ أثناء جلب البيانات'));
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, [getCachedDashboardData, cacheDashboardData, t]);
-
-  // تأثير لتحميل البيانات عند تحميل المكون أو تغيير حالة الرؤية
-  useEffect(() => {
-    isComponentMounted.current = true;
-    
-    // دالة لمعالجة تغيير حالة الرؤية
-    const handleVisibilityChange = () => {
-      const isDocVisible = document.visibilityState === 'visible';
-      isVisible.current = isDocVisible;
-      
-      if (isDocVisible && isComponentMounted.current) {
-        loadInitialData();
-      }
-    };
-    
-    // إضافة مستمع لتغيير حالة الرؤية
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // تحميل البيانات الأولية
-    loadInitialData();
-    
-    // تنظيف المستمع عند إلغاء تحميل المكون
-    return () => {
-      isComponentMounted.current = false;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      // إلغاء أي طلبات معلقة
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [loadInitialData]);
-
-  // تحديث البيانات عند تغير رؤية الصفحة
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      isVisible.current = document.visibilityState === 'visible';
-      
-      if (isVisible.current) {
-        // تحقق من عمر البيانات المخزنة مؤقتًا عند العودة إلى الصفحة
-        const { expired } = getCachedDashboardData();
-        if (expired) {
-          fetchDashboardData(true);
-        }
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [getCachedDashboardData, fetchDashboardData]);
-
-  // استدعاء البيانات عند تحميل الصفحة
-  useEffect(() => {
-    const loadInitialData = async () => {
-      // محاولة استخدام البيانات المخزنة مؤقتًا أولاً
-      const { data: cachedData, expired } = getCachedDashboardData();
-      
-      if (cachedData) {
-        // استخدام البيانات المخزنة مؤقتًا حتى يتم تحديثها
-        setDashboardData(cachedData);
-        
-        // إذا كانت البيانات قديمة، قم بتحديثها في الخلفية
-        if (expired) {
-          fetchDashboardData(false);
-        }
-      } else {
-        // لا توجد بيانات مخزنة مؤقتًا، قم بتحميل البيانات
-        fetchDashboardData(true);
-      }
-    };
-    
-    loadInitialData();
-    // استخدام مصفوفة تبعيات فارغة لضمان تنفيذ هذا التأثير مرة واحدة فقط عند تحميل المكون
-  }, [getCachedDashboardData]);
-
-  // تحديث بيانات العميل
-  const updateClient = async (updatedClient: any): Promise<void> => {
-    try {
-      // تحديث بيانات العميل في قاعدة البيانات
-      const { error } = await supabase
-        .from('clients')
-        .update({
-          client_name: updatedClient.client_name,
-          organization_name: updatedClient.organization_name,
-          activity_type: updatedClient.activity_type,
-          address: updatedClient.address,
-          phone: updatedClient.phone,
-          phone2: updatedClient.phone2,
-          notes: updatedClient.notes,
-          subscription_type: updatedClient.subscription_type,
-          subscription_start: updatedClient.subscription_start,
-          subscription_end: updatedClient.subscription_end,
-          agent_id: updatedClient.agent_id
-        })
-        .eq('id', updatedClient.id);
-      
-      if (error) throw error;
-      
-      // إظهار رسالة نجاح
-      toast.success(t('messages.clientUpdated', 'تم تحديث بيانات العميل بنجاح'));
-      
-      // تحديث البيانات
-      fetchDashboardData(true);
-    } catch (error) {
-      console.error('Error updating client:', error);
-      toast.error(t('messages.errorUpdatingClient', 'حدث خطأ أثناء تحديث بيانات العميل'));
-    }
-  };
-
-  // حذف العميل
-  const handleDeleteClient = async (clientId: string): Promise<void> => {
-    try {
-      // تحديث بيانات العميل في قاعدة البيانات
-      const { error } = await supabase
-        .from('clients')
-        .delete()
-        .eq('id', clientId);
-      
-      if (error) throw error;
-      
-      // إظهار رسالة نجاح
-      toast.success(t('messages.clientDeleted', 'تم حذف العميل بنجاح'));
-      
-      // إغلاق النافذة وتحديث البيانات
-      handleCloseModal();
-      fetchDashboardData(true);
-    } catch (error) {
-      console.error('Error deleting client:', error);
-      toast.error(t('messages.errorDeletingClient', 'حدث خطأ أثناء حذف العميل'));
-    }
-  };
-
-  // Helper functions for client management
-  const handleShowDetails = (client: Client) => {
-    setSelectedClient(client);
-    setShowDetailsModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowDetailsModal(false);
-    setSelectedClient(null);
-    // Refresh data after closing modal
-    fetchDashboardData(true);
-  };
-
-  const formatDateForDisplay = (dateStr?: string | Date): string => {
-    if (!dateStr) return '';
-    try {
-      const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
-      if (isNaN(date.getTime())) {
-        return '';
-      }
-      return format(date, 'dd/MM/yyyy');
-    } catch (error) {
-      console.warn('Error formatting date:', error);
-      return '';
-    }
-  };
-
-  // Navigate to agents list
-  const navigateToAgentsList = () => {
-    navigate('/agents');
-  };
-
-  // عرض مؤشر التحميل أثناء التحميل الأولي
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
-  // حساب إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي خلال 15 يوم بشكل ديناميكي
-  const now = new Date();
-  const fifteenDaysLater = new Date();
-  fifteenDaysLater.setDate(now.getDate() + 15);
-
-  const expiredDevicesCount = devicesData.filter(device => {
-    if (device.subscription_type === 'permanent') return false;
-    if (!device.subscription_end) return false;
-    try {
-      return new Date(device.subscription_end) < now;
-    } catch (e) {
-      return false;
-    }
-  }).length;
-  const expiringSoonCount = devicesData.filter(device => {
-    if (device.subscription_type === 'permanent') return false;
-    if (!device.subscription_end) return false;
-    const end = new Date(device.subscription_end);
-    return end >= now && end <= fifteenDaysLater;
-  }).length;
 
   return (
     <div className="space-y-6">
@@ -862,71 +153,69 @@ export const Dashboard: React.FC = () => {
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
           {t('nav.dashboard')}
         </h1>
-        
         <div className="flex space-x-2 rtl:space-x-reverse">
-         
           <Button
-            onClick={() => {
-              fetchDashboardData(true);
-              setRefreshTrigger(prev => !prev); // تغيير مستحقاتة مؤشر التحديث لإعادة تحميل بيانات الاشتراكات
-            }}
+            onClick={handleRefresh}
             variant="secondary"
-            className={`flex items-center space-x-1 rtl:space-x-reverse`}
+            className="flex items-center space-x-1 rtl:space-x-reverse"
+            disabled={loading} // Disable button while loading
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('actions.refresh', 'تحديث')}</span>
           </Button>
         </div>
       </div>
-      
-      {lastUpdated && (
+
+      {/* Display Last Updated Timestamp */}
+      {lastUpdatedTimestamp && (
         <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
-          {t('dashboard.lastUpdated', 'آخر تحديث')}: {formatDateForDisplay(lastUpdated)} {format(new Date(lastUpdated), 'HH:mm')}
+          {t('dashboard.lastUpdated', 'آخر تحديث')}: {formatDateForDisplay(lastUpdatedTimestamp)}
         </div>
       )}
- 
-      {/* الصف الأول من البطاقات */}
+
+      {/* Error Display */}
+      {error && !loading && (
+         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+             <strong className="font-bold">{t('common.error', 'خطأ!')} </strong>
+             <span className="block sm:inline">{t('error.fetchingData', 'حدث خطأ أثناء جلب البيانات.')} {error}</span>
+         </div>
+      )}
+
+      {/* Main Stats Section */}
       <div className="mb-5">
-        <div 
+        <div
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg mb-1 shadow cursor-pointer md:hidden"
           onClick={() => toggleSection('mainStats')}
         >
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.mainStats', 'الإحصائيات الرئيسية')}</h2>
-          <div className="flex items-center">
-            {collapsedSections.mainStats ? 
-              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
-              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            }
-          </div>
+          {collapsedSections.mainStats ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronUp className="h-5 w-5 text-gray-500" />}
         </div>
-        
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
-          {/* إجمالي العملاء */}
-          <div 
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.mainStats ? 'hidden md:grid' : 'grid'}`}>
+          {/* Total Clients Card */}
+          <div
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'all' })}
+            onClick={() => navigateToClientsList({ filter: 'all' })} // Navigate to all clients
           >
             <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalClients', 'إجمالي العملاء')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalClients}</span>
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.totalClients', 'إجمالي العملاء')}</p>
+                <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{totalClients}</p>
               </div>
               <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
                 <Users className="h-6 w-6 text-green-600 dark:text-green-300" />
               </div>
             </div>
           </div>
-          
-          {/* المندوبين - عرض فقط للمسؤولين */}
-          {user?.role !== 'agent' && (
-            <div 
+          {/* Total Agents Card (Admin/Super Admin only) */}
+          {(user?.role === 'admin' || user?.role === 'super_admin') && (
+            <div
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={navigateToAgentsList}
             >
               <div className="p-5 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.agents', 'المندوبين')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalAgents || 0}</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.agents', 'المندوبين')}</p>
+                  <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{totalAgents}</p>
                 </div>
                 <div className="bg-purple-100 dark:bg-purple-900 p-3 rounded-full">
                   <UserPlus className="h-6 w-6 text-purple-600 dark:text-purple-300" />
@@ -936,260 +225,245 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
-      
-     
-      {/* قسم حالة الاشتراكات */}
+
+      {/* Device Status Stats Section */}
       <div className="mb-8">
-        <div 
+        <div
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
           onClick={() => toggleSection('deviceStatusStats')}
         >
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.deviceStatus', 'حالة الاشتراكات')}</h2>
-          {collapsedSections.deviceStatusStats ? (
-            <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          ) : (
-            <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          )}
+          {collapsedSections.deviceStatusStats ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronUp className="h-5 w-5 text-gray-500" />}
         </div>
-        
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
-          {/* إجمالي الاشتراكات */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'all' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalDevices', 'إجمالي الاشتراكات')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{totalDevices || 0}</span>
-              </div>
-              <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
-                <Package className="h-6 w-6 text-blue-600 dark:text-blue-300" />
-              </div>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${collapsedSections.deviceStatusStats ? 'hidden md:grid' : 'grid'}`}>
+            {/* Total Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                 onClick={() => navigateToClientsList({ filter: 'allDevices' })} // Navigate to show all devices
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.totalDevices', 'إجمالي الاشتراكات')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{totalDevices}</p>
+                    </div>
+                    <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
+                        <Package className="h-6 w-6 text-blue-600 dark:text-blue-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-           
-          {/* أجهزة الهاتف */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList({ filter: 'android' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {mobileDevices || devicesData.filter((device: any) => device.device_type !== 'computer').length}
-                </span>
-              </div>
-              <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
-                <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-              </div>
+             {/* Approved Devices Card */}
+             <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                 onClick={() => navigateToClientsList({ filter: 'approved' })} // Filter for approved might need implementation in ClientsList
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.approvedDevices', 'الاشتراكات المقبولة')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{approvedDevices}</p>
+                    </div>
+                    <div className="bg-cyan-100 dark:bg-cyan-900 p-3 rounded-full">
+                        <Check className="h-6 w-6 text-cyan-600 dark:text-cyan-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-          
-          {/* أجهزة الكمبيوتر */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105" 
-            onClick={() => navigateToClientsList({ filter: 'computer' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {computerDevices || devicesData.filter((device: any) => device.device_type === 'computer').length}
-                </span>
-              </div>
-              <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
-                <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
-              </div>
+            {/* Active Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ filter: 'active' })}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.activeDevices', 'الاشتراكات النشطة')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{activeCount}</p>
+                    </div>
+                    <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
+                        <Zap className="h-6 w-6 text-green-600 dark:text-green-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-          {/* الاشتراكات النشطة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'active' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.activeDevices', 'الاشتراكات النشطة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{activeCount || 0}</span>
-              </div>
-              <div className="bg-green-100 dark:bg-green-900 p-3 rounded-full">
-                <Check className="h-6 w-6 text-green-600 dark:text-green-300" />
-              </div>
+            {/* Pending Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToPendingDevices('pending')}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.pendingDevices', 'الاشتراكات المعلقة')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{pendingDevices}</p>
+                    </div>
+                    <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
+                        <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-          
-          {/* الاشتراكات المعلقة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToPendingDevices('pending')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.pendingDevices', 'الاشتراكات المعلقة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingDevices || 0}</span>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-              </div>
+            {/* Rejected Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToPendingDevices('rejected')}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.rejectedDevices', 'الاشتراكات المرفوضة')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{rejectedDevices}</p>
+                    </div>
+                    <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
+                        <X className="h-6 w-6 text-red-600 dark:text-red-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-          
-          {/* الاشتراكات المرفوضة */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToPendingDevices('rejected')}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.rejectedDevices', 'الاشتراكات المرفوضة')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{rejectedDevices || 0}</span>
-              </div>
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <X className="h-6 w-6 text-red-600 dark:text-red-300" />
-              </div>
+             {/* Mobile Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })} // Use deviceFilter param
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</p>
+                         {/* Displaying count of *approved* mobile devices */}
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{mobileDevices}</p>
+                    </div>
+                    <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
+                        <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
+                    </div>
+                </div>
             </div>
-          </div>
+            {/* Computer Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })} // Use deviceFilter param
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</p>
+                        {/* Displaying count of *approved* computer devices */}
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{computerDevices}</p>
+                    </div>
+                    <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
+                        <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
+                    </div>
+                </div>
+            </div>
         </div>
       </div>
 
-    {/* قسم إحصائيات الاشتراكات الدائمة والمنتهية وتنتهي قريباً */}
-    <div className="mb-5">
-        <div 
+      {/* Subscription Expiry Stats Section */}
+      <div className="mb-5">
+        <div
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
-          onClick={() => toggleSection('permanentStats')}
+          onClick={() => toggleSection('permanentStats')} // Reusing name, maybe rename state key
         >
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.subscriptionTypes', 'أنواع الاشتراكات')}</h2>
-          <div className="flex items-center">
-            {collapsedSections.permanentStats ? 
-              <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
-              <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            }
-          </div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.subscriptionExpiry', 'حالة انتهاء الصلاحية')}</h2>
+           {collapsedSections.permanentStats ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronUp className="h-5 w-5 text-gray-500" />}
         </div>
-        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.mainStats ? 'hidden md:grid' : ''}`}>
-          {/* الاشتراكات المنتهية */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'expired' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiredDevicesCount}</span>
-              </div>
-              <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
-              </div>
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-2 ${collapsedSections.permanentStats ? 'hidden md:grid' : 'grid'}`}>
+            {/* Expired Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ filter: 'expired' })}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.expiredSubscriptions', 'الاشتراكات المنتهية')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{expiredCount}</p>
+                    </div>
+                    <div className="bg-red-100 dark:bg-red-900 p-3 rounded-full">
+                        <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-300" />
+                    </div>
+                </div>
             </div>
-          </div>
-          {/* تنتهي خلال 15 يوم */}
-          <div 
-            className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'expiring' })}
-          >
-            <div className="p-5 flex justify-between items-center">
-              <div className="flex flex-col">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</span>
-                <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{expiringSoonCount}</span>
-              </div>
-              <div className="bg-yellow-100 dark:bg-yellow-900 p-3 rounded-full">
-                <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-300" />
-              </div>
+            {/* Expiring Soon Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ filter: 'expiring' })}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{expiringCount}</p>
+                    </div>
+                    <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full"> {/* Changed color */}
+                        <Clock className="h-6 w-6 text-orange-600 dark:text-orange-300" />
+                    </div>
+                </div>
             </div>
-          </div>
         </div>
       </div>
-    
-      
-      
-       {/* قسم إحصائيات المستحقات - يظهر فقط للمديرين */}
-       {(user?.role === 'admin' || user?.role === 'super_admin') && (
+
+      {/* Financial Stats Section (Admin/Super Admin only) */}
+      {(user?.role === 'admin' || user?.role === 'super_admin') && (
         <div className="mb-5">
-          <div 
+          <div
             className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
             onClick={() => toggleSection('valueStats')}
           >
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.valueStats', 'إحصائيات المستحقات')}</h2>
-            <div className="flex items-center">
-              {collapsedSections.valueStats ? 
-                <ChevronDown className="h-5 w-5 text-gray-500 dark:text-gray-400" /> : 
-                <ChevronUp className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-              }
-            </div>
+             {collapsedSections.valueStats ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronUp className="h-5 w-5 text-gray-500" />}
           </div>
-          <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.valueStats ? 'hidden md:grid' : ''}`}>
-            {/* إجمالي المستحقات */}
-            <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList({ filter: 'all' })}
+          <div className={`grid grid-cols-1 gap-5 sm:grid-cols-3 lg:grid-cols-3 ${collapsedSections.valueStats ? 'hidden md:grid' : 'grid'}`}>
+            {/* Total Value Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                 onClick={() => navigateToClientsList({ filter: 'all' })} // Maybe link to a financial report later?
             >
-              <div className="p-5 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.totalValue', 'إجمالي المستحقات')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(totalValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.totalValue', 'إجمالي المستحقات ')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{totalValue.toLocaleString()} {t('common.currency', 'جنيه')}</p>
+                    </div>
+                    <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
+                        <Zap className="h-6 w-6 text-blue-600 dark:text-blue-300" />
+                    </div>
                 </div>
-                <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
-                  <Zap className="h-6 w-6 text-blue-600 dark:text-blue-300" />
-                </div>
-              </div>
             </div>
-            {/* مستحقات أجهزة الهاتف */}
-            <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList({ filter: 'android' })}
+            {/* Mobile Value Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })} // Link to mobile devices
             >
-              <div className="p-5 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.mobileValue', 'مستحقات الهاتف')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(mobileValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.mobileValue', 'مستحقات الهاتف ')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{mobileValue.toLocaleString()} {t('common.currency', 'جنيه')}</p>
+                    </div>
+                    <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
+                        <Smartphone className="h-6 w-6 text-orange-600 dark:text-orange-300" />
+                    </div>
                 </div>
-                <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full">
-                  <Phone className="h-6 w-6 text-orange-600 dark:text-orange-300" />
-                </div>
-              </div>
             </div>
-            {/* مستحقات أجهزة الكمبيوتر */}
-            <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-              onClick={() => navigateToClientsList({ filter: 'computer' })}
+            {/* Computer Value Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })} // Link to computer devices
             >
-              <div className="p-5 flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">{t('dashboard.computerValue', 'مستحقات الكمبيوتر')}</span>
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{(computerValue || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.computerValue', 'مستحقات الكمبيوتر ')}</p>
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{computerValue.toLocaleString()} {t('common.currency', 'جنيه')}</p>
+                    </div>
+                    <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
+                        <Laptop className="h-6 w-6 text-indigo-600 dark:text-indigo-300" /> {/* Changed icon */}
+                    </div>
                 </div>
-                <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
-                  <Package className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-                </div>
-              </div>
             </div>
           </div>
         </div>
       )}
-      
-      {/* أحدث الاشتراكات */}
-      <RecentClientsList 
-        formatDateForDisplay={formatDateForDisplay}
-        handleShowDetails={handleShowDetails}
-        navigateToClientsList={navigateToClientsList}
-        refreshTrigger={refreshTrigger} // إضافة مؤشر التحديث
-      />
 
-      {selectedClient && (
-        <ClientDetailsModal
-          client={selectedClient as any}
-          agents={[]}
-          isOpen={showDetailsModal}
-          onClose={handleCloseModal}
-          onSave={(updatedClient: any) => updateClient(updatedClient)}
-          onDelete={handleDeleteClient}
-          subscriptionTypes={SUBSCRIPTION_TYPES}
-          versionTypes={VERSION_TYPES}
-          currentUser={user}
+       {/* Recent Clients List - Ensure this component potentially uses the store too or receives data */}
+       {/* Passing refreshTrigger might still be useful if it fetches its own specific 'recent' data */}
+        <RecentClientsList
+            formatDateForDisplay={formatDateForDisplay}
+            // handleShowDetails might need adjustment if details modal is removed or changed
+            // handleShowDetails={handleShowDetails} // Removed if modal logic changes
+            navigateToClientsList={navigateToClientsList}
+            refreshTrigger={refreshTrigger} // Keep if RecentClientsList fetches independently
+            currentUser={user} // Pass user if needed for filtering inside RecentClientsList
         />
-      )}
+
+       {/* Client Details Modal - Removed from Dashboard */}
+       {/* If needed, this modal should be triggered from ClientsList or a dedicated client page */}
+       {/* The logic for updating/deleting clients now resides in ClientsList and interacts with the store */}
+
     </div>
   );
 };
