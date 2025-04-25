@@ -21,15 +21,13 @@ type RecentClientsListProps = {
   handleShowDetails?: (client: Client) => void;
   navigateToClientsList?: (params?: { filter?: string; deviceFilter?: string; allWithDevices?: boolean }) => void;
   refreshTrigger?: boolean;
-  currentUser?: any;
 }
 
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   navigateToClientsList,
-  refreshTrigger,
-  currentUser
+  refreshTrigger
 }: RecentClientsListProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);

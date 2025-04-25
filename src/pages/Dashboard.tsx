@@ -4,21 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, UserPlus, Phone,
+  Users, UserPlus,
   Clock, AlertCircle, Zap, Package, RefreshCw,
-  ChevronDown, ChevronUp, Check, X, Smartphone, Laptop
+  ChevronDown, ChevronUp, X, Smartphone, Laptop
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../components/Button';
 import { useAuthStore } from '../store/authStore';
-import RecentClientsList from '../components/RecentClientsList'; // Assuming this component now uses useDataStore if needed
-import { useDataStore, shallow } from '../store/dataStore'; // Import store hook and shallow
-import { ClientType as ImportedClientType } from '../types/client.types'; // Import ClientType
-
-// Remove unused types/constants if they are now handled by the store
-// import type { DashboardData, Client } from '../types/dashboard.types';
-// const CACHE_KEY = 'dashboard_cache_v1'; // No longer needed here
-// const CACHE_DURATION = 30 * 1000; // No longer needed here
+import RecentClientsList from '../components/RecentClientsList'; 
+import { useDataStore, shallow } from '../store/dataStore'; 
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -31,7 +25,7 @@ export const Dashboard: React.FC = () => {
     loading,
     error,
     fetchData,
-    lastUpdatedTimestamp // Get timestamp from store
+    lastUpdatedTimestamp 
   } = useDataStore(
     (state) => ({
       dashboardStats: state.dashboardStats,
@@ -40,11 +34,11 @@ export const Dashboard: React.FC = () => {
       fetchData: state.fetchData,
       lastUpdatedTimestamp: state.lastUpdatedTimestamp,
     }),
-    shallow // Use shallow comparison
+    shallow 
   );
 
   // --- Local UI State ---
-  const [refreshTrigger, setRefreshTrigger] = useState(false); // For RecentClientsList if needed
+  const [refreshTrigger, setRefreshTrigger] = useState(false); 
   const [collapsedSections, setCollapsedSections] = useState({
     mainStats: true,
     valueStats: true,
@@ -60,7 +54,7 @@ export const Dashboard: React.FC = () => {
     // Pass the current user for role-based filtering/calculations in the store
     console.log('Dashboard: Triggering fetchData from store effect.');
     fetchData(false, user);
-  }, [fetchData, user]); // Re-fetch if fetchData function reference or user changes
+  }, [fetchData, user]); 
 
   // --- Error Handling ---
   useEffect(() => {
@@ -97,7 +91,7 @@ export const Dashboard: React.FC = () => {
         console.warn('Invalid date passed to formatDateForDisplay:', dateStr);
         return '-';
       }
-      return format(date, 'yyyy/MM/dd'); // Consistent format without time
+      return format(date, 'yyyy/MM/dd'); 
     } catch (error) {
       console.error('Error formatting date:', error);
       return '-';
@@ -107,12 +101,11 @@ export const Dashboard: React.FC = () => {
   // --- Force Refresh ---
   const handleRefresh = () => {
     console.log('Dashboard: Forcing data refresh via button.');
-    fetchData(true, user); // Force refresh, bypass cache
-    setRefreshTrigger(prev => !prev); // Trigger refresh for child components if needed
+    fetchData(true, user); 
+    setRefreshTrigger(prev => !prev); 
   };
 
   // --- Destructure Stats from Store ---
-  // Use default values to prevent errors if stats are not yet available
   const {
     totalClients = 0,
     totalDevices = 0,
@@ -120,21 +113,19 @@ export const Dashboard: React.FC = () => {
     computerDevices = 0,
     pendingDevices = 0,
     rejectedDevices = 0,
-    approvedDevices = 0, // Added this stat
     totalValue = 0,
     mobileValue = 0,
     computerValue = 0,
-    expiringCount = 0, // Renamed from expiringThisMonth for clarity
-    expiredCount = 0,  // Renamed from expiredSubscriptions
-    activeCount = 0,   // Renamed from activeSubscriptions / activeDevices
-    noDevicesCount = 0,
+    expiringCount = 0, 
+    expiredCount = 0,  
+    activeCount = 0,   
     totalAgents = 0,
     // lastUpdated is now lastUpdatedTimestamp (number)
   } = dashboardStats || {};
 
 
     // Display loading indicator
-    if (loading && !dashboardStats.totalClients) { // Show loading only on initial load or forced refresh without data
+    if (loading && !dashboardStats.totalClients) { 
         return (
             <div className="flex justify-center items-center h-64">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
@@ -153,7 +144,7 @@ export const Dashboard: React.FC = () => {
             onClick={handleRefresh}
             variant="secondary"
             className="flex items-center space-x-1 rtl:space-x-reverse"
-            disabled={loading} // Disable button while loading
+            disabled={loading} 
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             <span>{t('actions.refresh', 'تحديث')}</span>
@@ -332,7 +323,7 @@ export const Dashboard: React.FC = () => {
       <div className="mb-5">
         <div
           className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
-          onClick={() => toggleSection('permanentStats')} // Reusing name, maybe rename state key
+          onClick={() => toggleSection('permanentStats')} 
         >
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('dashboard.subscriptionExpiry', 'حالة انتهاء الصلاحية')}</h2>
            {collapsedSections.permanentStats ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronUp className="h-5 w-5 text-gray-500" />}
@@ -363,7 +354,7 @@ export const Dashboard: React.FC = () => {
                         <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.expiringThisMonth', 'تنتهي خلال 15 يوم')}</p>
                         <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{expiringCount}</p>
                     </div>
-                    <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full"> {/* Changed color */}
+                    <div className="bg-orange-100 dark:bg-orange-900 p-3 rounded-full"> 
                         <Clock className="h-6 w-6 text-orange-600 dark:text-orange-300" />
                     </div>
                 </div>
@@ -435,11 +426,8 @@ export const Dashboard: React.FC = () => {
        {/* Passing refreshTrigger might still be useful if it fetches its own specific 'recent' data */}
         <RecentClientsList
             formatDateForDisplay={formatDateForDisplay}
-            // handleShowDetails might need adjustment if details modal is removed or changed
-            // handleShowDetails={handleShowDetails} // Removed if modal logic changes
             navigateToClientsList={navigateToClientsList}
-            refreshTrigger={refreshTrigger} // Keep if RecentClientsList fetches independently
-            currentUser={user} // Pass user if needed for filtering inside RecentClientsList
+            refreshTrigger={refreshTrigger} 
         />
 
        {/* Client Details Modal - Removed from Dashboard */}

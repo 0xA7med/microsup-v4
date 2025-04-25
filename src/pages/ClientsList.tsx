@@ -15,7 +15,7 @@ import { supabase } from '../lib/supabaseClient'; // Ensure correct path
 import { useAuthStore } from '../store/authStore';
 import { useDataStore, shallow } from '../store/dataStore';
 
-import { ImportedClientType, ImportedAgent } from '../types/client.types';
+import { ImportedClientType } from '../types/client.types';
 import { DeviceType } from '../types/device.types';
 
 // --- Define DisplayClientType used within this component ---
@@ -158,7 +158,7 @@ export const ClientsList: React.FC = () => {
         const endDates: number[] = [];
 
         approvedDevices.forEach(d => {
-          const price = parseFloat(d.price || '0') || 0;
+          const price = parseFloat(String(d.price ?? '0')) || 0;
           totalPrice += price;
           if (d.device_type !== 'computer') mobilePrice += price; else computerPrice += price;
           if (d.subscription_type && !subscriptionTypes.includes(d.subscription_type)) { subscriptionTypes.push(d.subscription_type); }
@@ -411,7 +411,7 @@ export const ClientsList: React.FC = () => {
                     {(user?.role === 'admin' || user?.role === 'super_admin') && allAgentsFromStore.length > 0 && (
                        <div>
                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">{t('clientsList.agents', 'المندوبين')}: <Users size={14}/></h3>
-                           <select className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white" value={activeFilter?.startsWith('agent_') ? activeFilter : ''} onChange={(e) => handleFilterChange(e.target.value || null, deviceFilter)}>
+                           <select className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white" value={activeFilter?.startsWith('agent_') ? activeFilter : ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, deviceFilter)}>
                                <option value="">{t('clientsList.selectAgent', 'الكل / اختر المندوب...')}</option>
                                {allAgentsFromStore.map(agent => (<option key={agent.id} value={`agent_${agent.id}`}>{agent.name}</option>))}
                            </select>
@@ -427,7 +427,7 @@ export const ClientsList: React.FC = () => {
   const renderedSearch = useMemo(() => (
     <div className="relative mb-6">
       <span className="absolute ltr:left-3 rtl:right-3 top-1/2 transform -translate-y-1/2 text-gray-400"><Search size={20}/></span>
-      <input type="text" placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')} className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
+      <input type="text" placeholder={t('clientsList.searchPlaceholder', 'ابحث بالاسم، الهاتف، الملاحظات، البريد الإلكتروني، رمز التفعيل...')} className="w-full p-3 ltr:pl-10 rtl:pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-white" value={searchTerm} onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
       {searchTerm && (<button onClick={() => { setSearchTerm(''); setCurrentPage(1); }} className="absolute ltr:right-3 rtl:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" aria-label={t('clientsList.clearSearch', 'مسح البحث') as string}><X size={20}/></button>)}
     </div>
   ), [searchTerm, t]);
@@ -534,7 +534,7 @@ export const ClientsList: React.FC = () => {
                                  {/* Right Side */}
                                  <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs self-end sm:self-center">
                                     {device.subscription_type&&(<span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-200 whitespace-nowrap">{getSubscriptionTypeLabel(device.subscription_type)}</span>)}
-                                    <span className="font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">{(parseFloat(device.price||'0')||0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">{(parseFloat(String(device.price ?? '0')) || 0).toLocaleString()} {t('common.currency', 'جنيه')}</span>
                                     <span className={`font-medium whitespace-nowrap ${device.subscription_end&&new Date(device.subscription_end)<now&&device.subscription_type!=='permanent'?'text-red-600 dark:text-red-400':'text-gray-600 dark:text-gray-400'}`}>
                                         {device.subscription_type==='permanent'?t('client.permanent', 'دائم'):formatDateForDisplay(device.subscription_end)} {/* Use t() with fallback */}
                                     </span>

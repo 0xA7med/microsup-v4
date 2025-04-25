@@ -36,6 +36,7 @@ export default function DeviceModal({
 }: DeviceModalProps) {
   const { t, i18n } = useTranslation();
   const [formData, setFormData] = useState<DeviceType>({
+    id: device?.id || crypto.randomUUID(), // إضافة id افتراضي إذا لم يوجد
     client_id: clientId,
     activation_code: '',
     subscription_start: format(new Date(), 'yyyy-MM-dd'),
@@ -84,6 +85,7 @@ export default function DeviceModal({
     } else if (!device && isOpen) {
       // إعادة تعيين النموذج عند فتح النافذة لإضافة جهاز جديد
       setFormData({
+        id: crypto.randomUUID(), // إضافة id افتراضي إذا لم يوجد
         client_id: clientId,
         activation_code: '',
         subscription_start: format(new Date(), 'yyyy-MM-dd'),

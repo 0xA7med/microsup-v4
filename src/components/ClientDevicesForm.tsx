@@ -30,6 +30,7 @@ export default function ClientDevicesForm({
   useEffect(() => {
     if (isNewClient && devices.length === 0) {
       setDevices([{
+        id: crypto.randomUUID(), // إضافة id افتراضي
         client_id: clientId || '',
         activation_code: '',
         subscription_start: format(new Date(), 'yyyy-MM-dd'),
@@ -41,8 +42,9 @@ export default function ClientDevicesForm({
         email: '', // إضافة حقل البريد الإلكتروني الافتراضي
         price: 0 // إضافة حقل القيمة الافتراضية
       }]);
+      toast.success(t('device.pendingApproval', 'تمت إضافة الجهاز وسيكون قيد المراجعة من قبل المدير'));
     }
-  }, [isNewClient, clientId]);
+  }, [isNewClient, devices.length, clientId, t]);
 
   // إرسال التغييرات إلى المكون الأب
   useEffect(() => {
@@ -162,6 +164,7 @@ export default function ClientDevicesForm({
     setDevices([
       ...devices,
       {
+        id: crypto.randomUUID(), // إضافة id افتراضي
         client_id: clientId || '',
         activation_code: '',
         subscription_start: format(new Date(), 'yyyy-MM-dd'),

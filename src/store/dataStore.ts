@@ -3,7 +3,11 @@ import create from 'zustand';
 import { shallow } from 'zustand/shallow'; // Import shallow for optimized selections
 import { supabase } from '../lib/supabaseClient'; // تأكد من صحة المسار
 import { DashboardData } from '../types/dashboard.types'; // استورد أنواعك
-import { ClientType as ImportedClientType, Agent as ImportedAgent, DeviceType } from '../types/client.types'; // استورد أنواعك (افترض وجود DeviceType)
+import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types'; // استورد أنواعك
+import type { DeviceType } from '../types/device.types'; // تحقق من الاستيراد الصحيح لنوع DeviceType
+
+// تعريف GenericStringError إذا لم يكن معرفًا
+export type GenericStringError = { error: true; [key: string]: any };
 
 // ثوابت التخزين المؤقت (يمكن تعديلها حسب الحاجة)
 const CACHE_DURATION = 2 * 60 * 1000; // دقيقتان بالميلي ثانية
@@ -11,9 +15,9 @@ const BATCH_SIZE = 1000; // حجم الدفعة لجلب البيانات
 
 interface DataState {
   clients: ImportedClientType[];
-  devices: DeviceType[]; // استخدم النوع الصحيح هنا
+  devices: DeviceType[]; 
   agents: ImportedAgent[];
-  dashboardStats: Partial<DashboardData>; // بيانات محسوبة للوحة التحكم
+  dashboardStats: Partial<DashboardData>; // بيانات محسنة للوحة التحكم
   loading: boolean;
   error: string | null;
   lastUpdatedTimestamp: number | null;
@@ -30,7 +34,7 @@ async function fetchAllBatched<T>(
   selectQuery: string = '*',
   filterFn?: (query: any) => any // دالة لتطبيق الفلاتر الإضافية
 ): Promise<T[]> {
-  let allData: T[] = [];
+  let allDataTmp: (T | GenericStringError)[] = [];
   let page = 0;
   let hasMore = true;
 
@@ -51,9 +55,9 @@ async function fetchAllBatched<T>(
     }
 
     if (pageData && pageData.length > 0) {
-      allData = [...allData, ...pageData];
+      allDataTmp = [...allDataTmp, ...pageData];
       page++;
-      console.log(`Fetched page ${page} of ${tableName}: ${pageData.length} records. Total: ${allData.length}`);
+      console.log(`Fetched page ${page} of ${tableName}: ${pageData.length} records. Total: ${allDataTmp.length}`);
       if (pageData.length < BATCH_SIZE) {
         hasMore = false; // وصلنا لآخر صفحة
       }
@@ -61,8 +65,8 @@ async function fetchAllBatched<T>(
       hasMore = false; // لا توجد بيانات أخرى
     }
   }
-  console.log(`Finished batch fetch for ${tableName}. Total records: ${allData.length}`);
-  return allData;
+  console.log(`Finished batch fetch for ${tableName}. Total records: ${allDataTmp.length}`);
+  return allDataTmp.filter((item): item is T => !(item as any)?.error);
 }
 
 
@@ -70,7 +74,7 @@ async function fetchAllBatched<T>(
 // Note: This function now takes raw clients and devices and calculates everything
 function calculateDashboardStats(
     allClients: ImportedClientType[],
-    allDevices: DeviceType[], // استخدم النوع الصحيح
+    allDevices: DeviceType[], 
     allAgents: ImportedAgent[],
     currentUser?: any // Needed to filter stats if user is an agent
 ): Partial<DashboardData> {
@@ -115,7 +119,8 @@ function calculateDashboardStats(
     fifteenDaysLater.setDate(now.getDate() + 15);
 
     devicesToProcess.forEach(device => {
-        const price = parseFloat(device.price || '0') || 0; // Handle potential null/undefined price
+        // معالجة تمرير رقم أو "0" إلى دالة تتطلب string في السطر 119
+        const price = parseFloat(String(device.price ?? '0')) || 0;
 
         // إحصائيات الحالة والموافقة
         if (device.approval_status === 'pending') {
