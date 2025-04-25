@@ -17,17 +17,19 @@ import toast from 'react-hot-toast';
 import Button from './Button';
 
 type RecentClientsListProps = {
-  formatDateForDisplay: (date?: string | Date) => string;
-  handleShowDetails: (client: Client) => void;
-  navigateToClientsList?: (filter?: string) => void;
+  formatDateForDisplay: (date?: string | Date | number | null) => string;
+  handleShowDetails?: (client: Client) => void;
+  navigateToClientsList?: (params?: { filter?: string; deviceFilter?: string; allWithDevices?: boolean }) => void;
   refreshTrigger?: boolean;
+  currentUser?: any;
 }
 
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   navigateToClientsList,
-  refreshTrigger
+  refreshTrigger,
+  currentUser
 }: RecentClientsListProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -379,7 +381,7 @@ const RecentClientsList = ({
                         
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center justify-center gap-2">
-                            {device.client && (
+                            {device.client && handleShowDetails && (
                               <Button
                                 variant="secondary"
                                 onClick={() => handleShowDetails(device.client)}

@@ -1,5 +1,6 @@
 // أنواع البيانات المتعلقة بالعملاء والوكلاء
 
+// تصحيح وتحسين أنواع البيانات
 export interface ClientType {
   id: string;
   created_at: string;
@@ -16,8 +17,9 @@ export interface ClientType {
   agent_id: string;
   address?: string;
   active_devices_count?: number;
-  device_count?: number; // عدد الأجهزة
+  device_count?: number;
   device_type: string;
+  agent?: Agent; // إضافة خاصية agent كاختيارية
 }
 
 export interface Agent {
@@ -38,5 +40,9 @@ export interface VersionType {
   value: string;
   label: string;
   labelEn: string;
-  icon?: string; // أيقونة الإصدار
+  icon?: string;
 }
+
+// تصدير الأنواع المستخدمة في ClientsList
+export type ImportedClientType = ClientType;
+export type ImportedAgent = Agent;

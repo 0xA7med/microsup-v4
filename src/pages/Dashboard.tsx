@@ -72,18 +72,13 @@ export const Dashboard: React.FC = () => {
   }, [error, t]);
 
   // --- Navigation Callbacks ---
-  const navigateToClientsList = useCallback((filters: Record<string, string> = {}) => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-    });
-    const queryString = params.toString();
-    navigate(`/clients${queryString ? `?${queryString}` : ''}`);
-  }, [navigate]);
-
-  const navigateToPendingDevices = useCallback((status?: string) => {
-    navigate(`/pending-devices${status ? `?status=${status}` : ''}`);
-  }, [navigate]);
+  const navigateToClientsList = (params: { filter?: string; deviceFilter?: string; allWithDevices?: boolean } = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.filter) searchParams.set('filter', params.filter);
+    if (params.deviceFilter) searchParams.set('deviceFilter', params.deviceFilter);
+    if (params.allWithDevices) searchParams.set('filter', 'allWithDevices');
+    navigate(`/clients?${searchParams.toString()}`);
+  };
 
   const navigateToAgentsList = useCallback(() => {
     navigate('/agents');
@@ -102,7 +97,7 @@ export const Dashboard: React.FC = () => {
         console.warn('Invalid date passed to formatDateForDisplay:', dateStr);
         return '-';
       }
-      return format(date, 'yyyy/MM/dd HH:mm'); // Consistent format with time
+      return format(date, 'yyyy/MM/dd'); // Consistent format without time
     } catch (error) {
       console.error('Error formatting date:', error);
       return '-';
@@ -194,7 +189,7 @@ export const Dashboard: React.FC = () => {
           {/* Total Clients Card */}
           <div
             className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-            onClick={() => navigateToClientsList({ filter: 'all' })} // Navigate to all clients
+            onClick={() => navigateToClientsList()}
           >
             <div className="p-5 flex justify-between items-center">
               <div>
@@ -239,7 +234,7 @@ export const Dashboard: React.FC = () => {
             {/* Total Devices Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                 onClick={() => navigateToClientsList({ filter: 'allDevices' })} // Navigate to show all devices
+                 onClick={() => navigateToClientsList({ filter: 'allWithDevices' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -251,21 +246,39 @@ export const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
-             {/* Approved Devices Card */}
-             <div
+                        {/* Mobile Devices Card */}
+                        <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                 onClick={() => navigateToClientsList({ filter: 'approved' })} // Filter for approved might need implementation in ClientsList
+                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('dashboard.approvedDevices', 'الاشتراكات المقبولة')}</p>
-                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{approvedDevices}</p>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</p>
+                         {/* Displaying count of *approved* mobile devices */}
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{mobileDevices}</p>
                     </div>
-                    <div className="bg-cyan-100 dark:bg-cyan-900 p-3 rounded-full">
-                        <Check className="h-6 w-6 text-cyan-600 dark:text-cyan-300" />
+                    <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
+                        <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
                     </div>
                 </div>
             </div>
+            {/* Computer Devices Card */}
+            <div
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
+                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
+            >
+                <div className="p-5 flex justify-between items-center">
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</p>
+                        {/* Displaying count of *approved* computer devices */}
+                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{computerDevices}</p>
+                    </div>
+                    <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
+                        <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
+                    </div>
+                </div>
+            </div>
+           
             {/* Active Devices Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
@@ -284,7 +297,7 @@ export const Dashboard: React.FC = () => {
             {/* Pending Devices Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToPendingDevices('pending')}
+                onClick={() => navigateToClientsList({ filter: 'pending' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -299,7 +312,7 @@ export const Dashboard: React.FC = () => {
             {/* Rejected Devices Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToPendingDevices('rejected')}
+                onClick={() => navigateToClientsList({ filter: 'rejected' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -311,38 +324,7 @@ export const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
-             {/* Mobile Devices Card */}
-            <div
-                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })} // Use deviceFilter param
-            >
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.mobileFilter', 'اشتراكات الهاتف')}</p>
-                         {/* Displaying count of *approved* mobile devices */}
-                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{mobileDevices}</p>
-                    </div>
-                    <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
-                        <Smartphone className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
-                    </div>
-                </div>
-            </div>
-            {/* Computer Devices Card */}
-            <div
-                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })} // Use deviceFilter param
-            >
-                <div className="p-5 flex justify-between items-center">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{t('clientsList.computerFilter', 'اشتراكات الكمبيوتر')}</p>
-                        {/* Displaying count of *approved* computer devices */}
-                        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{computerDevices}</p>
-                    </div>
-                    <div className="bg-teal-100 dark:bg-teal-900 p-3 rounded-full">
-                        <Laptop className="h-6 w-6 text-teal-600 dark:text-teal-300" />
-                    </div>
-                </div>
-            </div>
+ 
         </div>
       </div>
 
@@ -403,7 +385,7 @@ export const Dashboard: React.FC = () => {
             {/* Total Value Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                 onClick={() => navigateToClientsList({ filter: 'all' })} // Maybe link to a financial report later?
+                onClick={() => navigateToClientsList({ filter: 'allWithDevices' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -418,7 +400,7 @@ export const Dashboard: React.FC = () => {
             {/* Mobile Value Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })} // Link to mobile devices
+                onClick={() => navigateToClientsList({ deviceFilter: 'mobile' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -433,7 +415,7 @@ export const Dashboard: React.FC = () => {
             {/* Computer Value Card */}
             <div
                 className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
-                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })} // Link to computer devices
+                onClick={() => navigateToClientsList({ deviceFilter: 'computer' })}
             >
                 <div className="p-5 flex justify-between items-center">
                     <div>
@@ -441,7 +423,7 @@ export const Dashboard: React.FC = () => {
                         <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{computerValue.toLocaleString()} {t('common.currency', 'جنيه')}</p>
                     </div>
                     <div className="bg-indigo-100 dark:bg-indigo-900 p-3 rounded-full">
-                        <Laptop className="h-6 w-6 text-indigo-600 dark:text-indigo-300" /> {/* Changed icon */}
+                        <Laptop className="h-6 w-6 text-indigo-600 dark:text-indigo-300" />
                     </div>
                 </div>
             </div>

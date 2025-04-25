@@ -15,10 +15,11 @@ import { supabase } from '../lib/supabaseClient'; // Ensure correct path
 import { useAuthStore } from '../store/authStore';
 import { useDataStore, shallow } from '../store/dataStore';
 
-import { ClientType as ImportedClientType, Agent as ImportedAgent, DeviceType } from '../types/client.types';
+import { ImportedClientType, ImportedAgent } from '../types/client.types';
+import { DeviceType } from '../types/device.types';
 
 // --- Define DisplayClientType used within this component ---
-interface DisplayClientType extends ImportedClientType {
+type DisplayClientType = ImportedClientType & {
   deviceCount: number;
   devices: DeviceType[];
   mobileDevicesCount: number;
@@ -135,7 +136,7 @@ export const ClientsList: React.FC = () => {
     if (!allClientsFromStore || !allDevicesFromStore) { setProcessedClients([]); return; }
 
     // Determine if *any* filter affecting the client list itself is active
-    const isClientListFilterActive = !!searchTerm || !!activeFilter || !!deviceFilter;
+    const isClientListFilterActive = !!(searchTerm || activeFilter || deviceFilter);
 
     // 1. Enrich Client Data
     const enrichedClients: DisplayClientType[] = allClientsFromStore
@@ -185,8 +186,10 @@ export const ClientsList: React.FC = () => {
       else if (activeFilter === 'expiring') { filteredClients = filteredClients.filter(c => c.devices.some(d => d.approval_status === 'approved' && d.subscription_type !== 'permanent' && d.subscription_end && new Date(d.subscription_end) >= now && new Date(d.subscription_end) <= fifteenDaysLater)); }
       else if (activeFilter === 'noDevices') { filteredClients = filteredClients.filter(c => c.deviceCount === 0); }
       else if (activeFilter === 'allWithDevices') { filteredClients = filteredClients.filter(c => c.deviceCount > 0); } // <-- Logic for the new filter
-      else if (activeFilter.startsWith('agent_')) { const agentId = activeFilter.replace('agent_', ''); filteredClients = filteredClients.filter(c => c.agent_id === agentId); }
       else if (activeFilter === 'approved') { filteredClients = filteredClients.filter(c => c.approvedDevicesCount > 0); }
+      else if (activeFilter === 'pending') { filteredClients = filteredClients.filter(c => c.pendingDevicesCount > 0); }
+      else if (activeFilter === 'rejected') { filteredClients = filteredClients.filter(c => c.rejectedDevicesCount > 0); }
+      else if (activeFilter.startsWith('agent_')) { const agentId = activeFilter.replace('agent_', ''); filteredClients = filteredClients.filter(c => c.agent_id === agentId); }
     }
 
     // 4. Apply Device Type Filter
@@ -194,7 +197,9 @@ export const ClientsList: React.FC = () => {
 
     // 5. Determine which clients should have devices shown automatically
     if (isClientListFilterActive) { // Expand devices if any filter/search is active
+     // filteredClients = filteredClients.map(client => ({ ...client, showDevices: Boolean(userExpandedClients.has(client.id)) }));
       filteredClients = filteredClients.map(client => ({ ...client, showDevices: true || userExpandedClients.has(client.id) }));
+
     }
 
     // 6. Apply Sorting
@@ -321,9 +326,19 @@ export const ClientsList: React.FC = () => {
   const filterDevicesForDisplay = useCallback((devices: DeviceType[]): DeviceType[] => {
       if (!searchTerm && !deviceFilter) { return devices; }
       return devices.filter(device => {
-          let matchesSearch = true; let matchesDeviceType = true;
-          if (searchTerm) { const l = searchTerm.toLowerCase(); matchesSearch = (device.activation_code?.toLowerCase().includes(l) || device.email?.toLowerCase().includes(l) || device.notes?.toLowerCase().includes(l)); }
-          if (deviceFilter) { const isMobile = device.device_type !== 'computer'; matchesDeviceType = (deviceFilter === 'mobile') ? isMobile : !isMobile; }
+          let matchesSearch = true; 
+          let matchesDeviceType = true;
+          
+          if (searchTerm) { 
+            const l = searchTerm.toLowerCase(); 
+            matchesSearch = Boolean(device.activation_code?.toLowerCase().includes(l) || device.email?.toLowerCase().includes(l) || device.notes?.toLowerCase().includes(l)); 
+          }
+          
+          if (deviceFilter) { 
+            const isMobile = device.device_type !== 'computer'; 
+            matchesDeviceType = (deviceFilter === 'mobile') ? isMobile : !isMobile; 
+          }
+          
           return matchesSearch && matchesDeviceType;
       });
   }, [searchTerm, deviceFilter]);
@@ -354,7 +369,11 @@ export const ClientsList: React.FC = () => {
                    <div>
                        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clientsList.deviceType', 'نوع الجهاز')}:</h3>
                        <div className="flex flex-wrap gap-2">
-                       <Button onClick={() => handleFilterChange('allWithDevices', deviceFilter)} variant={activeFilter === 'allWithDevices' ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><Package size={14}/><span>{t('clientsList.allDevicesFilter', 'جميع الاجهزة')}</span>{activeFilter === 'allWithDevices' && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
+                       <Button onClick={() => handleFilterChange('allWithDevices', deviceFilter)} variant="secondary" size="sm" className="flex items-center gap-1">
+                         <Package size={14}/>
+                         <span>{t('clientsList.allDevicesFilter', 'جميع الاجهزة')}</span>
+                         {activeFilter === 'allWithDevices' && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}
+                       </Button>
                            <Button onClick={() => handleFilterChange(activeFilter, deviceFilter === 'mobile' ? null : 'mobile')} variant={deviceFilter === 'mobile' ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><Smartphone size={14}/><span>{t('clientsList.mobileFilter', 'الهاتف')}</span>{deviceFilter === 'mobile' && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
                            <Button onClick={() => handleFilterChange(activeFilter, deviceFilter === 'computer' ? null : 'computer')} variant={deviceFilter === 'computer' ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><Laptop size={14}/><span>{t('clientsList.computerFilter', 'الكمبيوتر')}</span>{deviceFilter === 'computer' && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
                        </div>
@@ -365,8 +384,26 @@ export const ClientsList: React.FC = () => {
                        <div className="flex flex-wrap gap-2">
                            {/* New "All Devices" Filter Button */}
                            {/* --- Other Status Filters --- */}
-                           {[ { value: 'active', icon: Zap, label: t('clientsList.activeFilter', 'نشط') }, { value: 'expired', icon: AlertCircle, label: t('clientsList.expiredFilter', 'منتهي') }, { value: 'expiring', icon: Clock, label: t('clientsList.expiringFilter', 'قريب الانتهاء') }, { value: 'noDevices', icon: User, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') } ].map((filter) => (
-                               <Button key={filter.value} onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><filter.icon size={14}/><span>{filter.label}</span>{activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
+                           {[
+                             { value: 'active', icon: Zap, label: t('clientsList.activeFilter', 'نشط') },
+                             { value: 'expired', icon: AlertCircle, label: t('clientsList.expiredFilter', 'منتهي') },
+                             { value: 'expiring', icon: Clock, label: t('clientsList.expiringFilter', 'قريب الانتهاء') },
+                             { value: 'noDevices', icon: User, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') }
+                           ].map((filter) => (
+                             <Button key={filter.value} onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><filter.icon size={14}/><span>{filter.label}</span>{activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
+                           ))}
+                       </div>
+                   </div>
+                   {/* Approval Status Filter */}
+                   <div>
+                       <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('clientsList.approvalStatus', 'حالة الموافقة')}:</h3>
+                       <div className="flex flex-wrap gap-2">
+                           {[
+                             { value: 'approved', icon: Check, label: t('clientsList.approvedFilter', 'المقبول') },
+                             { value: 'pending', icon: Clock, label: t('clientsList.pendingFilter', 'المعلق') },
+                             { value: 'rejected', icon: X, label: t('clientsList.rejectedFilter', 'المرفوض') }
+                           ].map((filter) => (
+                             <Button key={filter.value} onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><filter.icon size={14}/><span>{filter.label}</span>{activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
                            ))}
                        </div>
                    </div>
@@ -434,11 +471,19 @@ export const ClientsList: React.FC = () => {
                  const devicesToDisplay = client.showDevices ? filterDevicesForDisplay(client.devices) : [];
                  const now = new Date();
 
-                 return (
-                   <React.Fragment key={client.id}>
-                     <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors duration-150 group">
+                 return [
+                     <tr key={`client-${client.id}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors duration-150 group">
                        {/* Client Name */}
-                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white align-top w-[25%]"><div className="flex items-center justify-between"><span className="truncate max-w-[150px] md:max-w-[200px]" title={client.client_name||''}>{client.client_name||'-'}</span>{client.deviceCount > 0 && (<button onClick={() => toggleShowDevices(client.id)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" title={client.showDevices?t('actions.hideDevices', 'إخفاء الاشتراكات'):t('actions.showDevices', 'عرض الاشتراكات')}>{client.showDevices ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</button>)}</div></td>
+                       <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white align-top w-[25%]">
+                         <div className="flex items-center justify-between">
+                           <span className="truncate max-w-[150px] md:max-w-[200px]" title={client.client_name||''}>{client.client_name||'-'}</span>
+                           {client.deviceCount > 0 && (
+                             <button onClick={() => toggleShowDevices(client.id)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" title={client.showDevices?t('actions.hideDevices', 'إخفاء الاشتراكات'):t('actions.showDevices', 'عرض الاشتراكات')}>
+                               {client.showDevices ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+                             </button>
+                           )}
+                         </div>
+                       </td>
                        {/* Phone */}
                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 text-center align-top dir-ltr w-[15%]">{client.phone || '-'}</td>
                        {/* Agent */}
@@ -461,10 +506,9 @@ export const ClientsList: React.FC = () => {
                        </td>
                        {/* Actions */}
                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-center align-top w-[6%]"><div className="flex items-center justify-center gap-1"><Button onClick={()=>handleShowDetails(client)} variant="ghost" size="icon" className="text-primary-600 hover:bg-primary-100 dark:text-primary-400 dark:hover:bg-gray-700" aria-label={t('actions.viewDetails', 'عرض التفاصيل') as string}><Eye size={16}/></Button></div></td>
-                     </tr>
-                     {/* --- Device Details Row --- */}
-                     {client.showDevices && (
-                       <tr className="bg-gray-50 dark:bg-gray-800/50">
+                     </tr>,
+                     client.showDevices && (
+                       <tr key={`devices-${client.id}`}>
                          <td colSpan={7} className="px-4 py-3 border-t border-gray-200 dark:border-gray-700">
                            <div className="space-y-2 max-h-60 overflow-y-auto p-1 relative">
                              {client.devices.length === 0 && (<p className="text-center text-sm text-gray-500 dark:text-gray-400 py-2">{t('clientsList.noDevicesForClient', 'لا توجد اشتراكات مسجلة لهذا العميل.')}</p>)}
@@ -500,9 +544,8 @@ export const ClientsList: React.FC = () => {
                            </div>
                          </td>
                        </tr>
-                     )}
-                   </React.Fragment>
-                 );
+                     )
+                 ].filter(Boolean);
                })}
           </tbody>
         </table>
@@ -513,9 +556,13 @@ export const ClientsList: React.FC = () => {
         <div dir={isRTL ? "rtl" : "ltr"} className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
             <span className="text-sm text-gray-600 dark:text-gray-400 order-1 sm:order-none">{t('pagination.pageInfo', 'صفحة {{currentPage}} من {{totalPages}}', { currentPage, totalPages })} {' - '} {t('pagination.totalItemsFiltered', 'إجمالي {{count}} عميل مطابق', { count: processedClients.length })}</span>
             <div className="flex items-center gap-2 order-2 sm:order-none">
-                <Button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} variant="outline" size="icon" aria-label={t('pagination.prev', 'السابق') as string}>{isRTL ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}</Button>
+                <Button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} variant="secondary" size="sm" aria-label={t('pagination.prev', 'السابق') as string}>
+                  {isRTL ? <ChevronRight size={16}/> : <ChevronLeft size={16}/>}
+                </Button>
                 <span className="text-sm text-gray-700 dark:text-gray-300 hidden md:inline">{currentPage} / {totalPages}</span>
-                <Button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} variant="outline" size="icon" aria-label={t('pagination.next', 'التالي') as string}>{isRTL ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}</Button>
+                <Button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} variant="secondary" size="sm" aria-label={t('pagination.next', 'التالي') as string}>
+                  {isRTL ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}
+                </Button>
             </div>
             <form onSubmit={handlePageInput} className="flex items-center gap-2 order-3 sm:order-none" style={{ minWidth: 0 }}>
                 <input aria-label={t('pagination.goto', 'اذهب إلى صفحة:') as string} name="pageNum" type="number" min={1} max={totalPages} placeholder={`${currentPage}`} className="w-16 p-1.5 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-center text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" dir="ltr"/>
