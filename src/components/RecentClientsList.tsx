@@ -7,7 +7,9 @@ import {
   RefreshCw, 
   Calendar, 
   Search,
-  AlertTriangle
+  AlertTriangle,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Client } from '../types/dashboard.types';
@@ -21,13 +23,17 @@ type RecentClientsListProps = {
   handleShowDetails?: (client: Client) => void;
   navigateToClientsList?: (params?: { filter?: string; deviceFilter?: string; allWithDevices?: boolean }) => void;
   refreshTrigger?: boolean;
+  handleApproveDevice?: (deviceId: string) => Promise<void>;
+  handleRejectDevice?: (deviceId: string) => Promise<void>;
 }
 
 const RecentClientsList = ({ 
   formatDateForDisplay, 
   handleShowDetails,
   navigateToClientsList,
-  refreshTrigger
+  refreshTrigger,
+  handleApproveDevice,
+  handleRejectDevice
 }: RecentClientsListProps) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -164,6 +170,36 @@ const RecentClientsList = ({
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
+  };
+
+  // أضف دالة للتعامل مع الموافقة على الجهاز
+  const onApproveDevice = async (deviceId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (handleApproveDevice) {
+      try {
+        await handleApproveDevice(deviceId);
+        toast.success(t('device.approvalSuccess', 'تمت الموافقة على الجهاز بنجاح'));
+        fetchRecentDevices(); // تحديث القائمة
+      } catch (error) {
+        console.error('Error approving device:', error);
+        toast.error(t('device.approvalError', 'حدث خطأ أثناء الموافقة على الجهاز'));
+      }
+    }
+  };
+
+  // أضف دالة للتعامل مع رفض الجهاز
+  const onRejectDevice = async (deviceId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (handleRejectDevice) {
+      try {
+        await handleRejectDevice(deviceId);
+        toast.success(t('device.rejectionSuccess', 'تم رفض الجهاز بنجاح'));
+        fetchRecentDevices(); // تحديث القائمة
+      } catch (error) {
+        console.error('Error rejecting device:', error);
+        toast.error(t('device.rejectionError', 'حدث خطأ أثناء رفض الجهاز'));
+      }
+    }
   };
 
   return (
@@ -383,11 +419,33 @@ const RecentClientsList = ({
                               <Button
                                 variant="secondary"
                                 onClick={() => handleShowDetails(device.client)}
-                                className="px-3 py-1.5 text-sm flex items-center gap-1"
+                                className="px-2 py-1 text-xs flex items-center gap-1"
                                 title={t('device.viewClientDetails', 'عرض تفاصيل العميل')}
                               >
-                                <Eye className="h-4 w-4 ml-1" />
-                                {t('actions.view', 'عرض')}
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            
+                            {/* أزرار الموافقة والرفض للأجهزة المعلقة */}
+                            {device.approval_status === 'pending' && handleApproveDevice && (
+                              <Button
+                                variant="primary"
+                                onClick={(e) => onApproveDevice(device.id, e)}
+                                className="px-2 py-1 text-xs flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                                title={t('device.approve', 'الموافقة على الجهاز')}
+                              >
+                                <CheckCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            
+                            {device.approval_status === 'pending' && handleRejectDevice && (
+                              <Button
+                                variant="danger"
+                                onClick={(e) => onRejectDevice(device.id, e)}
+                                className="px-2 py-1 text-xs flex items-center gap-1 bg-red-600 hover:bg-red-700 text-white"
+                                title={t('device.reject', 'رفض الجهاز')}
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
                               </Button>
                             )}
                           </div>

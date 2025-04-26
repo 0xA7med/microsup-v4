@@ -13,6 +13,8 @@ import Button from '../components/Button';
 import { useAuthStore } from '../store/authStore';
 import RecentClientsList from '../components/RecentClientsList'; 
 import { useDataStore, shallow } from '../store/dataStore'; 
+import { supabase } from '../lib/supabaseClient';
+import ClientDetailsModal from '../components/ClientDetailsModal';
 
 export const Dashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -123,15 +125,133 @@ export const Dashboard: React.FC = () => {
     // lastUpdated is now lastUpdatedTimestamp (number)
   } = dashboardStats || {};
 
-
-    // Display loading indicator
-    if (loading && !dashboardStats.totalClients) { 
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-            </div>
-        );
+  // إضافة دوال للموافقة ورفض الأجهزة
+  const handleApproveDevice = async (deviceId: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .update({ approval_status: 'approved' })
+        .eq('id', deviceId);
+        
+      if (error) throw error;
+      
+      toast.success(t('device.approvalSuccess', 'تمت الموافقة على الجهاز بنجاح'));
+      // تحديث البيانات
+      fetchData(true, user);
+    } catch (error) {
+      console.error('Error approving device:', error);
+      toast.error(t('device.approvalError', 'حدث خطأ أثناء الموافقة على الجهاز'));
     }
+  };
+
+  const handleRejectDevice = async (deviceId: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .update({ approval_status: 'rejected' })
+        .eq('id', deviceId);
+        
+      if (error) throw error;
+      
+      toast.success(t('device.rejectionSuccess', 'تم رفض الجهاز بنجاح'));
+      // تحديث البيانات
+      fetchData(true, user);
+    } catch (error) {
+      console.error('Error rejecting device:', error);
+      toast.error(t('device.rejectionError', 'حدث خطأ أثناء رفض الجهاز'));
+    }
+  };
+
+  // إضافة دالة لعرض تفاصيل العميل
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [isClientDetailsModalOpen, setIsClientDetailsModalOpen] = useState(false);
+  
+  // إضافة متغيرات إضافية مطلوبة للنافذة المنبثقة
+  const [agents, setAgents] = useState<any[]>([]);
+  const [subscriptionTypes] = useState([
+    { value: 'monthly', label: 'شهري', labelEn: 'Monthly' },
+    { value: 'semi_annual', label: 'نصف سنوي', labelEn: 'Biannual' },
+    { value: 'annual', label: 'سنوي', labelEn: 'Annual' },
+    { value: 'permanent', label: 'دائم', labelEn: 'Permanent' }
+  ]);
+
+  // دالة لجلب المندوبين
+  const fetchAgents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('agents')
+        .select('id, name, email, role')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      if (data) setAgents(data);
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+      toast.error(t('messages.errorFetchingAgents', 'حدث خطأ أثناء جلب بيانات المندوبين'));
+    }
+  };
+
+  // جلب المندوبين عند تحميل الصفحة
+  useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  const handleShowClientDetails = (client: any) => {
+    setSelectedClient(client);
+    setIsClientDetailsModalOpen(true);
+  };
+
+  const handleCloseClientDetailsModal = () => {
+    setIsClientDetailsModalOpen(false);
+    setSelectedClient(null);
+  };
+  
+  // دوال إضافية مطلوبة للنافذة المنبثقة
+  const handleSaveClient = async (updatedClient: any): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update(updatedClient)
+        .eq('id', updatedClient.id);
+        
+      if (error) throw error;
+      
+      toast.success(t('client.updateSuccess', 'تم تحديث بيانات العميل بنجاح'));
+      fetchData(true, user);
+    } catch (error) {
+      console.error('Error updating client:', error);
+      toast.error(t('client.updateError', 'حدث خطأ أثناء تحديث بيانات العميل'));
+      throw error;
+    }
+  };
+  
+  const handleDeleteClient = async (clientId: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
+        
+      if (error) throw error;
+      
+      toast.success(t('client.deleteSuccess', 'تم حذف العميل بنجاح'));
+      fetchData(true, user);
+      handleCloseClientDetailsModal();
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast.error(t('client.deleteError', 'حدث خطأ أثناء حذف العميل'));
+      throw error;
+    }
+  };
+
+  // Display loading indicator
+  if (loading && !dashboardStats.totalClients) { 
+      return (
+          <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-6">
@@ -427,13 +547,25 @@ export const Dashboard: React.FC = () => {
         <RecentClientsList
             formatDateForDisplay={formatDateForDisplay}
             navigateToClientsList={navigateToClientsList}
-            refreshTrigger={refreshTrigger} 
+            refreshTrigger={refreshTrigger}
+            handleShowDetails={handleShowClientDetails}
+            handleApproveDevice={user?.role === 'admin' || user?.role === 'super_admin' ? handleApproveDevice : undefined}
+            handleRejectDevice={user?.role === 'admin' || user?.role === 'super_admin' ? handleRejectDevice : undefined}
         />
 
-       {/* Client Details Modal - Removed from Dashboard */}
-       {/* If needed, this modal should be triggered from ClientsList or a dedicated client page */}
-       {/* The logic for updating/deleting clients now resides in ClientsList and interacts with the store */}
-
+       {/* Client Details Modal */}
+       {isClientDetailsModalOpen && selectedClient && (
+         <ClientDetailsModal
+           isOpen={isClientDetailsModalOpen}
+           onClose={handleCloseClientDetailsModal}
+           client={selectedClient}
+           agents={agents}
+           subscriptionTypes={subscriptionTypes}
+           onSave={handleSaveClient}
+           onDelete={handleDeleteClient}
+           currentUser={user}
+         />
+       )}
     </div>
   );
 };

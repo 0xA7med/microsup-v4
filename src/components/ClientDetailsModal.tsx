@@ -6,7 +6,7 @@ import {
   Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import Button from '../components/Button';
 import { ClientType, Agent, SubscriptionType, VersionType } from '../types/client.types';
 import CustomerField from './CustomerField';
