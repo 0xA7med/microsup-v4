@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { format, parseISO } from 'date-fns';
 import {
   X, Edit, Save, Trash2, AlertTriangle, ChevronDown, ChevronUp,
   Plus, Clipboard, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye,
@@ -145,85 +144,33 @@ export default function ClientDetailsModal({
 
   const handleSaveDevice = async (deviceData: DeviceType) => {
     try {
-      // تسجيل البيانات قبل الحفظ للتحقق من وجود البريد الإلكتروني
-      console.log('بيانات الجهاز قبل الحفظ في ClientDetailsModal:', deviceData);
+      setIsLoadingDevices(true);
       
-      if (selectedDevice?.id) {
-        // تحديث جهاز موجود
-        const { error } = await supabase
-          .from('devices')
-          .update(deviceData)
-          .eq('id', selectedDevice.id);
-
-        if (error) throw error;
-        toast.success(t('messages.deviceUpdated', 'تم تحديث بيانات الجهاز بنجاح'));
-      } else {
-        // إضافة جهاز جديد
-        const { error } = await supabase
-          .from('devices')
-          .insert([deviceData]);
-
-        if (error) throw error;
-        toast.success(t('messages.deviceAdded', 'تم إضافة الجهاز بنجاح'));
-      }
-
+      // تحديث الجهاز في قاعدة البيانات
+      const { error } = await supabase
+        .from('devices')
+        .upsert([deviceData], { onConflict: 'id' });
+        
+      if (error) throw error;
+      
+      // تحديث قائمة الأجهزة
       fetchDevices(client?.id);
       setShowDeviceModal(false);
+      setSelectedDevice(null);
+      
+      toast.success(deviceData.id === selectedDevice?.id 
+        ? t('device.updateSuccess', 'تم تحديث الجهاز بنجاح') 
+        : t('device.addSuccess', 'تم إضافة الجهاز بنجاح')
+      );
     } catch (error) {
       console.error('Error saving device:', error);
-      toast.error(t('messages.errorSavingDevice', 'حدث خطأ أثناء حفظ بيانات الجهاز'));
-    }
-  };
-  
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(parseISO(dateStr), 'dd/MM/yyyy');
-    } catch (error) {
-      return dateStr;
+      toast.error(t('device.saveError', 'حدث خطأ أثناء حفظ الجهاز'));
+    } finally {
+      setIsLoadingDevices(false);
     }
   };
 
-  const copyActivationCode = (code: string) => {
-    try {
-      // إنشاء عنصر نصي مؤقت
-      const textArea = document.createElement('textarea');
-      textArea.value = code;
-      
-      // تعيين خصائص لإخفاء العنصر
-      textArea.style.position = 'fixed';
-      textArea.style.top = '0';
-      textArea.style.left = '0';
-      textArea.style.width = '2em';
-      textArea.style.height = '2em';
-      textArea.style.padding = '0';
-      textArea.style.border = 'none';
-      textArea.style.outline = 'none';
-      textArea.style.boxShadow = 'none';
-      textArea.style.background = 'transparent';
-      
-      // إضافة العنصر للصفحة
-      document.body.appendChild(textArea);
-      
-      // تحديد النص
-      textArea.select();
-      
-      // نسخ النص
-      const successful = document.execCommand('copy');
-      
-      // إزالة العنصر المؤقت
-      document.body.removeChild(textArea);
-      
-      if (successful) {
-        toast.success(t('messages.codeCopied', 'تم نسخ رمز التفعيل'));
-      } else {
-        toast.error(t('messages.copyFailed', 'فشل نسخ الرمز'));
-      }
-    } catch (error) {
-      console.error('Error copying to clipboard:', error);
-      toast.error(t('messages.copyFailed', 'فشل نسخ الرمز'));
-    }
-  };
-
+  // الحصول على تسمية نوع الجهاز
   const getDeviceTypeLabel = (value: string) => {
     const deviceType = DEVICE_TYPES.find(type => type.value === value);
     return deviceType ? (i18n.language === 'ar' ? deviceType.label : deviceType.labelEn) : value;
@@ -280,20 +227,12 @@ export default function ClientDetailsModal({
   const getApprovalStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
       case 'rejected':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+        return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
       case 'pending':
       default:
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
-    }
-  };
-
-  const isSubscriptionExpired = (endDate: string) => {
-    try {
-      return new Date(endDate) < new Date();
-    } catch (error) {
-      return false;
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
     }
   };
 
@@ -351,6 +290,22 @@ export default function ClientDetailsModal({
     setSelectedDevice(device);
     setShowDeviceModal(true);
     setDeviceModalMode('view'); // وضع العرض فقط
+  };
+
+  // نسخ رمز التفعيل
+  const copyActivationCode = (code: string) => {
+    try {
+      navigator.clipboard.writeText(code)
+        .then(() => {
+          toast.success(t('device.codeCopied', 'تم نسخ رمز التفعيل'));
+        })
+        .catch(() => {
+          toast.error(t('device.copyFailed', 'فشل نسخ الرمز'));
+        });
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast.error(t('device.copyFailed', 'فشل نسخ الرمز'));
+    }
   };
 
   if (!isOpen && !formData) return null; 

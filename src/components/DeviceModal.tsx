@@ -178,16 +178,6 @@ export default function DeviceModal({
     }
   };
 
-  // تنسيق التاريخ للعرض
-  const formatDisplayDate = (dateString?: string | null): string => {
-    if (!dateString) return '';
-    try {
-      return format(parseISO(dateString), 'yyyy-MM-dd');
-    } catch (error) {
-      return dateString;
-    }
-  };
-
   // تنسيق التاريخ للإدخال
   const formatInputDate = (dateString?: string | null): string => {
     if (!dateString) return '';
