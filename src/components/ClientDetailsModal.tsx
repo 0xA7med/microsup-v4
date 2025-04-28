@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import {
-  X, Edit, Save, Trash2, Ban, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye,
+  X, Edit, Save, Trash2, AlertTriangle, ChevronDown, ChevronUp,
+  Plus, Clipboard, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye,
   MessageSquare, UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -55,10 +55,10 @@ export default function ClientDetailsModal({
   const [showDevicesSection, setShowDevicesSection] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
   const [showDeviceModal, setShowDeviceModal] = useState(false);
-  const [agentName, setAgentName] = useState<string | null>(null);
-  const [localAgents, setLocalAgents] = useState<Agent[]>([]);
-  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
   const [deviceModalMode, setDeviceModalMode] = useState<'edit' | 'view'>('edit');
+
+  // إنشاء نسخة من العميل للعرض
+  const displayClient = formData;
 
   useEffect(() => {
     if (client && isOpen) {
@@ -70,16 +70,6 @@ export default function ClientDetailsModal({
       setIsDeleting(false);
       fetchDevices(client.id);
       
-      // جلب اسم المندوب مباشرة من قاعدة البيانات
-      if (client.agent_id) {
-        fetchAgentName(client.agent_id);
-      } else {
-        setAgentName(null);
-      }
-      
-      // جلب قائمة المندوبين
-      fetchAgents();
-      
       // طباعة معلومات المندوبين للتشخيص
       console.log("Agents from props:", agents);
       console.log("Current user:", currentUser); // إضافة سجل للتحقق من معلومات المستخدم الحالي
@@ -89,63 +79,9 @@ export default function ClientDetailsModal({
         setIsEditing(false);
         setShowDeleteConfirm(false);
         setDevices([]);
-        setAgentName(null);
       }, 200); 
     }
   }, [client, isOpen]);
-
-  // دالة جديدة لجلب قائمة المندوبين
-  const fetchAgents = async () => {
-    setIsLoadingAgents(true);
-    try {
-      // تعديل الاستعلام لتجنب الخطأ - إزالة عمود is_active غير الموجود
-      const { data, error } = await supabase
-        .from('agents')
-        .select('id, name, email, role')
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching agents:', error);
-        return;
-      }
-
-      if (data) {
-        console.log('Agents fetched directly:', data);
-        setLocalAgents(data as Agent[]);
-      }
-    } catch (error) {
-      console.error('Exception fetching agents:', error);
-    } finally {
-      setIsLoadingAgents(false);
-    }
-  };
-
-  // دالة جديدة لجلب اسم المندوب من قاعدة البيانات
-  const fetchAgentName = async (agentId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('agents')
-        .select('name, email')
-        .eq('id', agentId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching agent:', error);
-        setAgentName(null);
-        return;
-      }
-
-      if (data) {
-        console.log('Agent data fetched:', data);
-        setAgentName(data.name || data.email || null);
-      } else {
-        setAgentName(null);
-      }
-    } catch (error) {
-      console.error('Exception fetching agent:', error);
-      setAgentName(null);
-    }
-  };
 
   // جلب أجهزة العميل
   const fetchDevices = async (clientId?: string) => {
@@ -315,9 +251,9 @@ export default function ClientDetailsModal({
 
   const getDeviceIcon = (deviceType: string) => {
     if (deviceType === 'computer') {
-      return <Laptop className="h-5 w-5 text-blue-500" />;
+      return <Laptop className="h-5 w-5" />;
     } else {
-      return <Smartphone className="h-5 w-5 text-green-500" />;
+      return <Smartphone className="h-5 w-5" />;
     }
   };
 
@@ -361,14 +297,10 @@ export default function ClientDetailsModal({
     }
   };
 
-  // تم حذف هذه الوظيفة لأنها مكررة
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev: ClientType | null) => prev ? { ...prev, [name]: value } : null);
   };
-
-  // handleDateChange удален, так как больше не используется
 
   // دالة لحفظ التغييرات
   const handleSaveClick = async () => {
@@ -378,13 +310,6 @@ export default function ClientDetailsModal({
     try {
       // تحويل البيانات إلى الشكل المناسب لقاعدة البيانات
       await onSave(formData);
-      
-      // تحديث اسم المندوب المعروض بعد الحفظ
-      if (formData.agent_id) {
-        fetchAgentName(formData.agent_id);
-      } else {
-        setAgentName(null);
-      }
       
       setIsEditing(false);
       toast.success(t('messages.clientUpdated', 'تم تحديث بيانات العميل بنجاح'));
@@ -428,12 +353,8 @@ export default function ClientDetailsModal({
     setDeviceModalMode('view'); // وضع العرض فقط
   };
 
-  // هذه الوظائف غير مستخدمة حالياً ويمكن إعادة تفعيلها عند الحاجة
-
   if (!isOpen && !formData) return null; 
   if (!client && !formData) return null; 
-
-  const displayClient = isEditing ? formData : client; 
 
   // دالة لفتح واتساب
   const openWhatsApp = () => {
@@ -499,23 +420,21 @@ export default function ClientDetailsModal({
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/50 dark:bg-black/70 z-50 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/60 dark:bg-black/80 z-50 transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose} 
-        style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, height: '100vh', width: '100vw', margin: 0, padding: 0 }}
       />
 
       <div
         className={`fixed inset-0 flex items-center justify-center p-4 z-[60] transition-opacity duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        style={{ position: 'fixed', top: 0, bottom: 0, left: 0, right: 0, height: '100vh', width: '100vw', margin: 0, padding: 0 }}
       >
-        <div dir="rtl" className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden m-4">
-          <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+        <div dir="rtl" className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
               {t('client.details', 'تفاصيل العميل')}
             </h3>
             
             {/* أزرار إضافية في الأعلى */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {client?.phone && (
                 <Button
                   variant="primary"
@@ -524,7 +443,7 @@ export default function ClientDetailsModal({
                   title={t('client.whatsapp', 'التواصل عبر واتساب')}
                 >
                   <MessageSquare className="h-4 w-4" />
-                  <span>{t('client.whatsapp', 'واتساب')}</span>
+                  <span className="hidden sm:inline">{t('client.whatsapp', 'واتساب')}</span>
                 </Button>
               )}
               
@@ -535,22 +454,22 @@ export default function ClientDetailsModal({
                 title={t('client.saveContact', 'حفظ كجهة اتصال')}
               >
                 <UserPlus className="h-4 w-4" />
-                <span>{t('client.saveContact', 'حفظ جهة اتصال')}</span>
+                <span className="hidden sm:inline">{t('client.saveContact', 'حفظ جهة')}</span>
               </Button>
               
               <button 
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors" 
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors p-1 rounded-full" 
                 onClick={onClose}
                 aria-label={t('actions.close', 'إغلاق') as string}
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          <div className="p-6 overflow-y-auto flex-grow">
+          <div className="p-4 overflow-y-auto flex-grow">
             {displayClient ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* اسم العميل */}
                 <CustomerField label={t('client.name', 'اسم العميل')} children={
                   <CustomerInput
@@ -560,7 +479,7 @@ export default function ClientDetailsModal({
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
                   />
                 } />
 
@@ -573,36 +492,10 @@ export default function ClientDetailsModal({
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     required
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
                   />
                 } />
 
-                {/* نوع النشاط */}
-                <CustomerField label={t('client.activityType', 'نوع النشاط')} children={
-                  <CustomerInput
-                    type="text"
-                    name="activity_type"
-                    value={isEditing ? formData?.activity_type || '' : displayClient?.activity_type || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    required
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-                
-                {/* العنوان */}
-                <CustomerField label={t('client.address', 'العنوان')} children={
-                  <CustomerInput
-                    type="text"
-                    name="address"
-                    value={isEditing ? formData?.address || '' : displayClient?.address || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    required
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-                
                 {/* رقم الهاتف */}
                 <CustomerField label={t('client.phone', 'رقم الهاتف')} children={
                   <CustomerInput
@@ -613,7 +506,7 @@ export default function ClientDetailsModal({
                     isEditing={isEditing}
                     required
                     dir="ltr"
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
                   />
                 } />
 
@@ -626,7 +519,33 @@ export default function ClientDetailsModal({
                     onChange={handleInputChange}
                     isEditing={isEditing}
                     dir="ltr"
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
+                  />
+                } />
+                
+                {/* نوع النشاط */}
+                <CustomerField label={t('client.activityType', 'نوع النشاط')} children={
+                  <CustomerInput
+                    type="text"
+                    name="activity_type"
+                    value={isEditing ? formData?.activity_type || '' : displayClient?.activity_type || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
+                  />
+                } />
+                
+                {/* العنوان */}
+                <CustomerField label={t('client.address', 'العنوان')} children={
+                  <CustomerInput
+                    type="text"
+                    name="address"
+                    value={isEditing ? formData?.address || '' : displayClient?.address || ''}
+                    onChange={handleInputChange}
+                    isEditing={isEditing}
+                    required
+                    className="h-10 text-base border-gray-300 dark:border-gray-600"
                   />
                 } />
                 
@@ -637,8 +556,8 @@ export default function ClientDetailsModal({
                     value={isEditing ? formData?.notes || '' : displayClient?.notes || ''}
                     onChange={handleInputChange}
                     isEditing={isEditing}
-                    rows={4}
-                    className="text-lg border-gray-300 dark:border-gray-600"
+                    rows={3}
+                    className="text-base border-gray-300 dark:border-gray-600"
                   />
                 } />
               </div>
@@ -653,11 +572,12 @@ export default function ClientDetailsModal({
           <div className="border-t border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setShowDevicesSection(!showDevicesSection)}
-              className="flex items-center justify-between w-full p-5 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="flex items-center justify-between w-full p-4 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+              <h3 className="text-lg font-medium text-gray-800 dark:text-white flex items-center">
+                <Smartphone className="w-5 h-5 ml-2" />
                 {t('device.devicesSection', 'الأجهزة والاشتراكات')}
-                <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                <span className="mr-2 text-sm font-normal text-gray-500 dark:text-gray-400">
                   ({devices.length})
                 </span>
               </h3>
@@ -669,269 +589,316 @@ export default function ClientDetailsModal({
             </button>
             
             {showDevicesSection && (
-              <div className="p-5">
+              <div className="p-4">
                 {isLoadingDevices ? (
-                  <div className="flex justify-center items-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent"></div>
+                  <div className="flex justify-center items-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary-600 border-t-transparent"></div>
                   </div>
                 ) : devices.length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-800">
-                        <tr>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.deviceType', 'نوع الجهاز')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.activationCode', 'رمز التفعيل')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.email', 'البريد الإلكتروني')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.subscriptionType', 'نوع الاشتراك')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.subscriptionEnd', 'نهاية الاشتراك')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.price', 'القيمة')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('device.approvalStatus', 'حالة الموافقة')}
-                          </th>
-                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            {t('common.actions', 'الإجراءات')}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                        {devices.map((device) => (
-                          <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                {getDeviceIcon(device.device_type)}
-                                <span className="mr-2">{getDeviceTypeLabel(device.device_type)}</span>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        {t('device.totalDevices', 'إجمالي الأجهزة')}: {devices.length}
+                      </h4>
+                      
+                      {/* زر إضافة جهاز جديد - في الجانب على الشاشات الكبيرة وفي الوسط على الشاشات الصغيرة */}
+                      {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                        <div className="hidden sm:block">
+                          <Button
+                            variant="primary"
+                            onClick={handleAddDevice}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>{t('device.addDevice', 'إضافة جهاز جديد')}</span>
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* عرض الأجهزة كبطاقات في وضع الجوال */}
+                    <div className="sm:hidden space-y-4">
+                      {devices.map((device) => (
+                        <div key={device.id} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-3 border border-gray-200 dark:border-gray-700">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center">
+                              {getDeviceIcon(device.device_type)}
+                              <span className="mr-2 text-sm font-medium">{getDeviceTypeLabel(device.device_type)}</span>
+                            </div>
+                            <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${getApprovalStatusColor(device.approval_status || 'pending')}`}>
+                              {getApprovalStatusIcon(device.approval_status || 'pending')}
+                              <span className="ml-1">{getApprovalStatusLabel(device.approval_status || 'pending')}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t('device.activationCode', 'رمز التفعيل')}:</div>
+                            <div className="flex items-center">
+                              <code className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded truncate max-w-[120px]" title={device.activation_code}>
+                                {device.activation_code}
+                              </code>
+                              <button
+                                onClick={() => copyActivationCode(device.activation_code)}
+                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mr-0 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                                title={t('common.copy', 'نسخ')}
+                              >
+                                <Clipboard className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {device.email && (
+                            <div className="flex items-center justify-between">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{t('device.email', 'البريد الإلكتروني')}:</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-300 dir-ltr truncate max-w-[200px]">
+                                {device.email || '-'}
                               </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap" style={{ maxWidth: '200px' }}>
-                              <div className="flex items-center">
-                                <span className="font-mono text-sm truncate" style={{ maxWidth: '160px' }} title={device.activation_code}>
-                                  {device.activation_code}
-                                </span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{t('device.subscriptionType', 'نوع الاشتراك')}:</div>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {getSubscriptionTypeLabel(device.subscription_type)}
+                            </span>
+                          </div>
+                          
+                          <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                            {/* زر عرض التفاصيل للمندوبين فقط */}
+                            {currentUser?.role === 'agent' && (
+                              <button
+                                onClick={() => handleViewDevice(device)}
+                                className="flex items-center gap-1 p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-xs"
+                              >
+                                <Eye className="w-4 h-4" />
+                                <span>{t('device.viewDetails', 'عرض التفاصيل')}</span>
+                              </button>
+                            )}
+                            
+                            {/* أزرار التعديل والحذف للمديرين فقط */}
+                            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                              <>
                                 <button
-                                  onClick={() => copyActivationCode(device.activation_code)}
-                                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mr-0 ml-2"
-                                  title={t('common.copy', 'نسخ')}
+                                  onClick={() => handleEditDevice(device)}
+                                  className="flex items-center gap-1 p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-xs"
                                 >
-                                  <Clipboard className="h-4 w-4" />
+                                  <Edit className="w-4 h-4" />
+                                  <span>{t('actions.edit', 'تعديل')}</span>
                                 </button>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                {device.email}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                {getSubscriptionTypeLabel(device.subscription_type)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <Calendar className="h-4 w-4 ml-2" />
-                                {device.subscription_type === 'permanent' ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                    {t('client.permanent', 'دائم')}
-                                  </span>
-                                ) : (
-                                  <span className={isSubscriptionExpired(device.subscription_end) ? 'text-red-500 font-semibold' : ''}>
-                                    {formatDate(device.subscription_end)}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                {device.price ? device.price.toLocaleString() : '0'} جنيه
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                {getApprovalStatusIcon(device.approval_status || 'pending')}
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-2 ${getApprovalStatusColor(device.approval_status || 'pending')}`}>
-                                  {getApprovalStatusLabel(device.approval_status || 'pending')}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                              <div className="flex justify-center space-x-2 rtl:space-x-reverse">
-                                {/* زر عرض التفاصيل للمندوبين فقط */}
-                                {currentUser?.role === 'agent' && (
-                                  <button
-                                    onClick={() => handleViewDevice(device)}
-                                    className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
-                                    title={t('device.viewDetails', 'عرض التفاصيل')}
-                                  >
-                                    <Eye className="w-5 h-5" />
-                                  </button>
-                                )}
-                                
-                                {/* أزرار التعديل والحذف للمديرين فقط */}
-                                {currentUser?.role !== 'agent' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleEditDevice(device)}
-                                      className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
-                                      title={t('actions.edit', 'تعديل')}
-                                    >
-                                      <Edit className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteDevice(device.id || '')}
-                                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                                      title={t('actions.delete', 'حذف')}
-                                    >
-                                      <Trash2 className="w-5 h-5" />
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </td>
+                                <button
+                                  onClick={() => handleDeleteDevice(device.id || '')}
+                                  className="flex items-center gap-1 p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-xs"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  <span>{t('actions.delete', 'حذف')}</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {/* عرض الأجهزة كجدول في وضع الشاشات المتوسطة والكبيرة */}
+                    <div className="hidden sm:block overflow-x-auto -mx-4 sm:mx-0">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
+                          <tr>
+                            <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              {t('device.deviceType', 'نوع الجهاز')}
+                            </th>
+                            <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              {t('device.activationCode', 'رمز التفعيل')}
+                            </th>
+                            <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden md:table-cell">
+                              {t('device.email', 'البريد الإلكتروني')}
+                            </th>
+                            <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden lg:table-cell">
+                              {t('device.subscriptionType', 'نوع الاشتراك')}
+                            </th>
+                            <th scope="col" className="px-3 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider hidden lg:table-cell">
+                              {t('device.status', 'الحالة')}
+                            </th>
+                            <th scope="col" className="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              {t('common.actions', 'الإجراءات')}
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
+                          {devices.map((device) => (
+                            <tr key={device.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  {getDeviceIcon(device.device_type)}
+                                  <span className="mr-2 text-sm">{getDeviceTypeLabel(device.device_type)}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap">
+                                <div className="flex items-center">
+                                  <code className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded truncate max-w-[100px] sm:max-w-[150px]" title={device.activation_code}>
+                                    {device.activation_code}
+                                  </code>
+                                  <button
+                                    onClick={() => copyActivationCode(device.activation_code)}
+                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 mr-0 ml-2 p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
+                                    title={t('common.copy', 'نسخ')}
+                                  >
+                                    <Clipboard className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap hidden md:table-cell">
+                                <span className="text-sm text-gray-600 dark:text-gray-300">
+                                  {device.email || '-'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                  {getSubscriptionTypeLabel(device.subscription_type)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap hidden lg:table-cell">
+                                <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${getApprovalStatusColor(device.approval_status || 'pending')}`}>
+                                  {getApprovalStatusIcon(device.approval_status || 'pending')}
+                                  <span className="ml-1">{getApprovalStatusLabel(device.approval_status || 'pending')}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 whitespace-nowrap text-center">
+                                <div className="flex justify-center gap-1">
+                                  {/* زر عرض التفاصيل للمندوبين فقط */}
+                                  {currentUser?.role === 'agent' && (
+                                    <button
+                                      onClick={() => handleViewDevice(device)}
+                                      className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
+                                      title={t('device.viewDetails', 'عرض التفاصيل')}
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  
+                                  {/* أزرار التعديل والحذف للمديرين فقط */}
+                                  {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                                    <>
+                                      <button
+                                        onClick={() => handleEditDevice(device)}
+                                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded"
+                                        title={t('actions.edit', 'تعديل')}
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteDevice(device.id || '')}
+                                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"
+                                        title={t('actions.delete', 'حذف')}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* زر إضافة جهاز جديد للشاشات الصغيرة فقط */}
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                      <div className="flex justify-center mt-4 sm:hidden">
+                        <Button
+                          variant="primary"
+                          onClick={handleAddDevice}
+                          className="flex items-center gap-2 px-4 py-2 text-sm w-full"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{t('device.addDevice', 'إضافة جهاز جديد')}</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-                    {t('device.noDevices', 'لا توجد أجهزة مسجلة لهذا العميل')}
+                  <div className="space-y-4">
+                    <div className="text-center py-4 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                      {t('device.noDevices', 'لا توجد أجهزة مسجلة لهذا العميل')}
+                    </div>
+                    
+                    {/* زر إضافة جهاز جديد عندما لا توجد أجهزة */}
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                      <div className="flex justify-center mt-4">
+                        <Button
+                          variant="primary"
+                          onClick={handleAddDevice}
+                          className="flex items-center gap-2 px-4 py-2 text-sm"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>{t('device.addDevice', 'إضافة جهاز جديد')}</span>
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
-
-                <div className="mt-6 flex justify-end">
-                  <Button
-                    variant="primary"
-                    onClick={handleAddDevice}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                  >
-                    <Plus className="w-5 h-5" />
-                    <span>{t('device.addDevice', 'إضافة جهاز جديد')}</span>
-                  </Button>
-                </div>
               </div>
             )}
           </div>
 
-          <div className="flex justify-between p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
-            
-            {/* حقل المندوب */}
-            <div className="flex-1 max-w-xs">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {t('client.agent', 'المندوب')}
-              </label>
-              
-              {isEditing && currentUser?.role === 'admin' ? (
-                /* حالة التعديل - يظهر قائمة منسدلة للمندوبين */
-                <>
-                  {isLoadingAgents ? (
-                    <div className="mt-1 block w-full rounded-md shadow-sm bg-gray-100 border-2 border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 px-3 py-2 h-12 text-lg flex items-center">
-                      جاري تحميل المندوبين...
-                    </div>
-                  ) : (
-                    <select
-                      name="agent_id"
-                      value={formData?.agent_id || ''}
-                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                        handleInputChange(e);
-                        // عرض قيمة المندوب المختار للتشخيص
-                        console.log("Selected agent ID:", e.target.value);
-                      }}
-                      className="mt-1 block w-full rounded-md shadow-sm focus:border-primary-500 focus:ring-primary-500 bg-white border-2 border-blue-200 dark:bg-gray-700 dark:border-blue-700 dark:text-white h-12 text-lg"
+          <div className="flex flex-wrap justify-end gap-2 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={handleCancelEdit}
+                  className="flex items-center gap-2 px-4 py-2 text-sm w-full sm:w-auto"
+                  disabled={isSaving}
+                >
+                  <X className="w-4 h-4" />
+                  <span>{t('actions.cancel', 'إلغاء')}</span>
+                </Button>
+                <Button
+                  variant="primary" 
+                  onClick={handleSaveClick}
+                  className="flex items-center gap-2 px-4 py-2 text-sm w-full sm:w-auto"
+                  disabled={isSaving}
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSaving ? t('actions.saving', 'جار الحفظ...') : t('actions.save', 'حفظ')}</span>
+                </Button>
+              </>
+            ) : (
+              <>
+                {/* عرض أزرار التعديل والحذف للمديرين فقط */}
+                {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                  <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <Button
+                      variant="danger" 
+                      onClick={handleDeleteClick}
+                      className="flex items-center gap-2 px-4 py-2 text-sm w-full sm:w-auto"
+                      disabled={isDeleting}
                     >
-                      <option value="">{t('client.noAgent', 'بدون مندوب')}</option>
-                      {localAgents && localAgents.length > 0 ? (
-                        localAgents.map(agent => (
-                          <option 
-                            key={agent.id} 
-                            value={agent.id}
-                          >
-                            {agent.name || agent.email || agent.id}
-                          </option>
-                        ))
-                      ) : (
-                        <option value="" disabled>لا يوجد مندوبين متاحين</option>
-                      )}
-                    </select>
-                  )}
-                </>
-              ) : (
-                /* حالة العرض - يظهر اسم المندوب الحالي */
-                <div className="mt-1 block w-full rounded-md shadow-sm bg-gray-100 border-2 border-gray-300 dark:bg-gray-600 dark:border-gray-500 dark:text-gray-100 px-3 py-2 h-12 text-lg flex items-center">
-                  {agentName || ((displayClient as any)?.agent_name) || t('client.noAgent', 'بدون مندوب')}
-                </div>
-              )}
-            </div>
-            
-            <div className="flex gap-3">
-              {isEditing ? (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={handleCancelEdit}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                    disabled={isSaving}
-                  >
-                    <Ban className="w-5 h-5" />
-                    <span>{t('actions.cancel', 'إلغاء')}</span>
-                  </Button>
-                  <Button
-                    variant="primary" 
-                    onClick={handleSaveClick}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                    disabled={isSaving}
-                  >
-                    <Save className="w-5 h-5" />
-                    <span>{isSaving ? t('actions.saving', 'جار الحفظ...') : t('actions.save', 'حفظ')}</span>
-                  </Button>
-                </>
-              ) : (
-                <>
-                  {/* عرض أزرار التعديل والحذف للمديرين فقط */}
-                  {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
-                    <>
-                      <Button
-                        variant="danger" 
-                        onClick={handleDeleteClick}
-                        className="flex items-center gap-2 px-5 py-2.5"
-                        disabled={isDeleting}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                        <span>{t('actions.delete', 'حذف')}</span>
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2 px-5 py-2.5"
-                        disabled={isDeleting}
-                      >
-                        <Edit className="w-5 h-5" />
-                        <span>{t('actions.edit', 'تعديل')}</span>
-                      </Button>
-                    </>
-                  )}
-                  <Button
-                    variant="secondary"
-                    onClick={onClose}
-                    className="flex items-center gap-2 px-5 py-2.5"
-                  >
-                    <X className="w-5 h-5" />
-                    <span>{t('actions.close', 'إغلاق')}</span>
-                  </Button>
-                </>
-              )}
-            </div>
+                      <Trash2 className="w-4 h-4" />
+                      <span>{t('actions.delete', 'حذف')}</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm w-full sm:w-auto"
+                      disabled={isDeleting}
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span>{t('actions.edit', 'تعديل')}</span>
+                    </Button>
+                  </div>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={onClose}
+                  className="flex items-center gap-2 px-4 py-2 text-sm w-full sm:w-auto"
+                >
+                  <X className="w-4 h-4" />
+                  <span>{t('actions.close', 'إغلاق')}</span>
+                </Button>
+              </>
+            )}
           </div>
 
           {showDeleteConfirm && (
@@ -954,7 +921,7 @@ export default function ClientDetailsModal({
                     variant="secondary" 
                     onClick={() => setShowDeleteConfirm(false)} 
                     disabled={isDeleting}
-                    className="px-5 py-2.5"
+                    className="px-4 py-2 text-sm"
                   >
                     <span>{t('actions.cancel', 'إلغاء')}</span>
                   </Button>
@@ -962,9 +929,9 @@ export default function ClientDetailsModal({
                     variant="danger" 
                     onClick={handleConfirmDelete} 
                     disabled={isDeleting}
-                    className="flex items-center gap-2 px-5 py-2.5"
+                    className="flex items-center gap-2 px-4 py-2 text-sm"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                     <span>{isDeleting ? t('actions.deleting', 'جار الحذف...') : t('actions.confirmDelete', 'تأكيد الحذف')}</span>
                   </Button>
                 </div>
@@ -986,7 +953,6 @@ export default function ClientDetailsModal({
           )}
         </div>
       </div>
-
     </>
   );
 }
