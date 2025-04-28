@@ -5,7 +5,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg' | 'icon';
   isLoading?: boolean;
-  key?: string;
 }
 
 const Button: React.FC<ButtonProps> = ({
@@ -15,7 +14,6 @@ const Button: React.FC<ButtonProps> = ({
   size = 'md',
   isLoading = false,
   disabled,
-  key,
   ...props
 }) => {
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
@@ -47,7 +45,6 @@ const Button: React.FC<ButtonProps> = ({
         className
       )}
       disabled={isLoading || disabled}
-      key={key}
       {...props}
     >
       {isLoading && (

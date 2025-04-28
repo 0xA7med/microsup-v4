@@ -1,6 +1,8 @@
 // أنواع البيانات المتعلقة بالعملاء والوكلاء
 
 // تصحيح وتحسين أنواع البيانات
+import { DeviceType } from './device.types';
+
 export interface ClientType {
   id: string;
   created_at: string;
@@ -20,6 +22,7 @@ export interface ClientType {
   device_count?: number;
   device_type: string;
   agent?: Agent; // إضافة خاصية agent كاختيارية
+  devices?: DeviceType[]; // إضافة خاصية devices كاختيارية
 }
 
 export interface Agent {

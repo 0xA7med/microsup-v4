@@ -50,13 +50,13 @@ export const Dashboard: React.FC = () => {
     permanentStats: true
   });
 
-  // --- Fetch Data on Mount/User Change ---
+  // --- Fetch Data Effect ---
   useEffect(() => {
-    // Fetch data (store handles caching logic)
-    // Pass the current user for role-based filtering/calculations in the store
-    console.log('Dashboard: Triggering fetchData from store effect.');
-    fetchData(false, user);
-  }, [fetchData, user]); 
+    if (user) {
+      // تحميل البيانات فقط إذا لم تكن محملة بالفعل
+      fetchData(false, user);
+    }
+  }, [fetchData, user]);
 
   // --- Error Handling ---
   useEffect(() => {

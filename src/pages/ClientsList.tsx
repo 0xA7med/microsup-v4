@@ -1,5 +1,5 @@
 // src/pages/ClientsList.tsx
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
@@ -58,13 +58,14 @@ export const ClientsList: React.FC = () => {
   const { user } = useAuthStore();
 
   // --- Zustand Store Subscription ---
-   const {
+  const {
     clients: allClientsFromStore,
     devices: allDevicesFromStore,
     agents: allAgentsFromStore,
     loading: isLoadingStore,
     error: storeError,
     fetchData,
+    getClientDetails
   } = useDataStore(
     state => ({
       clients: state.clients,
@@ -73,6 +74,7 @@ export const ClientsList: React.FC = () => {
       loading: state.loading,
       error: state.error,
       fetchData: state.fetchData,
+      getClientDetails: state.getClientDetails
     }),
     shallow
   );
@@ -92,16 +94,13 @@ export const ClientsList: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [userExpandedClients, setUserExpandedClients] = useState<Set<string>>(new Set());
 
-  const initialFetchTriggered = useRef(false);
-
-  // --- Fetch Initial Data via Store ---
+  // --- Fetch Data Effect ---
   useEffect(() => {
-    if (!isLoadingStore && !initialFetchTriggered.current) {
-      // console.log("ClientsList: Triggering initial fetchData from store effect.");
+    if (user) {
+      // تحميل البيانات فقط إذا لم تكن محملة بالفعل
       fetchData(false, user);
-      initialFetchTriggered.current = true;
     }
-  }, [fetchData, user, isLoadingStore]);
+  }, [fetchData, user]);
 
   // --- Process Filters from URL ---
   useEffect(() => {
@@ -259,7 +258,42 @@ export const ClientsList: React.FC = () => {
      setUserExpandedClients(prev => { const newSet = new Set(prev); if (newSet.has(clientId)) { newSet.delete(clientId); } else { newSet.add(clientId); } return newSet; });
    }, []);
 
-  const handleShowDetails = useCallback((client: DisplayClientType) => { setSelectedClient(client); setShowDetailsModal(true); }, []);
+  const handleShowDetails = useCallback(async (client: DisplayClientType) => {
+    try {
+      setSelectedClient(client);
+      setShowDetailsModal(true);
+      
+      // جلب تفاصيل العميل الكاملة إذا لم تكن متوفرة بالفعل
+      if (!client.devices || client.devices.length === 0) {
+        const clientDetails = await getClientDetails(client.id);
+        if (clientDetails) {
+          // تحديث بيانات العميل المحدد بالتفاصيل الكاملة
+          const updatedClient: DisplayClientType = {
+            ...client,
+            ...clientDetails,
+            devices: clientDetails.devices || [],
+            deviceCount: client.deviceCount,
+            mobileDevicesCount: client.mobileDevicesCount,
+            computerDevicesCount: client.computerDevicesCount,
+            approvedDevicesCount: client.approvedDevicesCount,
+            pendingDevicesCount: client.pendingDevicesCount,
+            rejectedDevicesCount: client.rejectedDevicesCount,
+            earliestEndDate: client.earliestEndDate,
+            subscriptionTypes: client.subscriptionTypes,
+            totalPrice: client.totalPrice,
+            mobilePrice: client.mobilePrice,
+            computerPrice: client.computerPrice,
+            showDevices: client.showDevices
+          };
+          setSelectedClient(updatedClient);
+        }
+      }
+    } catch (error) {
+      console.error('خطأ في جلب تفاصيل العميل:', error);
+      toast.error(t('messages.errorFetchingClientDetails', 'حدث خطأ أثناء جلب تفاصيل العميل'));
+    }
+  }, [getClientDetails, t]);
+
   const handleCloseModal = useCallback(() => { setShowDetailsModal(false); setSelectedClient(null); }, []);
 
   const handleUpdateClient = useCallback(async (updatedClient: ImportedClientType) => {
@@ -390,7 +424,13 @@ export const ClientsList: React.FC = () => {
                              { value: 'expiring', icon: Clock, label: t('clientsList.expiringFilter', 'قريب الانتهاء') },
                              { value: 'noDevices', icon: User, label: t('clientsList.noDevicesFilter', 'بدون أجهزة') }
                            ].map((filter) => (
-                             <Button key={filter.value} onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><filter.icon size={14}/><span>{filter.label}</span>{activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
+                             <div key={filter.value}>
+                               <Button onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1">
+                                 <filter.icon size={14}/>
+                                 <span>{filter.label}</span>
+                                 {activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}
+                               </Button>
+                             </div>
                            ))}
                        </div>
                    </div>
@@ -403,7 +443,13 @@ export const ClientsList: React.FC = () => {
                              { value: 'pending', icon: Clock, label: t('clientsList.pendingFilter', 'المعلق') },
                              { value: 'rejected', icon: X, label: t('clientsList.rejectedFilter', 'المرفوض') }
                            ].map((filter) => (
-                             <Button key={filter.value} onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1"><filter.icon size={14}/><span>{filter.label}</span>{activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}</Button>
+                             <div key={filter.value}>
+                               <Button onClick={() => handleFilterChange(activeFilter === filter.value ? null : filter.value, deviceFilter)} variant={activeFilter === filter.value ? 'primary' : 'secondary'} size="sm" className="flex items-center gap-1">
+                                 <filter.icon size={14}/>
+                                 <span>{filter.label}</span>
+                                 {activeFilter === filter.value && <Check size={14} className="ltr:ml-1 rtl:mr-1"/>}
+                               </Button>
+                             </div>
                            ))}
                        </div>
                    </div>
@@ -411,7 +457,7 @@ export const ClientsList: React.FC = () => {
                     {(user?.role === 'admin' || user?.role === 'super_admin') && allAgentsFromStore.length > 0 && (
                        <div>
                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">{t('clientsList.agents', 'المندوبين')}: <Users size={14}/></h3>
-                           <select className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white bg-white" value={activeFilter?.startsWith('agent_') ? activeFilter : ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, deviceFilter)}>
+                           <select className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white" value={activeFilter?.startsWith('agent_') ? activeFilter : ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, deviceFilter)}>
                                <option value="">{t('clientsList.selectAgent', 'الكل / اختر المندوب...')}</option>
                                {allAgentsFromStore.map(agent => (<option key={agent.id} value={`agent_${agent.id}`}>{agent.name}</option>))}
                            </select>
@@ -550,6 +596,25 @@ export const ClientsList: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* زر تحميل المزيد من البيانات - تم إخفاؤه لأن جميع البيانات تُحمل تلقائيًا */}
+      {/* {!isLoadingStore && hasMoreData && (
+        <div className="mt-6 flex justify-center">
+          <Button
+            onClick={() => loadMoreData(user)}
+            disabled={isLoadingMoreStore}
+            variant="secondary"
+            className="px-4 py-2 flex items-center gap-2"
+          >
+            {isLoadingMoreStore ? (
+              <div className="animate-spin h-5 w-5 border-2 border-gray-300 border-t-gray-600 rounded-full"></div>
+            ) : (
+              <RefreshCw className="h-5 w-5" />
+            )}
+            <span>{isLoadingMoreStore ? t('common.loading', 'جار التحميل...') : t('clientsList.loadMore', 'تحميل المزيد')}</span>
+          </Button>
+        </div>
+      )} */}
 
       {/* Pagination Controls */}
       {!isLoadingStore && processedClients.length > 0 && totalPages > 1 && (

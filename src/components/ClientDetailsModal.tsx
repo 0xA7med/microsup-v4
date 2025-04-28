@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { format, parseISO } from 'date-fns';
 import {
   X, Edit, Save, Trash2, Ban, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye
+  Plus, Clipboard, Calendar, Smartphone, Laptop, CheckCircle, XCircle, AlertCircle, Eye,
+  MessageSquare, UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
@@ -13,7 +14,6 @@ import CustomerField from './CustomerField';
 import CustomerInput from './CustomerInput';
 import CustomerTextArea from './CustomerTextArea';
 import DeviceModal from './DeviceModal';
-import CustomerSelect from './CustomerSelect';
 import { DeviceType, DEVICE_TYPES, APPROVAL_STATUS } from '../types/device.types';
 
 interface ClientDetailsModalProps {
@@ -30,6 +30,7 @@ interface ClientDetailsModalProps {
     id: string;
     role: string;
   } | null;
+  onSaveContact?: (client: ClientType) => void; // دالة لحفظ العميل كجهة اتصال
 }
 
 export default function ClientDetailsModal({
@@ -40,7 +41,8 @@ export default function ClientDetailsModal({
   onClose,
   onSave,
   onDelete,
-  currentUser
+  currentUser,
+  onSaveContact
 }: ClientDetailsModalProps) {
   const { t, i18n } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -433,6 +435,67 @@ export default function ClientDetailsModal({
 
   const displayClient = isEditing ? formData : client; 
 
+  // دالة لفتح واتساب
+  const openWhatsApp = () => {
+    if (!client?.phone) return;
+    
+    // تنظيف رقم الهاتف من أي أحرف غير رقمية
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    
+    // إذا كان الرقم لا يبدأ بـ +، نضيف مفتاح مصر
+    let formattedPhone = cleanPhone;
+    if (!cleanPhone.startsWith('+')) {
+      // إذا كان الرقم يبدأ بصفر، نحذفه ونضيف مفتاح مصر
+      if (cleanPhone.startsWith('0')) {
+        formattedPhone = '20' + cleanPhone.substring(1);
+      } else {
+        formattedPhone = '20' + cleanPhone;
+      }
+    }
+    
+    // فتح واتساب
+    const whatsappUrl = `https://wa.me/${formattedPhone}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  // دالة لحفظ العميل كجهة اتصال
+  const handleSaveContact = () => {
+    if (!client) return;
+    
+    if (onSaveContact) {
+      onSaveContact(client);
+      toast.success(t('client.contactSaved', 'تم حفظ العميل كجهة اتصال'));
+    } else {
+      // إذا لم تكن الدالة متوفرة، نقوم بإنشاء vCard وتنزيلها
+      const vCard = createVCard(client);
+      downloadVCard(vCard, client.client_name);
+    }
+  };
+
+  // إنشاء vCard
+  const createVCard = (client: ClientType) => {
+    let vCard = 'BEGIN:VCARD\nVERSION:3.0\n';
+    vCard += `FN:${client.client_name}\n`;
+    if (client.organization_name) vCard += `ORG:${client.organization_name}\n`;
+    if (client.phone) vCard += `TEL;TYPE=CELL:${client.phone}\n`;
+    if (client.phone2) vCard += `TEL;TYPE=WORK:${client.phone2}\n`;
+    if (client.address) vCard += `ADR;TYPE=WORK:;;${client.address};;;;\n`;
+    vCard += 'END:VCARD';
+    return vCard;
+  };
+
+  // تنزيل vCard
+  const downloadVCard = (vCard: string, name: string) => {
+    const blob = new Blob([vCard], { type: 'text/vcard' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${name}.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <>
       <div
@@ -448,15 +511,41 @@ export default function ClientDetailsModal({
         <div dir="rtl" className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden m-4">
           <div className="flex justify-between items-center p-5 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {t('clientDetails.title', 'تفاصيل العميل')}
+              {t('client.details', 'تفاصيل العميل')}
             </h3>
-            <button
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-              onClick={onClose}
-              aria-label="Close"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            
+            {/* أزرار إضافية في الأعلى */}
+            <div className="flex items-center gap-2">
+              {client?.phone && (
+                <Button
+                  variant="primary"
+                  onClick={openWhatsApp}
+                  className="px-3 py-1.5 text-sm flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                  title={t('client.whatsapp', 'التواصل عبر واتساب')}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>{t('client.whatsapp', 'واتساب')}</span>
+                </Button>
+              )}
+              
+              <Button
+                variant="secondary"
+                onClick={handleSaveContact}
+                className="px-3 py-1.5 text-sm flex items-center gap-1"
+                title={t('client.saveContact', 'حفظ كجهة اتصال')}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>{t('client.saveContact', 'حفظ جهة اتصال')}</span>
+              </Button>
+              
+              <button 
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors" 
+                onClick={onClose}
+                aria-label={t('actions.close', 'إغلاق') as string}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
           </div>
 
           <div className="p-6 overflow-y-auto flex-grow">
@@ -550,21 +639,6 @@ export default function ClientDetailsModal({
                     isEditing={isEditing}
                     rows={4}
                     className="text-lg border-gray-300 dark:border-gray-600"
-                  />
-                } />
-                
-                {/* نوع الاشتراك */}
-                <CustomerField label={t('client.subscriptionType', 'نوع الاشتراك')} children={
-                  <CustomerSelect
-                    name="subscription_type"
-                    value={formData?.subscription_type || ''}
-                    onChange={handleInputChange}
-                    isEditing={isEditing}
-                    options={subscriptionTypes.map(type => ({
-                      value: type.value,
-                      label: i18n.language === 'ar' ? type.label : type.labelEn
-                    }))}
-                    className="h-12 text-lg border-gray-300 dark:border-gray-600"
                   />
                 } />
               </div>
