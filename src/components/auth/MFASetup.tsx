@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
-import { Button } from '../Button';
+import Button from '../Button';
 
 interface MFASetupProps {
-  userId: string;
 }
 
-const MFASetup: React.FC<MFASetupProps> = ({ userId }) => {
+const MFASetup: React.FC<MFASetupProps> = () => {
   const [factorId, setFactorId] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
@@ -74,7 +73,7 @@ const MFASetup: React.FC<MFASetupProps> = ({ userId }) => {
     setError(null);
     
     try {
-      const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
         code: verifyCode,
       });
@@ -177,7 +176,7 @@ const MFASetup: React.FC<MFASetupProps> = ({ userId }) => {
               type="text"
               id="verifyCode"
               value={verifyCode}
-              onChange={(e) => setVerifyCode(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVerifyCode(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               placeholder="000000"
             />

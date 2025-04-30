@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import MFASetup from '../components/auth/MFASetup';
-import { Button } from '../components/Button';
+import Button from '../components/Button';
 
 // الترجمات
 const translations = {
@@ -165,7 +165,7 @@ const SecuritySettings: React.FC = () => {
                 id="currentPassword"
                 type="password"
                 value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentPassword(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 required
               />
@@ -179,7 +179,7 @@ const SecuritySettings: React.FC = () => {
                 id="newPassword"
                 type="password"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 required
               />
@@ -193,7 +193,7 @@ const SecuritySettings: React.FC = () => {
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                 required
               />
@@ -240,7 +240,7 @@ const SecuritySettings: React.FC = () => {
         {/* قسم المصادقة الثنائية */}
         <div className="col-span-12 md:col-span-6">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6">{t.mfaSection}</h2>
-          <MFASetup userId={user.id} />
+          <MFASetup />
         </div>
       </div>
       
