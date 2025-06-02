@@ -101,21 +101,33 @@ export const AgentsList = () => {
   const handleUpdateAgent = async (updatedAgent: Agent) => {
     try {
       setIsProcessing(true);
+      console.log('Updating agent with data:', updatedAgent);
       
-      const { error } = await supabase
+      const updateData = {
+        name: updatedAgent.name,
+        email: updatedAgent.email,
+        phone: updatedAgent.phone || null,
+        address: updatedAgent.address || null,
+        role: updatedAgent.role,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Prepared update data:', updateData);
+      
+      const { data, error } = await supabase
         .from('agents')
-        .update({
-          name: updatedAgent.name,
-          email: updatedAgent.email,
-          phone: updatedAgent.phone,
-          address: updatedAgent.address,
-          role: updatedAgent.role
-        })
-        .eq('id', updatedAgent.id);
+        .update(updateData)
+        .eq('id', updatedAgent.id)
+        .select();
       
-      if (error) throw error;
+      console.log('Update response:', { data, error });
       
-      setSuccessMessage(t('messages.agentUpdated', 'تم تحديث بيانات المندوب بنجاح'));
+      if (error) {
+        console.error('Error updating agent:', error);
+        throw error;
+      }
+      
+      toast.success(t('messages.agentUpdated', 'تم تحديث بيانات المندوب بنجاح'));
       setShowEditModal(false);
       setAgentToEdit(null);
       fetchAgents(); // إعادة تحميل بيانات المناديب
