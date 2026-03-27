@@ -277,7 +277,7 @@ export default function PendingDevicesPage({ refreshTrigger }: PendingDevicesPag
     try {
       const { data, error } = await supabase
         .from('clients')
-        .select('*') // Fetch all details needed for the modal
+        .select('id, created_at, client_name, organization_name, activity_type, phone, phone2, address, notes, agent_id, active_devices_count, device_count, created_by, subscription_type, subscription_start, subscription_end')
         .eq('id', clientId)
         .single();
 

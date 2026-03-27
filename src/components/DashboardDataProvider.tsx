@@ -111,7 +111,7 @@ export const DashboardDataProvider: React.FC<{ children: ReactNode }> = ({ child
       // جلب أحدث العملاء
       const { data: recent } = await supabase
         .from('clients')
-        .select('*, agent:agents(id, name, email)')
+        .select('id, created_at, client_name, organization_name, activity_type, phone, phone2, address, notes, agent_id, active_devices_count, device_count, created_by, subscription_type, subscription_start, subscription_end, agent:agents(id, name, email)')
         .match(clientsFilter)
         .order('created_at', { ascending: false })
         .limit(5);

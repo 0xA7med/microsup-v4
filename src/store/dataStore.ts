@@ -621,7 +621,7 @@ async function loadAllData(currentUser: any, set: any) {
     while (hasMoreClients) {
       const { data: clientsData, hasMore } = await fetchAllBatched<ImportedClientType>(
         'clients', 
-        `${CLIENT_FIELDS}, agent:agents(${AGENT_FIELDS}), subscription_type, subscription_start, subscription_end`, 
+        `${CLIENT_FIELDS}, subscription_type, subscription_start, subscription_end, agent:agents(${AGENT_FIELDS})`, 
         page, 
         BATCH_SIZE,
         query => {

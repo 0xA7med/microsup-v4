@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 import {
   Search, Smartphone, Laptop, Eye, ChevronRight, ChevronUp, ChevronDown, ChevronLeft,
-  Copy, Check, Zap, AlertCircle, Clock, X, Filter, User, Users,
+  Copy, Check, Zap, AlertCircle, Clock, X, Filter, User, Users, XCircle,
   RefreshCw, Info, Package // Added Package icon
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -81,6 +81,8 @@ export const ClientsList: React.FC = () => {
 
   // --- Local UI State ---
   const [searchTerm, setSearchTerm] = useState('');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [activeFilter, setActiveFilter] = useState<string | null>(null); // 'active', 'expired', etc. OR 'allWithDevices'
   const [deviceFilter, setDeviceFilter] = useState<'mobile' | 'computer' | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(true);
@@ -107,6 +109,8 @@ export const ClientsList: React.FC = () => {
     const filterParam = params.get('filter');
     const deviceFilterParam = params.get('deviceFilter');
     const agentIdParam = params.get('agent_id');
+    const fromDateParam = params.get('fromDate');
+    const toDateParam = params.get('toDate');
 
     let currentActiveFilter: string | null = null;
     let currentDeviceFilter: 'mobile' | 'computer' | null = null;
@@ -121,6 +125,8 @@ export const ClientsList: React.FC = () => {
     let filtersChanged = false;
     setActiveFilter(prev => { if (prev !== currentActiveFilter) { filtersChanged = true; return currentActiveFilter; } return prev; });
     setDeviceFilter(prev => { if (prev !== currentDeviceFilter) { filtersChanged = true; return currentDeviceFilter; } return prev; });
+    setFromDate(prev => { if (prev !== (fromDateParam || '')) { filtersChanged = true; return fromDateParam || ''; } return prev; });
+    setToDate(prev => { if (prev !== (toDateParam || '')) { filtersChanged = true; return toDateParam || ''; } return prev; });
 
     if (filtersChanged) {
       setCurrentPage(1);
@@ -130,15 +136,34 @@ export const ClientsList: React.FC = () => {
 
   // --- Client-Side Data Processing (Filtering, Sorting, Device Expansion) ---
   const processedClients = useMemo(() => {
-    // console.log("ClientsList: Recalculating processedClients...");
-    if (!allClientsFromStore || !allDevicesFromStore) { return []; }
+    if (!allClientsFromStore || !allDevicesFromStore) return [];
 
     // Determine if *any* filter affecting the client list itself is active
-    const isClientListFilterActive = !!(searchTerm || activeFilter || deviceFilter);
+    const isClientListFilterActive = !!(searchTerm || activeFilter || deviceFilter || fromDate || toDate);
 
-    // 1. Enrich Client Data
-    const enrichedClients: DisplayClientType[] = allClientsFromStore
-      .filter(client => user?.role !== 'agent' || client.agent_id === user.id)
+    // 1. Initial Client Filtering (Agent Role, Date Range)
+    let filteredClientsInitial: ImportedClientType[] = allClientsFromStore.filter(client => {
+      // Agent Role Filter
+      if (user?.role === 'agent' && client.agent_id !== user.id) return false;
+
+      // Date Range Filter (based on client.created_at)
+      if (fromDate) {
+        const clientDate = new Date(client.created_at);
+        const filterFrom = new Date(fromDate);
+        if (clientDate < filterFrom) return false;
+      }
+      if (toDate) {
+        const clientDate = new Date(client.created_at);
+        const filterTo = new Date(toDate);
+        // Set to end of the day for inclusive filtering
+        filterTo.setHours(23, 59, 59, 999);
+        if (clientDate > filterTo) return false;
+      }
+      return true;
+    });
+
+    // 2. Enrich Client Data
+    const enrichedClients: DisplayClientType[] = filteredClientsInitial
       .map(client => {
         const clientDevices = allDevicesFromStore.filter(d => d.client_id === client.id);
         const deviceCount = clientDevices.length;
@@ -167,14 +192,14 @@ export const ClientsList: React.FC = () => {
         return { ...client, deviceCount, devices: clientDevices, mobileDevicesCount: mobileDevices.length, computerDevicesCount: computerDevices.length, approvedDevicesCount: approvedDevices.length, pendingDevicesCount: pendingDevices.length, rejectedDevicesCount: rejectedDevices.length, earliestEndDate, subscriptionTypes, totalPrice, mobilePrice, computerPrice, showDevices: userExpandedClients.has(client.id) };
       });
 
-    // 2. Apply Search Filter
+    // 3. Apply Search Filter
     let filteredClients = enrichedClients;
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       filteredClients = enrichedClients.filter(client => (client.client_name?.toLowerCase().includes(lowerSearchTerm) || client.organization_name?.toLowerCase().includes(lowerSearchTerm) || client.phone?.includes(lowerSearchTerm) || client.phone2?.includes(lowerSearchTerm) || client.notes?.toLowerCase().includes(lowerSearchTerm) || client.devices.some(device => device.activation_code?.toLowerCase().includes(lowerSearchTerm) || device.email?.toLowerCase().includes(lowerSearchTerm) || device.notes?.toLowerCase().includes(lowerSearchTerm))));
     }
 
-    // 3. Apply Active Filter (Status, Agent, etc.)
+    // 4. Apply Active Filter (Status, Agent, etc.)
     const now = new Date();
     const fifteenDaysLater = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
 
@@ -190,17 +215,17 @@ export const ClientsList: React.FC = () => {
       else if (activeFilter.startsWith('agent_')) { const agentId = activeFilter.replace('agent_', ''); filteredClients = filteredClients.filter(c => c.agent_id === agentId); }
     }
 
-    // 4. Apply Device Type Filter
+    // 5. Apply Device Type Filter
     if (deviceFilter) { filteredClients = filteredClients.filter(client => client.devices.some(device => (deviceFilter === 'mobile' ? device.device_type !== 'computer' : device.device_type === 'computer'))); }
 
-    // 5. Determine which clients should have devices shown automatically
+    // 6. Determine which clients should have devices shown automatically
     if (isClientListFilterActive) { // Expand devices if any filter/search is active
      // filteredClients = filteredClients.map(client => ({ ...client, showDevices: Boolean(userExpandedClients.has(client.id)) }));
       filteredClients = filteredClients.map(client => ({ ...client, showDevices: true || userExpandedClients.has(client.id) }));
 
     }
 
-    // 6. Apply Sorting
+    // 7. Apply Sorting
     if (sortConfig) {
       filteredClients.sort((a, b) => {
         const { key, direction } = sortConfig;
@@ -218,10 +243,10 @@ export const ClientsList: React.FC = () => {
       });
     }
 
-    // 7. Update Processed State
+    // 8. Update Processed State
     // console.log(`ClientsList: Finished processing. ${filteredClients.length} clients match criteria.`);
     return filteredClients;
-  }, [allClientsFromStore, allDevicesFromStore, searchTerm, activeFilter, deviceFilter, sortConfig, user, userExpandedClients]);
+  }, [allClientsFromStore, allDevicesFromStore, searchTerm, activeFilter, deviceFilter, sortConfig, user, userExpandedClients, fromDate, toDate]);
 
 
   // --- Client-Side Pagination ---
@@ -461,12 +486,53 @@ export const ClientsList: React.FC = () => {
                            </select>
                        </div>
                    )}
+                   {/* Date Range Filter */}
+                   <div className="flex flex-col sm:flex-row gap-4 items-end">
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 mr-1">
+                                {t('common.dateFrom', 'من تاريخ')}
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full pl-3 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                value={fromDate}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFromDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1 mr-1">
+                                {t('common.dateTo', 'إلى تاريخ')}
+                            </label>
+                            <input
+                                type="date"
+                                className="w-full pl-3 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-primary-500 focus:border-primary-500 outline-none"
+                                value={toDate}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setToDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="flex-none flex items-end">
+                            <button
+                                onClick={() => {
+                                    setFromDate('');
+                                    setToDate('');
+                                    setSearchTerm('');
+                                    handleFilterChange(null, null); // Clear other filters as well
+                                }}
+                                className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                                title={t('common.resetFilters', 'إعادة ضبط الفلاتر')}
+                            >
+                                <XCircle className="w-6 h-6" />
+                            </button>
+                        </div>
+                   </div>
                    {/* Clear Filters Button */}
-                   {(activeFilter || deviceFilter) && (<div className="pt-2"><Button onClick={() => handleFilterChange(null, null)} variant="outline" size="sm" className="flex items-center gap-1 text-red-600 dark:text-red-400 border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><X size={16}/>{t('clientsList.clearFilters', 'إلغاء جميع الفلاتر')}</Button></div>)}
+                   {(activeFilter || deviceFilter || fromDate || toDate) && (<div className="pt-2"><Button onClick={() => { setFromDate(''); setToDate(''); handleFilterChange(null, null); }} variant="outline" size="sm" className="flex items-center gap-1 text-red-600 dark:text-red-400 border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><X size={16}/>{t('clientsList.clearFilters', 'إلغاء جميع الفلاتر')}</Button></div>)}
                </div>
            )}
        </div>
-   ), [filtersOpen, t, activeFilter, deviceFilter, user, allAgentsFromStore, handleFilterChange]);
+   ), [filtersOpen, t, activeFilter, deviceFilter, user, allAgentsFromStore, handleFilterChange, fromDate, toDate]);
 
   const renderedSearch = useMemo(() => (
     <div className="relative mb-6">
@@ -509,7 +575,7 @@ export const ClientsList: React.FC = () => {
                Array.from({ length: 10 }).map((_, index) => <SkeletonRow key={`skeleton-${index}`}/>)
              )}
              {!isLoadingStore && paginatedClients.length === 0 && (
-               <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">{searchTerm || activeFilter || deviceFilter ? t('clientsList.noClientsMatch', 'لا يوجد عملاء يطابقون المعايير.') : t('clientsList.noClientsYet', 'لا يوجد عملاء بعد.')}</td></tr>
+               <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">{searchTerm || activeFilter || deviceFilter || fromDate || toDate ? t('clientsList.noClientsMatch', 'لا يوجد عملاء يطابقون المعايير.') : t('clientsList.noClientsYet', 'لا يوجد عملاء بعد.')}</td></tr>
              )}
              {!isLoadingStore && paginatedClients.map(client => {
                  const devicesToDisplay = client.showDevices ? filterDevicesForDisplay(client.devices) : [];
