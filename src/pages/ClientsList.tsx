@@ -89,7 +89,6 @@ export const ClientsList: React.FC = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedCodes, setCopiedCodes] = useState<{ [key: string]: boolean }>({});
-  const [processedClients, setProcessedClients] = useState<DisplayClientType[]>([]);
   const [paginatedClients, setPaginatedClients] = useState<DisplayClientType[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   const [userExpandedClients, setUserExpandedClients] = useState<Set<string>>(new Set());
@@ -130,9 +129,9 @@ export const ClientsList: React.FC = () => {
   }, [location.search]);
 
   // --- Client-Side Data Processing (Filtering, Sorting, Device Expansion) ---
-  useMemo(() => {
+  const processedClients = useMemo(() => {
     // console.log("ClientsList: Recalculating processedClients...");
-    if (!allClientsFromStore || !allDevicesFromStore) { setProcessedClients([]); return; }
+    if (!allClientsFromStore || !allDevicesFromStore) { return []; }
 
     // Determine if *any* filter affecting the client list itself is active
     const isClientListFilterActive = !!(searchTerm || activeFilter || deviceFilter);
@@ -221,8 +220,7 @@ export const ClientsList: React.FC = () => {
 
     // 7. Update Processed State
     // console.log(`ClientsList: Finished processing. ${filteredClients.length} clients match criteria.`);
-    setProcessedClients(filteredClients);
-
+    return filteredClients;
   }, [allClientsFromStore, allDevicesFromStore, searchTerm, activeFilter, deviceFilter, sortConfig, user, userExpandedClients]);
 
 
