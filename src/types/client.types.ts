@@ -11,7 +11,7 @@ export interface ClientType {
   activity_type: string;
   phone: string;
   phone2?: string;
-  activation_code: string;
+  activation_code?: string; // جعله اختياريًا
   subscription_type: string;
   subscription_start: string;
   subscription_end: string;
@@ -20,7 +20,7 @@ export interface ClientType {
   address?: string;
   active_devices_count?: number;
   device_count?: number;
-  device_type: string;
+  device_type?: string; // جعله اختياريًا
   agent?: Agent; // إضافة خاصية agent كاختيارية
   devices?: DeviceType[]; // إضافة خاصية devices كاختيارية
 }

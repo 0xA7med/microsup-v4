@@ -16,7 +16,7 @@ const BACKGROUND_BATCH_SIZE = 1000; // حجم دفعة كبير للتحميل �
 
 // تحديد الحقول المطلوبة لكل جدول لتقليل حجم البيانات المنقولة
 const CLIENT_FIELDS = 'id, client_name, organization_name, phone, phone2, address, activity_type, agent_id, created_at, notes';
-const DEVICE_FIELDS = 'id, client_id, device_type, activation_code, subscription_type, subscription_start, subscription_end, price, approval_status, created_at, email';
+const DEVICE_FIELDS = 'id, client_id, device_type, activation_code, subscription_type, subscription_start, subscription_end, price, approval_status, created_at, email, notes';
 const AGENT_FIELDS = 'id, name, email, role';
 
 interface DataState {
@@ -548,7 +548,7 @@ const useDataStore = create<DataState>((set, get) => ({
       // إذا لم يكن العميل موجودًا في المخزن، جلب بياناته من قاعدة البيانات
       const { data, error } = await supabase
         .from('clients')
-        .select(`${CLIENT_FIELDS}, subscription_type, subscription_start, subscription_end, activation_code, device_type, agent:agents(${AGENT_FIELDS}), devices(${DEVICE_FIELDS})`)
+        .select(`${CLIENT_FIELDS}, subscription_type, subscription_start, subscription_end, agent:agents(${AGENT_FIELDS}), devices(${DEVICE_FIELDS})`)
         .eq('id', clientId)
         .single();
         
@@ -621,7 +621,7 @@ async function loadAllData(currentUser: any, set: any) {
     while (hasMoreClients) {
       const { data: clientsData, hasMore } = await fetchAllBatched<ImportedClientType>(
         'clients', 
-        `${CLIENT_FIELDS}, agent:agents(${AGENT_FIELDS}), subscription_type, subscription_start, subscription_end, activation_code, device_type`, 
+        `${CLIENT_FIELDS}, agent:agents(${AGENT_FIELDS}), subscription_type, subscription_start, subscription_end`, 
         page, 
         BATCH_SIZE,
         query => {

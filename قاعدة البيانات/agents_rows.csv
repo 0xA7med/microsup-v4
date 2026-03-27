@@ -1,0 +1,4 @@
+id,email,name,role,phone,address,created_at,created_by,password,approval_status
+409263b0-68db-45c6-b37b-769e6e7f8d0a,MM@GMAIL.COM,mm,agent,01124546845,الزقازيق,2025-04-23 21:15:09.492416+00,,123456789,approved
+b576cbfb-458a-4f98-856b-4ef4f8e81618,mohamedamer2004@gmail.com,"محمد ",admin,01002808714,سرابيوم الاسماعيليه,2025-04-22 15:18:53.772037+00,,01002808714,approved
+cd6456f3-61fb-4012-8065-92f5b8ab1a45,zeero4123@gmail.com,Ahmed Mohamed,admin,01026043165,سرابيوم الاسماعيلية,2025-03-09 05:08:24.148077+00,425d40bc-dbbf-4ed2-801d-1c879ff7103d,azwk3kyP,approved

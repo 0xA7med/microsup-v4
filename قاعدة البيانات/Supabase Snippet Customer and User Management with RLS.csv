@@ -1,0 +1,4 @@
+?column?
+ALTER TABLE clients ADD CONSTRAINT clients_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES agents (id);
+ALTER TABLE devices ADD CONSTRAINT devices_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES agents (id);
+ALTER TABLE devices ADD CONSTRAINT devices_client_id_fkey FOREIGN KEY (client_id) REFERENCES clients (id);

@@ -1,0 +1,58 @@
+create_table
+"CREATE TABLE agents (
+  id uuid NOT NULL,
+  email text NOT NULL,
+  name text NOT NULL,
+  role text NOT NULL,
+  phone text NOT NULL,
+  address text NOT NULL,
+  created_at timestamp with time zone,
+  created_by uuid,
+  password text,
+  approval_status character varying(255)
+);"
+"CREATE TABLE backups (
+  id integer NOT NULL,
+  created_at timestamp with time zone,
+  created_by uuid,
+  file_name text NOT NULL,
+  data jsonb NOT NULL,
+  stats jsonb,
+  notes text
+);"
+"CREATE TABLE clients (
+  id uuid NOT NULL,
+  client_name text NOT NULL,
+  organization_name text NOT NULL,
+  activity_type text NOT NULL,
+  phone text NOT NULL,
+  address text NOT NULL,
+  device_count integer NOT NULL,
+  notes text,
+  agent_id uuid NOT NULL,
+  created_at timestamp with time zone,
+  created_by uuid,
+  phone2 text,
+  active_devices_count integer,
+  subscription_end timestamp with time zone,
+  subscription_type text,
+  subscription_start timestamp with time zone
+);"
+"CREATE TABLE devices (
+  id uuid NOT NULL,
+  client_id uuid,
+  activation_code text NOT NULL,
+  subscription_start date NOT NULL,
+  subscription_end date NOT NULL,
+  subscription_type text NOT NULL,
+  device_type text NOT NULL,
+  notes text,
+  created_at timestamp with time zone,
+  updated_at timestamp with time zone,
+  approval_status character varying(20),
+  approval_date timestamp without time zone,
+  approved_by uuid,
+  rejection_reason text,
+  price numeric,
+  email character varying(255)
+);"
