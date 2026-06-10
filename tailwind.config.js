@@ -4,6 +4,10 @@ export default {
   darkMode: ['class', 'class'],
   theme: {
   	extend: {
+  		fontFamily: {
+  			heading: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+  			body: ['Inter', 'system-ui', 'sans-serif'],
+  		},
   		colors: {
   			primary: {
   				'50': '#f5f3ff',
@@ -62,7 +66,11 @@ export default {
   			slideUp: 'slideUp 0.3s ease-out forwards',
   			fadeIn: 'fadeIn 0.3s ease-out forwards',
   			fadeOut: 'fadeOut 0.3s ease-out forwards',
-  			'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+  			'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+  			'scale-in': 'scaleIn 0.4s ease-out forwards',
+  			'shimmer': 'shimmer 2s infinite linear',
+  			'float': 'float 6s ease-in-out infinite',
+  			'checkmark': 'checkmark 0.6s ease-out forwards',
   		},
   		keyframes: {
   			slideDown: {
@@ -100,7 +108,24 @@ export default {
   				'100%': {
   					opacity: 0
   				}
-  			}
+  			},
+  			scaleIn: {
+  				'0%': { transform: 'scale(0.9)', opacity: '0' },
+  				'100%': { transform: 'scale(1)', opacity: '1' },
+  			},
+  			shimmer: {
+  				'0%': { backgroundPosition: '-200% 0' },
+  				'100%': { backgroundPosition: '200% 0' },
+  			},
+  			float: {
+  				'0%, 100%': { transform: 'translateY(0px)' },
+  				'50%': { transform: 'translateY(-20px)' },
+  			},
+  			checkmark: {
+  				'0%': { transform: 'scale(0)', opacity: '0' },
+  				'50%': { transform: 'scale(1.2)' },
+  				'100%': { transform: 'scale(1)', opacity: '1' },
+  			},
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

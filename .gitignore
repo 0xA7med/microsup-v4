@@ -41,3 +41,4 @@ Thumbs.db
 temp_batch.sql
 *.tmp
 *.temp
+.vercel
