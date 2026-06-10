@@ -66,25 +66,15 @@ export const LoginForm: React.FC = () => {
     e.preventDefault();
     setRegisterError('');
     setRegisterLoading(true);
-    
+
     try {
       // التحقق من الحقول المطلوبة
-      const requiredFields = [
-        { field: 'name', label: 'الاسم' },
-        { field: 'email', label: 'البريد الإلكتروني' },
-        { field: 'password', label: 'كلمة المرور' },
-        { field: 'confirmPassword', label: 'تأكيد كلمة المرور' },
-        { field: 'phone', label: 'رقم الهاتف' }
-      ];
-      
-      for (const { field, label } of requiredFields) {
-        if (!registerData[field as keyof typeof registerData]) {
-          setRegisterError(`الرجاء إدخال ${label}`);
-          setRegisterLoading(false);
-          return;
-        }
+      if (!registerData.name || !registerData.email || !registerData.password || !registerData.confirmPassword || !registerData.phone) {
+        setRegisterError('الرجاء إدخال جميع الحقول المطلوبة');
+        setRegisterLoading(false);
+        return;
       }
-      
+
       // التحقق من صحة البريد الإلكتروني
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(registerData.email)) {
@@ -92,175 +82,73 @@ export const LoginForm: React.FC = () => {
         setRegisterLoading(false);
         return;
       }
-      
+
       // التحقق من تطابق كلمات المرور
       if (registerData.password !== registerData.confirmPassword) {
         setRegisterError('كلمات المرور غير متطابقة');
         setRegisterLoading(false);
         return;
       }
-      
-      // تسجيل بيانات النموذج للتشخيص
-      console.log('بيانات التسجيل:', {
-        ...registerData,
-        password: '*****', // إخفاء كلمة المرور للأمان
-        confirmPassword: '*****'
-      });
-      
-      // 1. التحقق من وجود المستخدم في جدول agents قبل التسجيل
-      const checkResponse = await supabase
-        .from('agents')
-        .select('id')
-        .eq('email', registerData.email)
-        .maybeSingle();
-      
-      // تسجيل استجابة التحقق
-      console.log('استجابة التحقق من البريد الإلكتروني:', checkResponse);
-      
-      if (checkResponse.error) {
-        console.error('خطأ في التحقق من وجود المستخدم:', checkResponse.error);
-        throw new Error(`خطأ في التحقق من وجود المستخدم: ${checkResponse.error.message}`);
-      }
-      
-      if (checkResponse.data) {
-        throw new Error('البريد الإلكتروني مستخدم بالفعل');
-      }
-      
-      // 2. إنشاء UUID جديد للمستخدم باستخدام طريقة بسيطة
-      const userId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, 
-              v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-      console.log('تم إنشاء معرف المستخدم:', userId);
-      
-      // 3. تحضير بيانات المندوب
-      const agentData = {
-        id: userId,
+
+      // 1. إنشاء حساب في Supabase Auth (تشفير bcrypt آلي)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: registerData.email,
-        name: registerData.name,
-        role: 'agent',
-        phone: registerData.phone, // إزالة القيمة الاحتمالية null لأن الحقل مطلوب
-        address: registerData.address || null,
-        approval_status: 'pending',
-        password: registerData.password
-        // ملاحظة: تم إزالة is_active لأنه غير موجود في قاعدة البيانات
-      };
-      
-      console.log('بيانات المندوب للإدراج:', {
-        ...agentData,
-        password: '*****' // إخفاء كلمة المرور للأمان
+        password: registerData.password,
+        options: {
+          data: {
+            name: registerData.name,
+            phone: registerData.phone,
+            address: registerData.address || null,
+          }
+        }
       });
-      
-      // 4. إضافة المندوب إلى جدول agents
-      try {
-        const insertResponse = await supabase
-          .from('agents')
-          .insert(agentData)
-          .select();
-        
-        console.log('استجابة إدراج المندوب:', insertResponse);
-        
-        if (insertResponse.error) {
-          // تسجيل تفاصيل الخطأ
-          console.error('خطأ في إدراج المندوب:', {
-            message: insertResponse.error.message,
-            details: insertResponse.error.details,
-            hint: insertResponse.error.hint,
-            code: insertResponse.error.code
-          });
-          
-          throw new Error(`فشل إضافة المندوب: ${insertResponse.error.message || 'خطأ غير معروف'}`);
+
+      if (signUpError) {
+        if (signUpError.message?.includes('already registered') || signUpError.message?.includes('already exists')) {
+          throw new Error('البريد الإلكتروني مستخدم بالفعل');
         }
-        
-        if (!insertResponse.data || insertResponse.data.length === 0) {
-          console.error('لم يتم إرجاع بيانات بعد الإدراج');
-          throw new Error('فشل إضافة المندوب: لم يتم إرجاع بيانات');
-        }
-        
-        // 5. نجاح العملية
-        console.log('تم إضافة المندوب بنجاح:', insertResponse.data[0].id);
-        
-        // إظهار رسالة نجاح
-        setRegisterSuccess(true);
-        toast.success('تم إنشاء الحساب بنجاح! بانتظار موافقة المدير');
-        
-        // إعادة تعيين نموذج التسجيل
-        setRegisterData({
-          name: '',
-          email: '',
-          password: '',
-          confirmPassword: '',
-          phone: '',
-          address: ''
-        });
-      } catch (insertError: any) {
-        console.error('خطأ في عملية إدراج المندوب:', insertError);
-        throw insertError; // إعادة إلقاء الخطأ ليتم التقاطه في كتلة الـ catch الخارجية
+        throw new Error(signUpError.message || 'فشل إنشاء الحساب');
       }
+
+      if (!authData.user) {
+        throw new Error('فشل إنشاء الحساب: لم يتم إنشاء المستخدم');
+      }
+
+      // 2. إضافة بيانات المندوب في جدول agents
+      const { error: insertError } = await supabase
+        .from('agents')
+        .insert({
+          email: registerData.email,
+          name: registerData.name,
+          role: 'agent',
+          phone: registerData.phone || '',
+          address: registerData.address || null,
+          approval_status: 'pending',
+          is_active: true,
+        });
+
+      if (insertError) {
+        console.error('فشل إدراج بيانات المندوب:', insertError);
+        // المستخدم تم إنشاؤه في Auth ولكن فشل إدراج بياناته
+        toast.error('تم إنشاء الحساب ولكن حدث خطأ في إعداد البيانات. يرجى التواصل مع المدير.');
+      }
+
+      // 3. نجاح العملية
+      setRegisterSuccess(true);
+      toast.success('تم إنشاء الحساب بنجاح! بانتظار موافقة المدير');
+
+      // إعادة تعيين النموذج
+      setRegisterData({
+        name: '', email: '', password: '', confirmPassword: '', phone: '', address: ''
+      });
     } catch (err: any) {
-      // تحسين طريقة عرض الخطأ
       console.error('Error registering agent:', err);
-      
-      // محاولة تسجيل تفاصيل الخطأ بطريقة آمنة
-      try {
-        const errorProps: Record<string, unknown> = {};
-        // الحصول على جميع خصائص الخطأ
-        Object.getOwnPropertyNames(err).forEach(prop => {
-          errorProps[prop] = err[prop as keyof typeof err];
-        });
-        console.log('تفاصيل الخطأ:', JSON.stringify(errorProps, null, 2));
-      } catch (jsonError) {
-        console.error('فشل تحويل الخطأ إلى JSON:', jsonError);
-      }
-      
-      // التعامل مع أنواع مختلفة من الأخطاء
+
       let errorMessage = 'حدث خطأ أثناء تسجيل الحساب';
-      
       if (err.message) {
         errorMessage = err.message;
       }
-      
-      // التحقق من أخطاء محددة
-      if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
-        errorMessage = 'البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد إلكتروني آخر.';
-      }
-      
-      // التحقق من أخطاء not-null constraint
-      if (err.code === '23502' || (err.message && err.message.includes('violates not-null constraint'))) {
-        const columnMatch = err.message.match(/column "([^"]+)"/);
-        const columnName = columnMatch ? columnMatch[1] : null;
-        
-        if (columnName === 'phone') {
-          errorMessage = 'يجب إدخال رقم الهاتف';
-        } else if (columnName) {
-          // ترجمة أسماء الأعمدة إلى العربية
-          const columnLabels: {[key: string]: string} = {
-            'name': 'الاسم',
-            'email': 'البريد الإلكتروني',
-            'password': 'كلمة المرور',
-            'address': 'العنوان'
-          };
-          errorMessage = `يجب إدخال ${columnLabels[columnName] || columnName}`;
-        } else {
-          errorMessage = 'يرجى التأكد من إدخال جميع البيانات المطلوبة';
-        }
-      }
-      
-      // التحقق من أخطاء الاتصال
-      if (err.code === 'PGRST301' || (err.message && err.message.includes('connection'))) {
-        errorMessage = 'فشل الاتصال بقاعدة البيانات. الرجاء التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
-      }
-      
-      // تحسين رسائل الخطأ العامة
-      if (errorMessage.includes('خطأ في التحقق من وجود المستخدم')) {
-        errorMessage = 'حدث خطأ أثناء التحقق من البريد الإلكتروني. الرجاء المحاولة مرة أخرى.';
-      }
-      
-      if (errorMessage.includes('فشل إضافة المندوب')) {
-        errorMessage = 'حدث خطأ أثناء إنشاء الحساب. الرجاء التأكد من إدخال جميع البيانات المطلوبة والمحاولة مرة أخرى.';
-      }
-      
+
       setRegisterError(errorMessage);
     } finally {
       setRegisterLoading(false);

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { User, Phone, MapPin, Mail, Lock, UserPlus, X, UserCog, ArrowRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, getAdminClient } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import AgentField from '../components/AgentField';
 import AgentInput from '../components/AgentInput';
 import AgentSelect from '../components/AgentSelect';
 import toast from 'react-hot-toast';
 
-// تعريف نوع المندوب
+// تعريف نوع المندوب (نموذج محلي - لا يشمل كلمة المرور المخزنة)
 interface AgentType {
   id?: string;
   email: string;
@@ -16,7 +16,6 @@ interface AgentType {
   phone?: string;
   address?: string;
   role: string;
-  password?: string;
   created_at?: string;
 }
 
@@ -27,7 +26,7 @@ export const AddAgent: React.FC = () => {
   const isEditMode = !!id;
   
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<AgentType & { confirmPassword: string }>({
+  const [formData, setFormData] = useState<AgentType & { password: string; confirmPassword: string }>({
     email: '',
     name: '', 
     phone: '',
@@ -80,8 +79,8 @@ export const AddAgent: React.FC = () => {
     e.preventDefault();
     setError('');
     
-    // التحقق من كلمة المرور فقط إذا كنا في وضع الإضافة أو تم تغيير كلمة المرور في وضع التعديل
-    if (!isEditMode || (formData.password && formData.password.length > 0)) {
+    // التحقق من تطابق كلمة المرور فقط إذا تم إدخالها
+    if (formData.password && formData.password.length > 0) {
       if (formData.password !== formData.confirmPassword) {
         setError('كلمات المرور غير متطابقة');
         return;
@@ -91,12 +90,11 @@ export const AddAgent: React.FC = () => {
     setLoading(true);
 
     try {
-      // التحقق من وجود المستخدم الحالي
       if (!user) {
         throw new Error('يجب تسجيل الدخول كمدير لإضافة أو تعديل مندوب');
       }
 
-      // تحضير البيانات للإرسال
+      // بيانات المندوب (بدون كلمة مرور - تدار عبر Supabase Auth)
       const agentData: Record<string, any> = {
         email: formData.email,
         name: formData.name, 
@@ -105,61 +103,103 @@ export const AddAgent: React.FC = () => {
         role: formData.role,
       };
 
-      let result;
-      
       if (isEditMode) {
-        // تحديث المندوب الموجود
-        result = await supabase
+        // ── تعديل مندوب موجود ──
+        
+        // 1. تحديث بيانات المندوب في جدول agents
+        const { error: updateError } = await supabase
           .from('agents')
           .update(agentData)
           .eq('id', id);
         
-        if (result.error) throw result.error;
+        if (updateError) throw updateError;
         
-        // تحديث كلمة المرور إذا تم تغييرها
+        // 2. تحديث كلمة المرور في Supabase Auth إذا تم تغييرها
         if (formData.password && formData.password.length > 0) {
-          // تحديث كلمة المرور مباشرة في جدول agents
-          const { error: passwordError } = await supabase
-            .from('agents')
-            .update({ password: formData.password })
-            .eq('id', id);
+          try {
+            const adminClient = getAdminClient();
             
-          if (passwordError) {
-            console.error('فشل تحديث كلمة المرور:', passwordError);
-            toast.error('تم تحديث بيانات المندوب ولكن فشل تحديث كلمة المرور');
+            // البحث عن مستخدم Auth بالبريد الإلكتروني
+            const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers();
+            
+            if (listError) throw listError;
+            
+            const authUser = users.find(u => u.email === formData.email);
+            
+            if (authUser) {
+              const { error: pwdError } = await adminClient.auth.admin.updateUserById(
+                authUser.id,
+                { password: formData.password }
+              );
+              
+              if (pwdError) {
+                console.error('فشل تحديث كلمة المرور في Auth:', pwdError);
+                toast.error('تم تحديث بيانات المندوب ولكن فشل تحديث كلمة المرور');
+              } else {
+                toast.success('تم تحديث كلمة المرور بنجاح');
+              }
+            } else {
+              console.warn('لم يتم العثور على مستخدم Auth للبريد:', formData.email);
+              toast.error('تم تحديث البيانات ولكن لم يتم العثور على حساب المصادقة');
+            }
+          } catch (adminErr) {
+            console.error('فشل الاتصال بخدمة إدارة المستخدمين:', adminErr);
+            toast.error('تم تحديث البيانات ولكن فشل تحديث كلمة المرور (خدمة Auth غير متاحة)');
           }
         }
         
         toast.success('تم تحديث بيانات المندوب بنجاح');
       } else {
-        // إضافة كلمة المرور وحالة الموافقة
-        agentData.password = formData.password || '';
+        // ── إضافة مندوب جديد ──
         
-        // إذا كان المستخدم الحالي مديرًا والمندوب الجديد هو مندوب، نضع حالة الموافقة على "approved"
-        // وإلا إذا كان المستخدم الحالي مندوبًا يضيف مندوبًا آخر، نضع حالة الموافقة على "pending"
-        if (user.role === 'admin' && formData.role === 'agent') {
-          agentData.approval_status = 'approved';
-        } else if (formData.role === 'agent') {
-          agentData.approval_status = 'pending';
+        // 1. إنشاء حساب في Supabase Auth باستخدام المفتاح الإداري (service_role)
+        // ⚠️ يتطلب وجود VITE_SUPABASE_SERVICE_ROLE_KEY في ملف .env
+        const adminClient = getAdminClient();
+        
+        const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+          email: formData.email,
+          password: formData.password,
+          email_confirm: true,
+          user_metadata: {
+            name: formData.name,
+            role: formData.role,
+            phone: formData.phone,
+          }
+        });
+
+        if (authError) {
+          if (authError.message?.includes('already') || authError.message?.includes('exists')) {
+            throw new Error('البريد الإلكتروني مستخدم بالفعل');
+          }
+          throw new Error(authError.message || 'فشل إنشاء حساب المصادقة');
         }
-        
-        // إنشاء مندوب جديد في جدول agents
-        result = await supabase
+
+        // 2. إضافة بيانات المندوب في جدول agents
+        const insertData = {
+          ...agentData,
+          approval_status: (user.role === 'admin' && formData.role === 'agent') ? 'approved' : 'pending',
+        };
+
+        const { error: insertError } = await supabase
           .from('agents')
-          .insert(agentData);
-        
-        if (result.error) {
-          console.error('فشل إضافة المندوب:', result.error);
-          // عرض رسالة الخطأ الفعلية من قاعدة البيانات
-          const errorMessage = result.error.message || 'فشل إضافة المندوب إلى قاعدة البيانات';
-          const errorDetails = result.error.details ? ` (${result.error.details})` : '';
-          const errorCode = result.error.code ? ` [${result.error.code}]` : '';
-          throw new Error(`${errorMessage}${errorDetails}${errorCode}`);
+          .insert(insertData);
+
+        if (insertError) {
+          // فشل إدراج بيانات المندوب - حذف حساب Auth الذي تم إنشاؤه
+          console.error('فشل إضافة المندوب في جدول agents:', insertError);
+          if (authData.user) {
+            try {
+              await adminClient.auth.admin.deleteUser(authData.user.id);
+            } catch (cleanupErr) {
+              console.error('فشل تنظيف حساب Auth:', cleanupErr);
+            }
+          }
+          throw new Error(`فشل إضافة المندوب: ${insertError.message}`);
         }
-        
+
         toast.success('تم إضافة المندوب بنجاح');
         
-        if (formData.role === 'agent' && agentData.approval_status === 'pending') {
+        if (formData.role === 'agent' && insertData.approval_status === 'pending') {
           toast('سيتم مراجعة حساب المندوب من قبل المدير قبل أن يتمكن من تسجيل الدخول');
         } else {
           toast('يمكن للمندوب الآن تسجيل الدخول باستخدام البريد الإلكتروني وكلمة المرور');
@@ -169,28 +209,23 @@ export const AddAgent: React.FC = () => {
       navigate('/agents');
     } catch (err: any) {
       console.error('Error saving agent:', err);
-      // تحسين عرض رسالة الخطأ
+      
       let errorMessage = 'حدث خطأ أثناء حفظ بيانات المندوب';
       
       if (err.message) {
         errorMessage = err.message;
       }
       
-      // التحقق من أخطاء محددة مثل تكرار البريد الإلكتروني
       if (err.code === '23505' || (err.message && err.message.includes('duplicate key'))) {
         errorMessage = 'البريد الإلكتروني مستخدم بالفعل. الرجاء استخدام بريد إلكتروني آخر.';
       }
       
-      // التحقق من أخطاء الاتصال بقاعدة البيانات
       if (err.code === 'PGRST301' || (err.message && err.message.includes('connection'))) {
         errorMessage = 'فشل الاتصال بقاعدة البيانات. الرجاء التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
       }
       
       toast.error(errorMessage);
       setError(errorMessage);
-      
-      // طباعة تفاصيل الخطأ كاملة للتصحيح
-      console.log('تفاصيل الخطأ الكاملة:', JSON.stringify(err, null, 2));
     } finally {
       setLoading(false);
     }

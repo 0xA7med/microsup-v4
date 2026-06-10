@@ -23,7 +23,6 @@ export interface Database {
           is_active: boolean
           phone: string | null
           address: string | null
-          password: string | null
           approval_status: string | null
           created_at: string
           created_by: string | null
@@ -36,7 +35,6 @@ export interface Database {
           is_active?: boolean
           phone?: string | null
           address?: string | null
-          password?: string | null
           approval_status?: string | null
           created_at?: string
           created_by?: string | null
@@ -49,7 +47,6 @@ export interface Database {
           is_active?: boolean
           phone?: string | null
           address?: string | null
-          password?: string | null
           approval_status?: string | null
           created_at?: string
           created_by?: string | null

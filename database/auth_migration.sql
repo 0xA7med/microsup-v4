@@ -1,0 +1,57 @@
+-- ──────────────────────────────────────────────────────────
+-- MicroSUB MicroPOS V1 — Supabase Auth Migration
+-- ──────────────────────────────────────────────────────────
+-- This file is a REFERENCE for the auth.users → agents sync.
+-- It documents the desired schema-level behavior after the
+-- password security migration is complete.
+--
+-- PHASE 1 (current): App-level code uses supabase.auth.*
+--   + agents table retains `password` column (unused)
+--
+-- PHASE 2 (after all users migrated via scripts/migrate-users.cjs):
+--   + Drop `password` column from agents:
+--     ALTER TABLE public.agents DROP COLUMN IF EXISTS password;
+--   + (Optional) add trigger to auto-sync auth.users → agents
+--
+-- Phase 2 SQL (run AFTER all users migrated):
+-- ──────────────────────────────────────────────────────────
+
+-- 1. Remove NOT NULL constraint first (column has NOT NULL)
+-- ALTER TABLE public.agents ALTER COLUMN password DROP NOT NULL;
+
+-- 2. Null out existing passwords
+-- UPDATE public.agents SET password = NULL;
+
+-- 3. Remove plain-text password column
+-- ALTER TABLE public.agents DROP COLUMN IF EXISTS password;
+
+-- 2. Auto-create agents row when new auth user signs up
+-- CREATE OR REPLACE FUNCTION public.handle_new_user()
+-- RETURNS trigger
+-- LANGUAGE plpgsql
+-- SECURITY DEFINER SET search_path = ''
+-- AS $$
+-- BEGIN
+--   INSERT INTO public.agents (
+--     id, email, name, role, phone, address,
+--     approval_status, is_active
+--   ) VALUES (
+--     NEW.id,
+--     NEW.email,
+--     COALESCE(NEW.raw_user_meta_data ->> 'name', split_part(NEW.email, '@', 1)),
+--     COALESCE(NEW.raw_user_meta_data ->> 'role', 'agent'),
+--     NEW.raw_user_meta_data ->> 'phone',
+--     NEW.raw_user_meta_data ->> 'address',
+--     COALESCE(NEW.raw_user_meta_data ->> 'approval_status', 'pending'),
+--     true
+--   )
+--   ON CONFLICT (id) DO
+--     UPDATE SET email = EXCLUDED.email;
+--   RETURN NEW;
+-- END;
+-- $$;
+
+-- CREATE OR REPLACE TRIGGER on_auth_user_created
+--   AFTER INSERT ON auth.users
+--   FOR EACH ROW
+--   EXECUTE FUNCTION public.handle_new_user();

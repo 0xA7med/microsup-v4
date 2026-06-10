@@ -3,11 +3,8 @@ import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
 import toast from 'react-hot-toast';
 
-// ⚠️ FIXME: Plain-text password comparison is NOT secure.
-// Passwords should be hashed (bcrypt) and compared via Supabase Auth.
-// Priority: HIGH — migrate to supabase.auth.signInWithPassword()
+// ── Security: passwords are handled by Supabase Auth, never by the app ──
 
-// تعريف نوع المستخدم من نوع الصف agents
 type User = Database['public']['Tables']['agents']['Row'];
 
 interface AuthState {
@@ -26,127 +23,130 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
   sessionError: false,
+
   initializeAuth: async () => {
     try {
-      // التحقق من وجود بيانات المستخدم في التخزين المحلي
-      const storedUser = localStorage.getItem('currentUser');
-      
-      if (storedUser) {
-        try {
-          const userData = JSON.parse(storedUser);
-          
-          // التحقق من صحة البيانات المخزنة
-          if (userData && userData.id && userData.email) {
-            // التحقق من وجود المستخدم في قاعدة البيانات
-            const { data: agentData, error: agentError } = await supabase
-              .from('agents')
-              .select('*')
-              .eq('id', userData.id)
-              .single();
-            
-            if (agentError) {
-              console.error('Error fetching user data:', agentError);
-              localStorage.removeItem('currentUser');
-              set({ user: null, loading: false });
-              return;
-            }
-            
-            if (agentData) {
-              // التحقق من حالة الموافقة للمناديب
-              if (agentData.role === 'agent' && 'approval_status' in agentData && agentData.approval_status !== 'approved') {
-                localStorage.removeItem('currentUser');
-                set({ user: null, loading: false });
-                return;
-              }
-              
-              set({ user: agentData, loading: false });
-              return;
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing stored user data:', e);
-        }
-        
-        // إذا وصلنا إلى هنا، فهناك مشكلة في البيانات المخزنة
-        localStorage.removeItem('currentUser');
+      // 1. Check for existing Supabase Auth session (persisted in localStorage)
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        set({ user: null, loading: false });
+        return;
       }
-      
+
+      if (session?.user) {
+        // 2. Load agent profile from agents table using email as the link
+        const { data: agentData, error: agentError } = await supabase
+          .from('agents')
+          .select('*')
+          .eq('email', session.user.email)
+          .single();
+
+        if (agentError) {
+          if (agentError.code === 'PGRST116') {
+            // Auth user exists but no agent record — possible incomplete migration
+            console.warn('No agent record for auth user:', session.user.email);
+            await supabase.auth.signOut();
+          } else {
+            console.error('Error fetching agent:', agentError);
+            set({ sessionError: true });
+          }
+          set({ user: null, loading: false });
+          return;
+        }
+
+        if (agentData) {
+          // 3. Check approval for agent role
+          if (agentData.role === 'agent' && agentData.approval_status !== 'approved') {
+            await supabase.auth.signOut();
+            set({ user: null, loading: false });
+            return;
+          }
+
+          set({ user: agentData, loading: false });
+          return;
+        }
+      }
+
       set({ user: null, loading: false });
     } catch (error) {
       console.error('Error initializing auth:', error);
-      set({ user: null, loading: false });
+      set({ user: null, loading: false, sessionError: true });
     }
   },
+
   signIn: async (email: string, password: string) => {
     try {
-      // تحويل البريد الإلكتروني إلى أحرف صغيرة لتجنب الحساسية للأحرف الكبيرة والصغيرة
       const normalizedEmail = email.toLowerCase().trim();
-      console.log('Attempting to sign in with email:', normalizedEmail);
-      
-      // أولاً، نتحقق مما إذا كان البريد الإلكتروني موجودًا في جدول agents
+
+      // 1. Verify credentials via Supabase Auth (secure bcrypt hashing)
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (authError) {
+        console.error('Auth error:', authError);
+        if (authError.message?.includes('Invalid login credentials')) {
+          throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+        }
+        if (authError.message?.includes('Email not confirmed')) {
+          throw new Error('البريد الإلكتروني غير مؤكد. يرجى التحقق من بريدك الإلكتروني');
+        }
+        throw new Error(authError.message || 'فشل في تسجيل الدخول');
+      }
+
+      if (!authData.user) {
+        throw new Error('فشل في تسجيل الدخول: لم يتم الحصول على بيانات المستخدم');
+      }
+
+      // 2. Load agent profile from agents table
       const { data: agentData, error: agentError } = await supabase
         .from('agents')
         .select('*')
-        .ilike('email', normalizedEmail)
+        .eq('email', normalizedEmail)
         .single();
-      
+
       if (agentError) {
-        console.error('Error fetching agent data:', agentError);
+        console.error('Error loading agent data:', agentError);
         if (agentError.code === 'PGRST116') {
-          // لم يتم العثور على المستخدم
-          throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
+          // Auth succeeded but no agent record
+          await supabase.auth.signOut();
+          throw new Error('لم يتم العثور على حساب مندوب مرتبط بهذا البريد الإلكتروني');
         }
-        throw new Error('فشل في الحصول على بيانات المستخدم');
+        throw new Error('فشل في تحميل بيانات المستخدم');
       }
-      
-      if (!agentData) {
-        console.error('No agent data found for email:', email);
-        throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
-      }
-      
-      // التحقق من حالة الموافقة للمناديب قبل التحقق من كلمة المرور
-      // هذا يضمن ظهور رسالة مناسبة للمستخدمين الذين لم تتم الموافقة على حساباتهم بعد
+
+      // 3. Check approval status (for agents)
       if (agentData.role === 'agent' && agentData.approval_status) {
         if (agentData.approval_status !== 'approved') {
+          await supabase.auth.signOut();
           if (agentData.approval_status === 'pending') {
             throw new Error('حسابك قيد المراجعة. يرجى الانتظار حتى تتم الموافقة عليه من قبل المدير');
           } else if (agentData.approval_status === 'rejected') {
             throw new Error('REJECTED:تم رفض طلب تسجيلك. يرجى التواصل مع المدير للحصول على مزيد من المعلومات');
-          } else {
-            throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
           }
+          throw new Error('غير مصرح لك بتسجيل الدخول. يرجى التواصل مع المدير');
         }
       }
-      
-      // التحقق من كلمة المرور بعد التحقق من حالة الموافقة
-      if (agentData.password !== password) {
-        console.error('Password mismatch for email:', email);
-        throw new Error('البريد الإلكتروني أو كلمة المرور غير صحيحة');
-      }
-      
-      // التحقق من حالة نشاط الحساب
+
+      // 4. Check if account is active
       if (agentData.is_active === false) {
+        await supabase.auth.signOut();
         throw new Error('هذا الحساب غير نشط. يرجى التواصل مع المدير');
       }
 
-      // إذا كان المستخدم مديرًا أو مندوبًا معتمدًا، قم بتسجيل الدخول
-      console.log('Login successful for user:', agentData.name);
-      
-      // تخزين بيانات المستخدم في التخزين المحلي
-      localStorage.setItem('currentUser', JSON.stringify(agentData));
-      
       toast.success(`مرحباً ${agentData.name}!`);
       set({ user: agentData });
     } catch (error: any) {
-      console.error('Login process error:', error);
-      
-      // تحسين عرض رسائل الخطأ
+      console.error('Login error:', error);
+
       let errorMessage = error.message || 'حدث خطأ أثناء تسجيل الدخول';
-      
-      // التعامل مع رسائل الرفض بشكل خاص
+
       if (errorMessage.startsWith('REJECTED:')) {
         errorMessage = errorMessage.replace('REJECTED:', '');
-        toast.error(errorMessage, { 
+        toast.error(errorMessage, {
           icon: '❌',
           duration: 5000,
           style: { background: '#FFEBEE', color: '#D32F2F', fontWeight: 'bold' }
@@ -154,15 +154,14 @@ export const useAuthStore = create<AuthState>((set) => ({
       } else {
         toast.error(errorMessage);
       }
-      
+
       throw error;
     }
   },
+
   signOut: async () => {
     try {
-      // إزالة بيانات المستخدم من التخزين المحلي
-      localStorage.removeItem('currentUser');
-      
+      await supabase.auth.signOut();
       toast.success('تم تسجيل الخروج بنجاح');
       set({ user: null });
     } catch (error) {
@@ -170,51 +169,35 @@ export const useAuthStore = create<AuthState>((set) => ({
       throw error;
     }
   },
+
   setUser: (user) => set({ user }),
+
   refreshSession: async () => {
     try {
-      // التحقق من وجود بيانات المستخدم في التخزين المحلي
-      const storedUser = localStorage.getItem('currentUser');
-      
-      if (!storedUser) {
-        console.log('لا توجد بيانات مستخدم مخزنة، لا داعي لتحديث الجلسة');
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error || !session?.user) {
+        set({ sessionError: true });
         return;
       }
-      
-      try {
-        const userData = JSON.parse(storedUser);
-        
-        // التحقق من صحة البيانات المخزنة
-        if (userData && userData.id && userData.email) {
-          // التحقق من وجود المستخدم في قاعدة البيانات
-          const { data: agentData, error: agentError } = await supabase
-            .from('agents')
-            .select('*')
-            .eq('id', userData.id)
-            .single();
-          
-          if (agentError) {
-            console.error('Error fetching user data:', agentError);
-            set({ sessionError: true });
-            return;
-          }
-          
-          if (agentData) {
-            set({ user: agentData, sessionError: false });
-            return;
-          }
-        }
-      } catch (e) {
-        console.error('Error parsing stored user data:', e);
+
+      const { data: agentData, error: agentError } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('email', session.user.email)
+        .single();
+
+      if (agentError) {
+        set({ sessionError: true });
+        return;
       }
-      
-      // إذا وصلنا إلى هنا، فهناك مشكلة في البيانات المخزنة
-      localStorage.removeItem('currentUser');
-      set({ user: null, sessionError: true });
+
+      set({ user: agentData, sessionError: false });
     } catch (error) {
       console.error('Error refreshing session:', error);
       set({ sessionError: true });
     }
   },
+
   resetSessionError: () => set({ sessionError: false }),
 }));
