@@ -1,4 +1,7 @@
 {
+  "git": {
+    "productionBranch": "v5.0.0"
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
