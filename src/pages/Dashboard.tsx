@@ -13,7 +13,7 @@ import Button from '../components/Button';
 import { useAuthStore } from '../store/authStore';
 import RecentClientsList from '../components/RecentClientsList'; 
 import { useDataStore, shallow } from '../store/dataStore'; 
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 import ClientDetailsModal from '../components/ClientDetailsModal';
 
 export const Dashboard: React.FC = () => {
@@ -313,7 +313,7 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
           {/* Total Agents Card (Admin/Super Admin only) */}
-          {(user?.role === 'admin' || user?.role === 'super_admin') && (
+{user?.role === 'admin' && (
             <div
               className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg cursor-pointer transition-all hover:shadow-xl hover:scale-105"
               onClick={navigateToAgentsList}
@@ -483,7 +483,7 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* Financial Stats Section (Admin/Super Admin only) */}
-      {(user?.role === 'admin' || user?.role === 'super_admin') && (
+      {(user?.role === 'admin') && (
         <div className="mb-5">
           <div
             className="flex justify-between items-center bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-1 mt-4 cursor-pointer md:hidden"
@@ -549,8 +549,8 @@ export const Dashboard: React.FC = () => {
             navigateToClientsList={navigateToClientsList}
             refreshTrigger={refreshTrigger}
             handleShowDetails={handleShowClientDetails}
-            handleApproveDevice={user?.role === 'admin' || user?.role === 'super_admin' ? handleApproveDevice : undefined}
-            handleRejectDevice={user?.role === 'admin' || user?.role === 'super_admin' ? handleRejectDevice : undefined}
+            handleApproveDevice={user?.role === 'admin' ? handleApproveDevice : undefined}
+            handleRejectDevice={user?.role === 'admin' ? handleRejectDevice : undefined}
         />
 
        {/* Client Details Modal */}

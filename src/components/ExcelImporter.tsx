@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { Loader2 } from 'lucide-react';
 

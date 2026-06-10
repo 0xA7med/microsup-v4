@@ -108,8 +108,7 @@ export const AgentsList = () => {
         email: updatedAgent.email,
         phone: updatedAgent.phone || null,
         address: updatedAgent.address || null,
-        role: updatedAgent.role,
-        updated_at: new Date().toISOString()
+        role: updatedAgent.role
       };
       
       console.log('Prepared update data:', updateData);

@@ -15,7 +15,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabaseClient'; // Ensure correct path
+import { supabase } from '../lib/supabase'; // Ensure correct path
 import Button from '../components/Button';      // Ensure correct path
 import { useAuthStore } from '../store/authStore'; // Ensure correct path
 import ClientDetailsModal from '../components/ClientDetailsModal'; // Ensure correct path

@@ -47,7 +47,7 @@ function App() {
 
   // التحقق من صلاحيات المستخدم
   const isAdmin = user.role === 'admin';
-  const isManager = user.role === 'manager' || isAdmin;
+  const isManager = isAdmin;
 
   return (
     <BrowserRouter>

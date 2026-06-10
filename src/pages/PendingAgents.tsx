@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../lib/supabaseClient'; // Corrected import path
+import { supabase } from '../lib/supabase'; // Corrected import path
 import { AlertCircle, UserCheck, RefreshCw, CheckCircle, XCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';

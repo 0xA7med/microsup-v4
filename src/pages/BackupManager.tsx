@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveAs } from 'file-saver';
 import { format } from 'date-fns';
 import { FileText, RefreshCw, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'react-hot-toast';
 import { ExcelImporter } from '../components/ExcelImporter'; // تأكد من صحة المسار
 import { WhatsAppImporter } from '../components/WhatsAppImporter'; // تأكد من صحة المسار

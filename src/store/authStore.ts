@@ -1,7 +1,11 @@
 import { create } from 'zustand';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
 import toast from 'react-hot-toast';
+
+// ⚠️ FIXME: Plain-text password comparison is NOT secure.
+// Passwords should be hashed (bcrypt) and compared via Supabase Auth.
+// Priority: HIGH — migrate to supabase.auth.signInWithPassword()
 
 // تعريف نوع المستخدم من نوع الصف agents
 type User = Database['public']['Tables']['agents']['Row'];

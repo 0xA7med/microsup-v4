@@ -11,7 +11,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
 import ClientDetailsModal from '../components/ClientDetailsModal';
-import { supabase } from '../lib/supabaseClient'; // Ensure correct path
+import { supabase } from '../lib/supabase'; // Ensure correct path
 import { useAuthStore } from '../store/authStore';
 import { useDataStore, shallow } from '../store/dataStore';
 
@@ -477,7 +477,7 @@ export const ClientsList: React.FC = () => {
                        </div>
                    </div>
                    {/* Agent Filter */}
-                    {(user?.role === 'admin' || user?.role === 'super_admin') && allAgentsFromStore.length > 0 && (
+                    {user?.role === 'admin' && allAgentsFromStore.length > 0 && (
                        <div>
                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">{t('clientsList.agents', 'المندوبين')}: <Users size={14}/></h3>
                            <select className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white" value={activeFilter?.startsWith('agent_') ? activeFilter : ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleFilterChange(e.target.value || null, deviceFilter)}>

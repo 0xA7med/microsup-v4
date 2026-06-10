@@ -7,7 +7,7 @@ import { LanguageToggle } from './LanguageToggle';
 import { useAuthStore } from '../store/authStore';
 import { LogOut, Users, UserPlus, List, PlusCircle, UserCheck, Menu, X, Database, ClipboardList } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 
 // تعريف واضح لخصائص المكون
 interface LayoutProps {
@@ -39,7 +39,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   // جلب عدد طلبات المناديب المعلقة والأجهزة المعلقة
   useEffect(() => {
-    if (user?.role === 'admin' || user?.role === 'manager') {
+    if (user?.role === 'admin') {
       const fetchCounts = async () => {
         try {
           // جلب عدد طلبات المناديب المعلقة
@@ -96,7 +96,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   const isAdmin = user?.role === 'admin';
-  const isManager = user?.role === 'manager' || isAdmin;
+  const isManager = isAdmin;
   const isAgent = user?.role === 'agent' || isManager;
 
   const menuItems = [
@@ -161,8 +161,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const filteredMenuItems = menuItems.filter(item => {
     return item.roles.some(role => {
       if (role === 'agent') return isAgent;
-      if (role === 'manager') return isManager;
-      if (role === 'admin') return isAdmin;
+      if (role === 'manager' || role === 'admin') return isAdmin;
       return false;
     });
   });

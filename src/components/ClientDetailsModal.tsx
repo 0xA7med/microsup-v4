@@ -6,7 +6,7 @@ import {
   MessageSquare, UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 import Button from '../components/Button';
 import { ClientType, Agent, SubscriptionType, VersionType } from '../types/client.types';
 import CustomerField from './CustomerField';
@@ -557,7 +557,7 @@ export default function ClientDetailsModal({
                       </h4>
                       
                       {/* زر إضافة جهاز جديد - في الجانب على الشاشات الكبيرة وفي الوسط على الشاشات الصغيرة */}
-                      {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                      {(currentUser?.role === 'admin') && (
                         <div className="hidden sm:block">
                           <Button
                             variant="primary"
@@ -631,7 +631,7 @@ export default function ClientDetailsModal({
                             )}
                             
                             {/* أزرار التعديل والحذف للمديرين فقط */}
-                            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                            {(currentUser?.role === 'admin') && (
                               <>
                                 <button
                                   onClick={() => handleEditDevice(device)}
@@ -732,7 +732,7 @@ export default function ClientDetailsModal({
                                   )}
                                   
                                   {/* أزرار التعديل والحذف للمديرين فقط */}
-                                  {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                                  {(currentUser?.role === 'admin') && (
                                     <>
                                       <button
                                         onClick={() => handleEditDevice(device)}
@@ -759,7 +759,7 @@ export default function ClientDetailsModal({
                     </div>
                     
                     {/* زر إضافة جهاز جديد للشاشات الصغيرة فقط */}
-                    {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                    {(currentUser?.role === 'admin') && (
                       <div className="flex justify-center mt-4 sm:hidden">
                         <Button
                           variant="primary"
@@ -779,7 +779,7 @@ export default function ClientDetailsModal({
                     </div>
                     
                     {/* زر إضافة جهاز جديد عندما لا توجد أجهزة */}
-                    {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                    {(currentUser?.role === 'admin') && (
                       <div className="flex justify-center mt-4">
                         <Button
                           variant="primary"
@@ -822,7 +822,7 @@ export default function ClientDetailsModal({
             ) : (
               <>
                 {/* عرض أزرار التعديل والحذف للمديرين فقط */}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+                {(currentUser?.role === 'admin') && (
                   <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                     <Button
                       variant="danger" 

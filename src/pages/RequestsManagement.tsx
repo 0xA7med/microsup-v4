@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'; // Ensure correct path to your Tabs component
 import { PendingAgents } from './PendingAgents';
 import PendingDevicesPage from './PendingDevicesPage';
-import { supabase } from '../lib/supabaseClient'; // Ensure correct path
+import { supabase } from '../lib/supabase'; // Ensure correct path
 import { RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../store/authStore'; // Ensure correct path
 import { AlertCircle } from 'lucide-react'; // Import AlertCircle for unauthorized message

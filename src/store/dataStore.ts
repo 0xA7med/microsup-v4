@@ -1,7 +1,7 @@
 // src/store/dataStore.ts
 import create from 'zustand';
 import { shallow } from 'zustand/shallow'; // Import shallow for optimized selections
-import { supabase } from '../lib/supabaseClient'; // تأكد من صحة المسار
+import { supabase } from '../lib/supabase'; // تأكد من صحة المسار
 import { DashboardData } from '../types/dashboard.types'; // استورد أنواعك
 import { ClientType as ImportedClientType, Agent as ImportedAgent } from '../types/client.types'; // استورد أنواعك
 import type { DeviceType } from '../types/device.types'; // تحقق من الاستيراد الصحيح لنوع DeviceType
